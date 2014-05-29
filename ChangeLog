@@ -1,0 +1,8 @@
+v1.1.0
+2014-05-29 Yunfei Guo <yunfeigu@usc.edu>
+
+* Add GATK full version, Freebayes
+* Fix bugs related to multiple-sample variant calling
+* Improve performance under quick mode
+* Automatic detection and correction of chromosome naming across input
+* Other bug fixes
