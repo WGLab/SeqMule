@@ -1,0 +1,397 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use File::Basename qw/basename/;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+
+die "Usage: $0 [alias newfq oldfq...] <outdir> [sample1 sample2 ...]\n" if @ARGV<=1;
+
+my $install_dir=File::Spec->catdir($RealBin,"..","..");
+my %loc; #exe location
+my @unlink;
+my %original_input;
+while (my $next=shift @ARGV)
+{
+    if ($next=~/alias/i)
+    {
+	my $new=shift @ARGV;
+	$new=basename $new;
+	$new=~s/(.*)\.(fq|fastq|bam)/$1/i;
+	$new=~s/\./_/;
+	my $old=shift @ARGV;
+	$old=~s/(.*)\.(fq|fastq|bam)/$1/i;
+	$original_input{$new}=$old;
+    } else
+    {
+	unshift @ARGV,$next;
+	last;
+    }
+}
+my $outdir=shift @ARGV;
+my @samples=@ARGV; #take sample names as arguments
+
+die "ERROR: no $outdir exists!\n" unless -d $outdir;
+chdir $outdir or die "ERROR: Failed to enter $outdir\n";
+warn("Assume all results of each individual sample are put in a single folder\n");
+
+my $template_dir=File::Spec->catdir($RealBin,"..","..","misc","template");
+
+#help, pipeline pages are static
+!system("cp -rf $template_dir/* .") or die "ERROR: Failed to copy templates into $outdir: $!\n";
+
+&modStaticPage;
+&genParameterPage;
+&genSummaryPage;
+&genSamplePage;
+warn "SeqMule reports saved to $outdir\n";
+!system("rm -rf @unlink") or warn "Failed to remove @unlink: $!\n" if @unlink;
+
+#--------------------------SUBROUTINES-------------------------------
+
+sub stat_gen_for_summary
+{
+    my $sample=shift;
+    my $result_folder="${sample}_result";
+    my $result="";
+    my $aln_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_aln_stat.txt");
+    my $var_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_var_stat.txt");
+    my $cov_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_cov_stat.txt");
+    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file);
+
+    for my $item(@action)
+    {
+	if (-f $item)
+	{
+	    my @lines;
+	    open IN,'<',$item or die "Cannot read $item: $!\n";
+
+	    while(<IN>)
+	    {
+		next unless /=/;
+		chomp;
+		push @lines,[$1,$2] if /(.*?)=(.*)/;
+	    }
+	    close IN;
+	    next unless @lines;
+
+	    for (@lines[0..$#lines])
+	    {
+		if ($$_[0]=~/QC-passed reads/i)
+		{
+		    $result.="There are ".$$_[1]." QC-passed reads.</br>";
+		}
+		if ($$_[0]=~/Mapped reads/i)
+		{
+		    $result.=$$_[1]." reads are mapped. </br>";
+		}
+		if ($$_[0]=~/Fraction of reads mapped to target region/i)
+		{
+		    $result.=$$_[1]." reads are mapped to target region.</br>";
+		}
+		if ($$_[0]=~/Average coverage/i)
+		{
+		    $result.="Average coverage is ".$$_[1]." (in target region if this is captured sequencing).</br>";
+		}
+		if ($$_[0]=~/Number of SNPs/i)
+		{
+		    $result.=$$_[1]." SNPs are called.</br>";
+		}
+		if ($$_[0]=~/Number of indels/i)
+		{
+		    $result.=$$_[1]." indels are found.</br>";
+		}
+	    }
+	}
+    }
+
+    return $result;
+}
+sub stat_table_gen
+{
+    my $sample=shift;
+    my $result_folder="${sample}_result";
+    my $result="";
+    my $aln_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_aln_stat.txt");
+    my $var_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_var_stat.txt");
+    my $qc_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_qc_stat.txt");
+    my $cov_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_cov_stat.txt");
+    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file);
+
+    for my $item(@action)
+    {
+	if (-f $item)
+	{
+	    my @lines;
+	    open IN,'<',$item or die "Cannot read $item: $!\n";
+
+	    while(<IN>)
+	    {
+		next unless /=/;
+		chomp;
+		push @lines,[$1,$2] if /(.*?)=(.*)/;
+	    }
+	    close IN;
+	    next unless @lines;
+
+	    for (@lines[0..$#lines])
+	    {
+		if ($$_[1]=~/QC stats|Alignment stats|Variant stats|Coverage stats/)#for paired end sequencing data
+		{
+		    $result.="<table><caption>".$$_[1]."</caption>\n";
+		    $result.="<tr><td colspan=2>source: ".$$_[0]."</td></tr>\n";
+		} else
+		{
+		    $result.="<tr><td>".$$_[0]."</td><td>".$$_[1]."</td></tr>\n";
+		}
+	    }
+	    $result.="</table><br><br>\n";
+	}
+    }
+
+    return $result;
+}
+
+sub genParameterPage
+{
+    my $page=File::Spec->catfile("pages","parameter.html");
+    my $page_content=`cat $page`;
+    my $param_file="parameter.txt";
+    push @unlink,$param_file;
+    my @config_lines=&SeqMule::Utils::parsePipeline($param_file);
+
+    open OUT,'>',$page or die "Failed to write to $page: $!\n";
+
+    for (split /\n/,$page_content)
+    {
+	print OUT "$_\n";
+	if (/Samples/)
+	{
+	    print OUT "<ul>\n";
+	    for my $sample(@samples) #each sample name is unique
+	    {
+		print OUT "<li><a href='../$sample/$sample.html'>$sample</a></li>\n";
+	    }
+	    print OUT "<span></span>\n</ul>\n";
+	}
+	if (/templatemo_main/)
+	{
+	    #put everything in templatemo_main container
+	    print OUT "<h1>Analysis Steps and Parameters</h1>\n","<p>DISABLED steps are NOT shown here.</p>\n";
+	    for my $config(@config_lines)
+	    {
+		my ($program,$subprogram,$opt_ref)=@$config;
+		my $version;
+
+		if ($program =~/picard/i)
+		{
+		    $version = &SeqMule::Utils::getProgramVersion(
+			&getExe("SortSam.jar"),
+			&getExe(&SeqMule::Utils::getProgramExe("java")),
+		    );
+		} else
+		{
+		    $version = &SeqMule::Utils::getProgramVersion(
+			&getExe(&SeqMule::Utils::getProgramExe($program)),
+			&getExe(&SeqMule::Utils::getProgramExe("java")),
+		    );
+		}
+
+		if ($subprogram)
+		{
+		    print OUT "<h2>".&SeqMule::Utils::getProgramAlias($program)."(subprogram: $subprogram; version: $version)</h2>\n";
+		} else
+		{
+		    print OUT "<h2>".&SeqMule::Utils::getProgramAlias($program)."(version: $version)</h2>\n";
+		}
+
+		if (%$opt_ref)
+		{
+		    print OUT "<table>","<tr><th>Options</th><th>Values</th></tr>\n";
+		    for my $opt(keys %$opt_ref)
+		    {
+			my $value=$$opt_ref{$opt};
+			$value=~s/;/ /; #for some GATK options
+			print OUT "<tr>
+			<td>$opt</td>
+			<td>$value</td>
+			</tr>\n";
+		    }
+		    print OUT "</table><br><br>\n";
+		}
+	    }
+	}
+    }
+    close OUT;
+}
+sub genSummaryPage
+{
+#generate data summary page (for all samples)
+    my $page="summary.html";
+    my $log="log.txt";push @unlink,$log;
+    my $log_content=`cat $log`;
+    my $page_content=`cat $page`;
+
+    $log_content=~s/\n/<\/br>/g;
+    open OUT,'>',$page or die "Failed to write to $page:$!\n";
+
+    for (split /\n/,$page_content)
+    {
+	print OUT "$_\n";
+	if (/Samples/)
+	{
+	    print OUT "<ul>\n";
+	    for my $sample(@samples) #each sample name is unique
+	    {
+		print OUT "<li><a href='$sample/$sample.html'>$sample</a></li>\n";
+	    }
+	    print OUT "<span></span>\n</ul>\n";
+	}
+	if (/templatemo_main/)
+	{
+	    print OUT "<p>On IE, please ENABLE scripts or ActiveX.</p>\n";
+	    print OUT "<h1>Analysis Summary</h1>\n";
+	    print OUT "<p>$log_content</br></p>\n";
+
+	    print OUT "<h1>Result highlights</h1>\n";
+	    for my $sample(@samples)
+	    {
+		print OUT "<h2>$sample</h2>\n";
+		my $stat=&stat_gen_for_summary($sample);
+		print OUT "<p>$stat</p></br>\n" if $stat;
+	    }
+	    print OUT "<p></br><b>Details can be found on each SAMPLE page.</b></p>\n";
+	}
+    }
+    close OUT;
+}
+sub genSamplePage
+{
+#individual report for each sample
+    for my $sample(@samples)
+    {
+	my $page="sample.html";
+	my $out_page=File::Spec->catfile($sample,"$sample.html");
+	push @unlink,$page;
+	my $page_content=`cat $page`;
+	my $result_folder="${sample}_result";
+	my $stat_table=&stat_table_gen($sample);
+	my $fastqc_link;
+	my $venn=File::Spec->catfile("..",$result_folder,"${sample}_venn.jpg");
+	my $cov=File::Spec->catfile("..",$result_folder,"${sample}_cov.jpg");
+	my $fastqc_dir=File::Spec->catfile("..",$result_folder,"$sample*fastqc");
+	#keep a local copy such that reports can be downloaded and viewed independently
+	my $local_venn=File::Spec->catfile($sample,"${sample}_venn.jpg"); 
+	my $local_cov=File::Spec->catfile($sample,"${sample}_cov.jpg");
+
+	mkdir $sample unless -d $sample;
+
+	#copy FastQC report
+	for my $dir(glob $fastqc_dir) 
+	{
+	    my $local_dir=basename $dir;
+	    my ($file)= $local_dir =~ m/(.*?)_fastqc$/;
+	    #why not copy fastqc dir with the main program? since you dont know if fastqc will be run upon generating the script
+	    !system("cp -rf $dir $sample") or die "Cannot copy $dir to $sample: $!\n"; 
+	    # .. is necessary, since this link is relative page/ folder
+	    my $link=File::Spec->catfile("${file}_fastqc","fastqc_report.html"); 
+	    $file=~s/(.*)\.fq/$1/i;
+	    $fastqc_link.="<br>";
+	    #$fastqc_link.="<a href='$link'>$file ($original_input{$file})</a>";
+	    $fastqc_link.="<a href='$link'>$file</a>";
+	}
+
+	#copy images
+	!system("cp -f $venn $sample") or die "Failed to copy $venn to $sample:$!\n" if -f $venn;
+	!system("cp -f $cov $sample") or die "Failed to copy $cov to $sample:$!\n" if -f $cov;
+
+	open OUT,'>',$out_page or die "Failed to write to $out_page: $!\n";
+
+	for (split /\n/,$page_content)
+	{
+	    print OUT "$_\n";
+	    if (/Samples/)
+	    {
+		print OUT "<ul>\n<li><a href='$sample.html'>$sample</a></li>\n";
+		for my $other_sample(grep { $_ ne $sample } @samples) #each sample name is unique
+		{
+		    print OUT "<li><a href='../$other_sample/$other_sample.html'>$other_sample</a></li>\n";
+		}
+		print OUT "<span></span>\n</ul>\n";
+	    }
+
+	    if (/templatemo_main/)
+	    {
+		print OUT "<h1>$sample</h1>\n";
+		if ($fastqc_link)
+		{
+		    print OUT "<h2>Input Quality Assessment</h2>\n";
+		    print OUT $fastqc_link,"<br><br>\n";
+		}
+		if ($stat_table)
+		{
+		    print OUT "<h2>Statistics</h2>\n";
+		    print OUT $stat_table,"\n";
+		}
+		if (-f $local_venn)
+		{
+		    print OUT "<h2>Venn Diagram</h2>\n<p>Showing overlapping of up to 5 variant output</p>\n";
+		    print OUT "<img class='center' src='../$local_venn' width=500 height=500>\n"; #local_venn is relative to outdir
+		}
+		if (-f $local_cov)
+		{
+		    print OUT "<h2>Coverage Plot</h2>\n";
+		    print OUT "<img class='center' src='../$local_cov' width=500 height=500>\n";
+		}
+	    }
+	}
+	close OUT;
+    }
+}
+sub modStaticPage
+{
+    for my $item("help","pipeline","parameter")
+    {
+	my $page=File::Spec->catfile("pages","$item.html");
+	my $page_content=`cat $page`;
+
+	open OUT,'>',$page or die "Failed to write to $page: $!\n";
+
+	for (split /\n/,$page_content)
+	{
+	    print OUT "$_\n";
+	    if (/Samples/)
+	    {
+		print OUT "<ul>\n";
+		for my $sample(@samples) #each sample name is unique
+		{
+		    print OUT "<li><a href='../$sample/$sample.html'>$sample</a></li>\n";
+		}
+		print OUT "<span></span>\n</ul>\n";
+	    }
+	}
+	close OUT;
+    }
+}
+
+sub getExe
+{
+    for my $exename(@_)
+    {
+	if ($loc{$exename})
+	{
+	    return $loc{$exename};
+	} else
+	{
+	    if(my $exepath=&SeqMule::Utils::search($install_dir,$exename))
+	    {
+		$loc{$exename}=$exepath;
+		return $exepath;
+	    }
+	}
+    }
+    die "ERROR: Failed to find @_\n";
+}

@@ -1,0 +1,153 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+die "Usage: $0 <1.vcf 2.vcf ...>" unless @ARGV>=1;
+#remove duplicate alternative alleles in VCF, change GT accordingly. Do nothing else.
+
+@ARGV=&SeqMule::Utils::getNonEmptyVCF(@ARGV);
+
+for my $vcf(@ARGV)
+{
+    my $tmp="/tmp/$$".time.".vcfwithdupalt.tmp";
+    open IN,'<',$vcf or die "Failed to read $vcf: $!\n";
+    open TMP,'>',$tmp or die "Failed to write to $tmp: $!\n";
+
+    my $gtidx;
+    while (<IN>)
+    {
+	next if (/^##/);
+	chomp;
+	if (/^#/)
+	{
+	    my @f=split /\t/,$_;
+	    die "At least 10 columns expected in header: @f\n" unless @f>=10;
+	    #example header:CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA00001	NA00002	NA00003
+	} else
+	{
+	    #locate GT position
+	    my @f=split /\t/;
+	    my @format=split /:/,$f[8];
+
+	    for my $i(0..$#format)
+	    {
+		if ($format[$i] eq 'GT')
+		{
+		    die "Multiple GT fields found: @format\n" if defined $gtidx;
+		    $gtidx=$i;
+		}
+	    }
+	    last if defined $gtidx;
+	}
+    }
+
+    die "GT missing. Cannot proceed.\n" unless defined $gtidx;
+
+    seek IN,0,0; #go back to start
+
+    while (<IN>)
+    {
+	print TMP $_ and next if /^#/;
+
+	chomp;
+	my @f=split /\t/,$_;
+	my @alt=split /,/,$f[4];
+
+	if (&haveDup(@alt))
+	{#there is duplicate in alt allele
+	    my ($hash_ref,$noDupAlt_ref)=&returnSubHash(@alt);
+
+	    for my $sampleidx(9..$#f)
+	    {
+		my @format=split /:/,$f[$sampleidx];
+		my $gt=$format[$gtidx];
+		my @obs=split /[\/\|]/,$gt;
+		my @splitter= $gt=~/[\/\|]/g;
+
+
+		for my $i(0..$#obs)
+		{
+		    my $allele=$obs[$i];
+		    die "Number or . expected in GT field: @obs\n" unless $allele=~/^(\.|\d+)$/;
+		    if ($allele eq '.')
+		    {
+			1; #do nothing for unknown genotype
+		    } elsif (defined $$hash_ref{$allele-1})
+		    {
+			$obs[$i]=$$hash_ref{$allele-1}+1;
+		    }
+		}
+		#now observed alleles have been changed
+		$gt='';
+		for my $i(0..$#splitter)
+		{ #interleave @obs and @splitter
+	            $gt.="$obs[$i]$splitter[$i]";
+		    if ($i == $#splitter)
+		    {
+			$gt.=$obs[$i+1]; #append last element
+		    } 
+		}
+		$format[$gtidx]=$gt;
+
+		$f[$sampleidx]=join (":",@format);
+	    }
+	    $f[4]=join(",",@{$noDupAlt_ref});
+	} 
+	print TMP join ("\t",@f),"\n";
+    }
+
+    close IN;
+    close TMP;
+
+    !system("cp $tmp $vcf") or die "Failed to write results back to $vcf: $!\n";
+}
+
+##############SUBROUTINES#########################
+sub haveDup
+{
+    my %seen;
+    for (@_)
+    {
+	if ($seen{$_})
+	{
+           return 1;
+	}
+	$seen{$_}=1;
+    }
+    return undef;
+}
+
+sub returnSubHash
+{
+    #usage: my ($hash_ref,$array_ref)=&returnSubHash(@array);
+    #look for duplicates in @array, return duplicate-removed new array, return hash for substituting old index
+    #all numbers refer to index
+    my @array=@_;
+    my @newarray;
+    my %hash;
+    my %seen;
+
+    for my $i(0..$#array)
+    {
+	my $current=$array[$i];
+
+	if (defined $seen{$current})
+	{
+	    $hash{$i}=$seen{$current};
+	} else
+	{
+	    $seen{$current}=@newarray;
+	    push @newarray,$current;
+	}
+    }
+
+    return \%hash,\@newarray;
+}

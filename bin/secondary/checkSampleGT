@@ -1,0 +1,89 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use File::Basename qw/basename dirname/;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my ($help, $vcf,);
+
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'vcf=s'	        =>	\$vcf,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my $tmp="/tmp/$$".rand($$).".tmp.vcf";
+open OUT,'>',$tmp or die "ERROR: Failed to write to $tmp: $!\n";
+open IN,'<',$vcf or die "ERROR: Failed to read $vcf: $!\n";
+my $sample_count=0;
+
+while(<IN>)
+{
+    	if (/^#CHROM/)
+	{
+	    $sample_count=scalar(split /\t/,$_)-9;
+	    die "ERROR: At least one sample expected in $vcf!\n" unless $sample_count>=1;
+	} elsif (!/^#/)
+	{
+	    my $current_count=scalar(split /\t/,$_)-9;
+	    if ($current_count<$sample_count)
+	    {
+		chomp;
+		$_.="\t./."x($sample_count-$current_count);
+		$_.="\n";
+	    } elsif ($current_count>$sample_count)
+	    {
+		die "ERROR: There are more samples than defined in header at line $. of $vcf\n";
+	    }
+	}
+	print OUT;
+}
+close OUT;
+close IN;
+
+!system("mv $tmp $vcf") or die "ERROR: $!\n";
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+This script tries make the number of samples on each line is identical that specified in header
+
+Options:
+
+    #input and output
+    'vcf=s'	        =>	\$vcf,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

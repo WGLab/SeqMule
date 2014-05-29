@@ -1,0 +1,12 @@
+#!/usr/bin/env perl
+
+use warnings;
+use strict;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+
+die "Usage: $0 <seqmule script> <step> <commands...>\n" unless @ARGV>=3;
+my ($file,$step,@commands)=@ARGV;
+&SeqMule::Parallel::single_line_exec(@ARGV);

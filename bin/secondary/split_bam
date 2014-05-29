@@ -1,0 +1,216 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use File::Basename qw/basename/;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+
+my $MINBAM=100_000_000; #minimum bam file size, experimental
+my ($help,
+    $sortsam,$samtools,$java,$java_mem,$threads,$tmpdir,$bed,$no,);
+my @bam;
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'no=s'		=>	\$no,
+    'samtools=s'	=>	\$samtools,
+    'sortsam=s'		=>	\$sortsam,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'bam=s'		=>	\@bam,
+    'threads=i'		=>	\$threads,
+    'tmp=s'		=>	\$tmpdir,
+    'bed=s'		=>	\$bed,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my $host=`uname -n`;
+chomp $host;
+
+warn "NOTICE: Splitting BAM files into $threads parts.\n";
+warn "NOTICE: Temporary files will be saved at $tmpdir ".($host?"of host $host":"")."\n";
+#if no bed file
+#split each bam file by 'SN:' tag, output to '$TMP/partNO.oldbamfilename'
+#if bed file
+#split each bam based on BED regions
+#use $TMP to accerelate parallel i/o especially for centralized filesystem
+
+for my $bam(@bam)
+{
+    #small BED naming rule: $bam.i.bed
+    #these BED files will be deleted after all analysis has been done
+    my @small_bed=&SeqMule::Utils::splitRegion({samtools=>$samtools,threads=>$threads,bed=>$bed,bam=>$bam});
+
+    for (1..$threads)
+    {
+	next unless $_==$no;
+	my $newbam=File::Spec->catfile($tmpdir,"_${_}_.".(basename $bam));
+	my $region=$small_bed[$_-1];
+	!system("$samtools view -b -L $region $bam | $java -Xmx$java_mem -jar $sortsam INPUT=/dev/stdin OUTPUT=$newbam SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT") or die "Failed to split $bam files\n";
+        !system("$samtools index $newbam") or die "ERROR: failed to index $newbam\n";
+	my $size=-s $newbam;
+	warn "WARNING: $newbam is only $size bytes, probably too small. Continue anyway.\n" if $size<$MINBAM; #maybe problematic for some algorithms
+    }
+}
+
+##find this subroutine in SeqMule::Utils
+#sub splitRegion
+#{
+#
+#    #split regions in BAM header or BED file into n pieces
+#    my $MULTIPLIER=5; #n*multiplier is the total number of parts, each part is then assigned to n BED files by rotating, this way, the reads will be more uniformly distributed across regions defined by the new BED files.
+#    my $MINBIN=50_000; #minimum length for a part (total/n/multiplier), assume max read len=1000, 1% error rate
+#    my $MAXBIN=5_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
+#    my %opt=%{shift @_};
+#    my $n=$opt{threads};
+#    my $bed=$opt{bed};
+#    my $bam=$opt{bam};
+#    my $samtools=$opt{samtools};
+#    my @small_bed=map { "$bam.$_.bed" } (1..$n);
+#    my @intervals;
+#
+#    unless (defined $bed)
+#    {
+#	#if user doesn't give BED, we convert BAM header into BED
+#    $bed=&SeqMule::Utils::BAMHeader2BED($samtools,$bam);
+#    }
+#
+#    #if split region(total region/n/multiplier) is too small, refuse to split because reads will not be broken during splitting, splitting BAM into small regions will result in read duplicates
+#    my $total=&SeqMule::Utils::bed2total($bed);
+#    my $max_n=int $total/$MULTIPLIER/$MINBIN;
+#    if ($n>$max_n)
+#    {
+#	warn "ERROR: The region after splitting will become very small, and possibly result in biased read count.\n";
+#	if ($max_n>1)
+#	{
+#	    die "NOTICE: Please use at most $max_n threads, or do NOT use QUICK mode.\n";
+#	} else
+#	{
+#	    die "NOTICE: Please do NOT use QUICK mode.\n";
+#	}
+#    }
+#
+#    my $i=0;
+#    my $onerun=$MAXBIN>$total/$MULTIPLIER/$n? (int $total/$MULTIPLIER/$n):$MAXBIN; #choose smaller bin
+#    my $remain=$onerun;
+#
+#    for my $line(&SeqMule::Utils::readBED($bed))
+#    {
+#	#0-based start, 1-based end
+#	my ($chr,$start,$end)=@$line;
+#	my $last_pos=$start;
+#	my $pos=$last_pos+$remain;
+#	my $len=$end-$start;
+#
+#	while ($len>=$remain)
+#	{
+#	    $intervals[$i].="$chr\t$last_pos\t$pos\n";
+#	    $last_pos=$pos;
+#	    $pos+=$remain;
+#	    $len-=$remain;
+#	    $i = ($i+1) % $n;
+#	    $remain=$onerun;
+#	}
+#
+#	if ($len!=0 && $len<$remain)
+#	{
+#	    $remain-=$len;
+#	    $intervals[$i].="$chr\t$last_pos\t$end\n";
+#	}
+#    }
+#
+#    for my $i(0..$#small_bed)
+#    {
+#	open OUT,'>',$small_bed[$i] or die "ERROR: Failed to write to $small_bed[$i]: $!\n";
+#	print OUT $intervals[$i];
+#	close OUT;
+#    }
+#    return @small_bed;
+#}
+#
+#sub splitRegion
+#{
+#    my ($n,%chr)=@_;
+#    my $total_len=0; 
+#    my @intervals;
+#    map {$total_len+=$_} (values %chr);
+#
+#    my $bin=int $total_len/$n;
+#    warn "WARNING: Bin size is $bin. Too small. Consider run in non-parallel mode\n" if $bin < $MINBIN; 
+#
+#    my $walk=0;
+#    my $i=0;
+#    my $remain=$bin;
+#    my $last_pos;
+#    for my $j(sort keys %chr)
+#    {
+#	my $len=$chr{$j};
+#	my $pos=1;
+#	$last_pos=1;
+#
+#	if ($i==$n-1) #last region
+#	{
+#	    $intervals[$i].="$j:1-$len ";
+#	    next;
+#	} else
+#	{
+#	    while ($len-$pos+1>=$remain)
+#	    {
+#		$last_pos=$pos;
+#		$pos+=$remain-1;
+#		$intervals[$i].="$j:$last_pos-$pos ";
+#		$i++;
+#		$remain=$bin;
+#	    }
+#	    $intervals[$i].="$j:$pos-$len ";
+#	    $remain-=($len-$pos+1);
+#	}
+#    }
+#    return @intervals;
+#}
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'samtools=s'	=>	\$samtools,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'bam=s'		=>	\@bam,
+    'threads=i'		=>	\$threads,
+    'tmp=s'		=>	\$tmpdir,
+    'bed=s'		=>	\$bed,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

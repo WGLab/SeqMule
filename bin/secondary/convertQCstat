@@ -1,0 +1,30 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+die "Usage: $0 <fastq or bam file> <alias> <out>\n" unless @ARGV==3;
+
+my $file=shift @ARGV;
+my $alias=shift @ARGV;
+my $out=shift @ARGV;
+
+die "Input FASTQ file must have .fq or .fastq suffix, input BAM file must have .bam suffix\n" unless $file=~/(.*)\.(fq|fastq|bam)$/i;
+
+my $folder= ($2 eq 'fq' ? $file : $1)."_fastqc";
+my $summary= ($2 eq 'fq' ? $file : $1)."_fastqc/summary.txt";
+open OUT,'>>',$out or die "Can't write to $out: $!\n";
+if (-f $summary)
+{
+    open IN,'<',$summary or die "Cannot open $summary: $!\n";
+    print OUT "$alias=QC stats\n";
+    while(<IN>)
+    {
+	print OUT "$2=$1\n" if /(PASS|FAIL|WARN)\t(.*?)\t/;
+    }
+    close IN;
+} else
+{
+    warn "Cannot find $file report.\n";
+}
+close OUT;

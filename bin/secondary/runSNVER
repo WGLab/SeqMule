@@ -1,0 +1,119 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my ($advanced,$n,$help,
+    $java,    $java_mem, $samtools,
+    $ref,
+    $snver,  $stats,
+    $prefix,
+    $bed,$bam,);
+@ARGV or pod2usage ({-exitval=>2});
+
+GetOptions(
+    #input and output
+    'java=s'		=>	\$java,
+    'samtools=s'	=>	\$samtools,
+    'jmem=s'		=>	\$java_mem,
+    'ref=s'		=>	\$ref,
+    'bam=s'		=>	\$bam,
+    'snver=s'		=>	\$snver,
+    'stats=s'		=>	\$stats,
+    'prefix=s'		=>	\$prefix,
+    'bed=s'		=>	\$bed,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+
+my $cmd;
+my @cmd;
+
+$cmd.="$java -Xmx$java_mem -jar $snver -i $bam -r $ref -o $prefix ";
+$cmd.=" -l $bed " if $bed;
+$cmd.=" -mq $options{minMapQual} " if $options{minMapQual};
+$cmd.=" -bq $options{minBaseQual} " if $options{minBaseQual};
+$cmd.=" -s $options{StrandBias} " if $options{StrandBias};
+$cmd.=" -f $options{Fisher} " if $options{Fisher};
+$cmd.=" $options{additional} " if $options{additional} ne '';
+
+push @cmd,$cmd;$cmd="";
+
+my $raw="$prefix.raw.vcf"; 
+my $raw_indel="$prefix.indel.raw.vcf"; 
+my $filter="$prefix.filter.vcf"; 
+my $filter_indel="$prefix.indel.filter.vcf"; 
+
+
+#add header when there is no variant
+my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
+
+for my $i($filter,$filter_indel)
+{
+    $cmd="$addheader -caller snver -vcf $i ";
+    map {$cmd.=" -sample $_ ";} &SeqMule::Utils::getBAMSample($samtools,$bam);
+    push @cmd,$cmd;
+    $cmd='';
+}
+
+push @cmd,"$stats -jmem $java_mem --ref $ref --u-vcf $filter,$filter_indel -p $prefix";
+push @cmd,"rm -rf $raw $raw_indel $filter $filter_indel"; #raw output is too large
+push @cmd,"mv -f ${prefix}_union.vcf $filter";
+
+my $script=&SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'ref=s'		=>	\$ref,
+    'bam=s'		=>	\$bam,
+    'snver=s'		=>	\$snver,
+    'stats=s'		=>	\$stats,
+    'prefix=s'		=>	\$prefix,
+    'bed=s'		=>	\$bed,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

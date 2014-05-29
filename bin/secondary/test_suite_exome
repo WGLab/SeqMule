@@ -1,0 +1,111 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename qw/basename/;
+use File::Spec;
+
+my $ncpu=8;
+my $mem="4.5g";
+my $jmem="1750m";
+my $gatknt=4;
+my $exe="/home/yunfeiguo/projects/seqmule_parallel/bin/seqmule";
+my $test_folder="/home/yunfeiguo/projects/data/test_exome";
+my $config_folder="/home/yunfeiguo/projects/seqmule_parallel/misc/predefined_config";
+#for no merge, no ms
+my $first_fq="fa_1.fq";
+my $second_fq="fa_2.fq";
+my $prefix="father";
+#for merge
+my @first_fq=("fa_split1.1.fq","fa_split1.2.fq");
+my @second_fq=("fa_split2.1.fq","fa_split2.2.fq");
+my $merge_prefix="FaMerge";
+my $merge_capture=File::Spec->catfile($test_folder,"hg19_exome_merge_ucsc.bed");
+#for ms
+my @ms_fq1=("fa_1.fq","son_1.fq");
+my @ms_fq2=("fa_2.fq","son_2.fq");
+my @ms_prefix=("father","son");
+
+my $basic; 
+my $basic_merge;
+my $basic_ms;
+my @config_files=glob "$config_folder/*.config";
+
+$basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt ";
+$basic_merge="$exe pipeline -merge --forceOneRG -rg FATHER -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture ";
+$basic_ms="$exe pipeline -a ".join(',',@ms_fq1)." -b ".join(',',@ms_fq2)." -e -t $ncpu -jmem $jmem -ms -prefix ".join(',',@ms_prefix)." -gatknt $gatknt -capture default ";
+
+#push @basic,"seqmule pipeline -bam chr1.bam,chr2.bam -e ";
+#push @basic,"seqmule pipeline -bam chr1.bam,chr2.bam -e -ms ";
+#push @basic,"seqmule pipeline -bam chr1.bam,chr2.bam -e -merge -p chr1-chr2-merge ";
+
+chdir $test_folder or die "Can't enter $test_folder: $!\n";
+my $count=0;
+
+for my $q("","-quick")
+{
+    for my $j(@config_files)
+    {
+	#for my $ms("","-ms","-merge")
+	for my $ms("","-ms")
+	{
+		my @cmd;
+		my @target_files;
+		my $starting_point;
+		my $job="n$count";
+		my $tmp_dir=$job.basename($j)."-$q-$ms";
+
+		$tmp_dir=~s/[\.\/]/_/g;
+		$tmp_dir=~s/-+/-/g;
+		$tmp_dir=~s/-$//g;
+
+		push @cmd,"rm -rf $tmp_dir" if -d $tmp_dir;
+		push @cmd,"mkdir $tmp_dir";
+		push @cmd,"cd $tmp_dir";
+
+		if ($ms eq '')
+		{
+		    @target_files=($first_fq,$second_fq);
+		    $starting_point=$basic;
+
+		} elsif ($ms eq '-merge')
+		{
+		    @target_files=(@first_fq,@second_fq);
+		    $starting_point=$basic_merge;
+		} elsif ($ms eq '-ms')
+		{
+		    @target_files=(@ms_fq1,@ms_fq2);
+		    $starting_point=$basic_ms;
+		}
+
+		for (@target_files)
+		{
+		    my $target=File::Spec->catfile($test_folder,$_);
+		    push @cmd,"ln -sf $target .";
+		}
+		#push @cmd, "echo '$starting_point $q --advanced $j ' | qsub -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+		push @cmd, "echo '$starting_point $q --advanced $j ' | qsub -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m a -M guoyunfei1989\@gmail.com";
+		#push @cmd, "$starting_point $q --advanced $j -nr";
+		push @cmd, "cd $test_folder";
+
+		#print join "\n",@cmd;
+		#&exec(@cmd) if $count>=108 && $count<=108;
+		#&exec(@cmd) if $j=~/bwa/ && $j=~/samtools/ && $count>=48 && $count<=59;
+		#&exec(@cmd) if $count==25;
+		&exec(@cmd) if $count>=151 && $count<=160;
+		$count++;
+	}
+    }
+}
+
+sub exec
+{
+    my @cmd=@_;
+    my $tmp="/tmp/seqmule_test.$$".rand($$);
+    open OUT,'>',$tmp or die "Can't open $tmp: $!\n";
+    print OUT "#!/bin/sh\nset -e\n";
+    print OUT join("\n",@cmd);
+    close OUT;
+    chmod 0755,$tmp;
+    !system($tmp) or die "Failed to run $tmp\n";
+}

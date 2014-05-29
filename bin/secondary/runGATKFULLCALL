@@ -1,0 +1,130 @@
+#!/usr/bin/env perl
+
+#run GATK full version UnifiedGenotyper
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my (
+    $capture,   $java,    $java_mem,    $gatk,
+    $ref,    $local_threads,    $gatk_nt,    $internal_caller,
+    $vcf, 
+    $help,$advanced,    $n,);
+my @bam;
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'capture=s'		=>	\$capture,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'gatk=s'		=>	\$gatk,
+    'ref=s'		=>	\$ref,
+    'threads=i'		=>	\$local_threads,
+    'gatk-nt=i'		=>	\$gatk_nt,
+    'internal-caller=s'	=>	\$internal_caller,
+    'bam=s'		=>	\@bam, #specify it multiple times
+    'vcf=s'		=>	\$vcf,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+
+if ($internal_caller ne 'haplotypecaller' && $internal_caller ne 'unifiedgenotyper')
+{
+    die "unrecognized internal caller: $internal_caller.\n";
+}
+
+my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
+my @cmd;
+
+{
+    my $cmd;
+
+    $cmd.="$java -Xmx$java_mem -jar $gatk ";
+
+    if ($internal_caller eq 'haplotypecaller')
+    {
+	$cmd.=" -T HaplotypeCaller";
+        $cmd.=" $options{HCadditional} " if $options{HCadditional} ne '';
+    } elsif ($internal_caller eq 'unifiedgenotyper')
+    {
+	$cmd.=" -T UnifiedGenotyper --genotype_likelihoods_model BOTH";
+        $cmd.=" $options{UGadditional} " if $options{UGadditional} ne '';
+    }
+
+    $cmd.=" -R $ref -I ".join(' -I ',@bam)."";
+
+    if (  $nt> 1)
+    {
+	if ($internal_caller eq 'haplotypecaller')
+	{
+	    $cmd.=" -nct $nt";
+	} else
+	{
+	    $cmd.=" -nt $nt";
+	}
+    }
+    $cmd.=" -o $vcf";
+    $cmd.=" -L $capture" if $capture;
+    push @cmd,$cmd;
+}
+
+
+#generate shell script and run
+my $script=&SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'capture=s'		=>	\$capture,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'gatk=s'		=>	\$gatk,
+    'ref=s'		=>	\$ref,
+    'threads=i'		=>	\$local_threads,
+    'gatk-nt=i'		=>	\$gatk_nt,
+    'internal-caller=s'	=>	\$internal_caller,
+    'bam=s'		=>	\@bam, #specify it multiple times
+    'vcf=s'		=>	\$vcf,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

@@ -1,0 +1,289 @@
+#!/usr/bin/env perl
+
+#Copyright (C) <2012>  <Yunfei Guo>
+
+##This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+##This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+##You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+use warnings;
+use strict;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+use Cwd qw/abs_path/;
+
+
+my ($down,$downdir,$verbose,$help,$debug,$noclean);
+my $install_dir=File::Spec->catdir($RealBin,"..","..");
+my @gunlink;
+my $rev='$Revision: 112 $';
+my $lastchangeddate='$LastChangedDate: 2013-08-07 13:26:43 -0700 (Wed, 07 Aug 2013) $';
+warn "$lastchangeddate\n$rev\n";
+
+#default values will be set at parsing advanced_config
+
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    'down|d=s'	        =>	\$down,
+    'downdir=s'		=>	\$downdir,
+    'verbose|v'	        =>	\$verbose,
+    'help|h'	        =>	\$help,
+    'debug'		=>	\$debug,
+    'noclean'		=>	\$noclean,
+) or pod2usage({-exitval => 2});
+
+$help||@ARGV and pod2usage ({-verbose=>1});
+
+#option check
+warn "Entering verbose mode...\n" if $verbose;
+
+#database download
+    if (defined $down) 
+    {
+	&db_down($install_dir,$down,$downdir);
+    }
+
+#check global options
+
+END { &clean_up()}
+
+#SIGINT handler
+
+$SIG{INT}='clean_up';
+
+
+######################SUBROUTINES##################################
+sub clean_up 
+{
+    warn "Cleaning...\n" and unlink @gunlink if @gunlink;
+}
+
+sub db_down
+{
+    my ($install_dir,$down,$downdir)=@_;
+    my $db_dir=$downdir || File::Spec->catdir($install_dir,"database");
+    $db_dir=abs_path($db_dir);
+    $down=lc $down;
+
+    my %db_alias=(
+	'hg18'		=>'hg18 reference genome',	'hg19'	=>	'hg19 reference genome',
+	'hg18ibwa'	=>'hg18 bwa index',		'hg19ibwa'=>	'hg19 bwa index',
+	'hg18ibowtie'	=>'hg18 bowtie index',		'hg19ibowtie'=>	'hg19 bowtie index',
+	'hg18ibowtie2'	=>'hg18 bowtie2 index',		'hg19ibowtie2'=>'hg19 bowtie2 index',
+	'hg18isoap'	=>'hg18 soap index',		'hg19isoap'=>	'hg19 soap index',
+	'hg18dbsnp138'  =>'hg18 dbSNP 138',		'hg19dbsnp138'=>'hg19 dbSNP 138',
+	'hg18hapmap'	=>'hg18 HapMap variants',	'hg19hapmap'=>	'hg19 HapMap variants',
+	'hg18kg'	=>'hg18 1000 Genomes variants',	'hg19kg'=>	'hg19 1000 Genomes variants',
+	'hg18indel'	=>'hg18 Mills and 1000G indels','hg19indel'=>   'hg19 Mills and 1000G indels',
+	##############BED##################
+	'hg18agilent'	=>'hg18 Agilent SureSelect and HaloPlex capture kit target regions',
+	'hg18iontorrent' =>'hg18 IonTorrent AmpliSeq capture kit target regions',
+	'hg18nimblegen' =>'hg18 Nimblegen SeqCap capture kit target regions',
+
+	'hg19agilent'	=>'hg19 Agilent SureSelect and HaloPlex capture kit target regions',
+	'hg19iontorrent' =>'hg19 IonTorrent AmpliSeq capture kit target regions',
+	'hg19nimblegen' =>'hg19 Nimblegen SeqCap capture kit target regions',
+    );
+    my $all_hg18_list=join (',',grep {/hg18/i} keys %db_alias);
+    my $all_hg19_list=join (',',grep {/hg19/i} keys %db_alias);
+    my $all_down_list="$all_hg18_list,$all_hg19_list";
+
+    if ($down =~ /\ball\b/i) {
+	$down=$all_down_list;
+    } elsif ($down =~ /hg18all/i) {
+	$down=$all_hg18_list;
+    } elsif ($down =~ /hg19all/i) {
+	$down=$all_hg19_list;
+    }
+
+    my @down_list = split (',',$down); #parse user input
+    for (@down_list) 
+    {
+	warn "CAUTION:Unrecognized database <<$_>>, skip it...\n"  and $_=undef 
+	unless exists $db_alias{$_};
+    }
+
+    @down_list=grep {defined $_ } @down_list;	#remove unrecognized options
+    warn "NOTICE: Start downloading: \n",join ("\n", map {$db_alias{$_}} @down_list),"\n";
+    mkdir $db_dir and warn "NOTICE: $db_dir created.\n" unless -d $db_dir;
+    warn "NOTICE: all downloaded items will be saved to $db_dir.\n" 
+
+
+    #read database locations and names
+    warn "Reading database locations and names...\n";
+    my $webdbfile="web_db_locations";
+    &SeqMule::Utils::getstore("seqmule.usc.edu/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from seqmule.usc.edu failed\nTry local \'db_locations\'...\n";
+    my $db_loc_file=-s $webdbfile ? $webdbfile: File::Spec->catfile($install_dir,"misc","db_locations");
+    push @gunlink,$webdbfile;
+    my @loc_info_ref=&SeqMule::Utils::readLocFile($db_loc_file);
+    my %down_loc = %{shift @loc_info_ref};
+    my %down_name = %{shift @loc_info_ref};
+    my %down_md5 = %{shift @loc_info_ref};
+
+    my @redown_list; #stores db that failed MD5 check or download
+    my @reuntar;     #manual untar list
+    my %untar;       #stores untar directory
+    for my $item (@down_list) 
+    {
+	my $count=@{$down_loc{$item}};
+	my $redown_toggle=0;
+	for my $i(1..$count) 
+	{
+	    my $untar_dir=$db_dir;
+	    my $url=$down_loc{$item}[$i-1];
+	    my $file=$down_name{$item}[$i-1];
+	    my $md5hash=$down_md5{$item}[$i-1];
+
+	    if ($file=~/index_([a-z0-9]+)_.*/i) 
+	    { #index file name must contain 'index' string
+		my $index_dir=$1;
+		$index_dir=File::Spec->catdir($db_dir,$index_dir);
+		mkdir $index_dir unless -d $index_dir;
+		$untar_dir=$index_dir;
+	    }
+
+	    $file=File::Spec->catfile($untar_dir,$file); #untar_dir must be abs path, otherwise untar will fail
+	    #check existing files, if they are correct, keep them otherwise delete them
+	    warn "Check if $file exists.\nThis could take a while.\n";
+	    if(&SeqMule::Utils::md5check($file,$md5hash))
+	    {
+		warn "$file has been downloaded, skip. \n";
+	    } else 
+	    {
+		warn "$file doesn't smell right or doesn't exist\n";
+		(unlink $file or die "Cannot delete $file: $!\n") if -e $file;
+		warn "BEGIN DOWNLOADING...\n\n";
+		if (&SeqMule::Utils::getstore($url,$file))
+		{
+		    warn "Download ok. MD5 check...\n";
+		    if ( &SeqMule::Utils::md5check($file,$md5hash) ) 
+		    {
+			warn "MD5 check ok\n";
+		    } else
+		    {
+			warn "MD5 doesn't match\n";
+			$redown_toggle=1;
+			next;
+		    }
+		} else
+		{
+		    $redown_toggle=1;
+		    warn "Downloading $file failed\n";
+		    next;
+		}
+	    }
+
+	    warn "******processing <<<<${file}>>>\n\n" if $debug;
+	    if ($file =~/(tar\.gz|zip|gz|bz|bz2|tbz2|tgz|tar)$/i) 
+	    {
+		warn "Got $file another compressed file\n" if $debug;
+		push @gunlink,$file; #compressed file should be removed
+		$untar{$file}=$untar_dir;
+	    }
+
+	}
+	push @redown_list,$item if $redown_toggle;
+    }
+
+    if (%untar)
+    {
+	warn "Unpacking...\n";
+	for (keys %untar) 
+	{
+	    &SeqMule::Utils::extract_archive($_,$untar{$_}) or 
+	    (warn "CAUTION: failed to extract\n$_\n" and push @reuntar,$_);
+	}
+    }
+
+    if (@reuntar)
+    {
+	warn "Please MANUALLY unpack the following files to designated folder:\n";
+	for (@reuntar)
+	{
+	    warn "\'$_\' to \'$untar{$_}\'\n" if $_ && $untar{$_};
+	}
+    }
+
+    if (@redown_list) 
+    {
+	warn "ERROR: Failed to download some databases\n";
+	warn "Please rerun the following command later:\n";
+	warn "seqmule download -d ",join (',',@redown_list),($downdir? " -downdir $downdir":""),"\n";
+	die "\n";
+    }
+}
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+seqmule download <options>
+
+For details about each option, please use 'seqmule download -h':
+
+Options:
+
+      --down,-d 		comma-delimited list of databases and BED files by capture kit manufacturer. See details.
+      --downdir <dir>		custom download folder. NOT recommended if you want to use default databases.
+      -v,--verbose		verbose output. Default: disabled
+      -h,--help			help
+      --noclean			do not clean temporary files
+
+=head1 EXAMPLE
+
+      #download all hg19 databases/BEDs to default location (under installation directory)
+      seqmule download -down hg19all 
+
+      #same as above, but saved at custom location
+      seqmule download -down hg19all -downdir /home/user/database 
+
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--down>
+
+The following list gives possible options and their corresponding databases. You can use 'hg19all','hg18all','all' to download all databases corresponding to a specific genome build or all databases. Default location for databases is 'installation_directory/database/'. 
+
+=begin text
+
+	'hg18'		=>'hg18 reference genome',	'hg19'	=>	'hg19 reference genome',
+	'hg18ibwa'	=>'hg18 bwa index',		'hg19ibwa'=>	'hg19 bwa index',
+	'hg18ibowtie'	=>'hg18 bowtie index',		'hg19ibowtie'=>	'hg19 bowtie index',
+	'hg18ibowtie2'	=>'hg18 bowtie2 index',		'hg19ibowtie2'=>'hg19 bowtie2 index',
+	'hg18isoap'	=>'hg18 soap index',		'hg19isoap'=>	'hg19 soap index',
+	'hg18dbsnp138'  =>'hg18 dbSNP 138',		'hg19dbsnp138'=>'hg19 dbSNP 138',
+	'hg18hapmap'	=>'hg18 HapMap variants',	'hg19hapmap'=>	'hg19 HapMap variants',
+	'hg18kg'	=>'hg18 1000 Genomes variants',	'hg19kg'=>	'hg19 1000 Genomes variants',
+	'hg18indel'	=>'hg18 Mills and 1000G indels','hg19indel'=>   'hg19 Mills and 1000G indels',
+	################BED FILES############
+        'hg18agilent'	=>'hg18 Agilent SureSelect and HaloPlex capture kit target regions',
+        'hg19agilent'	=>'hg19 Agilent SureSelect and HaloPlex capture kit target regions',
+        'hg18iontorrent' =>'hg18 IonTorrent AmpliSeq capture kit target regions',
+        'hg19iontorrent' =>'hg19 IonTorrent AmpliSeq capture kit target regions',
+        'hg18nimblegen' =>'hg18 Nimblegen SeqCap capture kit target regions',
+        'hg19nimblegen' =>'hg19 Nimblegen SeqCap capture kit target regions',
+
+=end text
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

@@ -1,0 +1,27 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+
+die "Usage: $0 <samtools> <1.bam 2.bam ...> \n" unless @ARGV>=3;
+
+my $samtools=shift @ARGV;
+my $firstbam=shift @ARGV;
+my @bam=@ARGV;
+
+for (@bam)
+{
+    &SeqMule::Utils::compareChr
+	({
+		type1=>'bam',
+		file1=>$firstbam,
+		type2=>'bam',
+		file2=>$_,
+		samtools=>$samtools,
+	    }) !=1 or die "ERROR: Different values from \@SQ tags in $_ and $firstbam.\n"
+}
+warn "@bam have same \@SQ tags.\n";

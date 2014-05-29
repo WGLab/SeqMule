@@ -1,0 +1,32 @@
+#dbsnp vcf file naming rule: dbsnp_build_version.vcf;eg dbsnp_hg19_135.vcf
+#format
+#option_name	file1	url_file1	md5_file1	file2	url_file2	MD5_file2
+#
+
+
+hg19	human_g1k_v37.fasta.gz	ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz	45f81df94f0408d082363e34a081ed81	human_g1k_v37.fasta.fai	ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.fai	772484cc07983aba1355c7fb50f176d4
+hg18	human_b36_both.fasta.gz	http://seqmule.usc.edu/hg_index/human_b36_both.fasta.gz	c779b2ea9507478a015a168d92e77f3c	human_b36_both.fasta.fai.gz	http://seqmule.usc.edu/hg_index/human_b36_both.fasta.fai.gz	3056c519bd2949c699a248d894bd9655
+hg19ibwa	index_bwa_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bwa_human_g1k_v37.fasta.index.tar.gz	e6542e5fd3699d7e2f62003ca4ce9c04
+hg19ibowtie	index_bowtie_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bowtie_human_g1k_v37.fasta.index.tar.gz	9be4bca4f9413c5f8c4992c4692d3a50
+hg19ibowtie2	index_bowtie2_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bowtie2_human_g1k_v37.fasta.index.tar.gz	6d9ff1dd375d1094fbaf2e7e54357eaa
+hg19isoap	index_soap_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/soap_human_g1k_v37.fasta.index.tar.gz	5f8ea21c9629e688a6102e0e07fe6177
+hg18ibwa	index_bwa_human_b36_both.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bwa_human_b36_both.fasta.index.tar.gz	6bd1ad6cb4bb56a7754757aca0ac1219
+hg18ibowtie	index_bowtie_human_b36_both.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bowtie_human_b36_both.fasta.index.tar.gz	5125e12212a3a3427cccb503e6ce6520
+hg18ibowtie2	index_bowtie2_human_b36_both.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bowtie2_human_b36_both.fasta.index.tar.gz	6c8c7e6a9944639caa63838d7b03c8cb
+hg18isoap	index_soap_human_b36_both.fasta.tar.gz	http://seqmule.usc.edu/hg_index/soap_human_b36_both.fasta.index.tar.gz	c73e881d0c4360fc3b848a692e11f309
+hg19dbsnp138	dbsnp_hg19_138.vcf.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg19_138.vcf.gz	00b0e74e4a13536dd6c0728c66db43f3	dbsnp_hg19_138.vcf.idx.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg19_138.vcf.idx.gz	98adfaba3c26d383ba9387c1559df58d
+hg18dbsnp138	dbsnp_hg18_138.vcf.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg18_138.vcf.gz	89ead1be160b026d9934d61418f277dc	dbsnp_hg18_138.vcf.idx.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg18_138.vcf.idx.gz	f4d107b051c7aa0fdfe77fa97618cd5e
+hg19dbsnp137	dbsnp_hg19_137.vcf.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg19_137.vcf.gz	20d78739747597acd2ce295172f1dd88	dbsnp_hg19_137.vcf.idx.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg19_137.vcf.idx.gz	94c75893c8b6e0f93f459b495e7002ec
+hg18dbsnp137	dbsnp_hg18_137.vcf.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg18_137.vcf.gz	a4f4d30ea5ead6aea8a8b02395285855	dbsnp_hg18_137.vcf.idx.gz	http://seqmule.usc.edu/hg_index/dbsnp_hg18_137.vcf.idx.gz	6af166fb66caa06237a43299d6fd96ef
+hg19hapmap	hapmap_3.3.b37.vcf.gz	http://seqmule.usc.edu/hg_index/hapmap_3.3.b37.vcf.gz	b455fceaf7182999b79da8429467db37	hapmap_3.3.b37.vcf.idx.gz	http://seqmule.usc.edu/hg_index/hapmap_3.3.b37.vcf.idx.gz	a4fa40f937facb4ac9f5d4b34eb6a990
+hg19kg	1000G_omni2.5.b37.vcf.gz	http://seqmule.usc.edu/hg_index/1000G_omni2.5.b37.vcf.gz	88c7915e778fdc9db379aee6c48c9564	1000G_omni2.5.b37.vcf.idx.gz	http://seqmule.usc.edu/hg_index/1000G_omni2.5.b37.vcf.idx.gz	85bdbd985a929165f6edcad3cb169ebc
+hg18hapmap	hapmap_3.3.b36.vcf.gz	http://seqmule.usc.edu/hg_index/hapmap_3.3.b36.vcf.gz	dc1834b90fe3bfbb44f8d7e2a1987247	hapmap_3.3.b36.vcf.idx.gz	http://seqmule.usc.edu/hg_index/hapmap_3.3.b36.vcf.idx.gz	119887a976a9fad8ee3dc0be163726fb
+hg18kg	1000G_omni2.5.b36.vcf.gz	http://seqmule.usc.edu/hg_index/1000G_omni2.5.b36.vcf.gz	8ce5ed627c200a4426e7ba6855681827	1000G_omni2.5.b36.vcf.idx.gz	http://seqmule.usc.edu/hg_index/1000G_omni2.5.b36.vcf.idx.gz	e0f8615275acdc8dd341e0eacb8d8cb3
+hg19indel	Mills_and_1000G_gold_standard.indels.b37.vcf.gz	http://seqmule.usc.edu/hg_index/Mills_and_1000G_gold_standard.indels.b37.vcf.gz	a0764a80311aee369375c5c7dda7e266	Mills_and_1000G_gold_standard.indels.b37.vcf.idx.gz	http://seqmule.usc.edu/hg_index/Mills_and_1000G_gold_standard.indels.b37.vcf.idx.gz	ab7eebe7be05eee97ff8cff90272f226
+hg18indel	Mills_and_1000G_gold_standard.indels.b36.vcf.gz	http://seqmule.usc.edu/hg_index/Mills_and_1000G_gold_standard.indels.b36.vcf.gz	3e47f536c0e0748232325a7d14e1edc1	Mills_and_1000G_gold_standard.indels.b36.vcf.idx.gz	http://seqmule.usc.edu/hg_index/Mills_and_1000G_gold_standard.indels.b36.vcf.idx.gz	ba8a403f2163944748d3a6d4e76d426e
+hg19agilent	hg19agilent.tar.gz	http://seqmule.usc.edu/hg_index/hg19agilent.tar.gz	336b1765e0d7cf31d96a10f59821ab17
+hg18agilent	hg18agilent.tar.gz	http://seqmule.usc.edu/hg_index/hg18agilent.tar.gz	810e8908937b1782ff89faa780d82546
+hg19iontorrent	hg19iontorrent.tar.gz	http://seqmule.usc.edu/hg_index/hg19iontorrent.tar.gz	a700b0270bf7a3fba57443f8910d2a4f
+hg18iontorrent	hg18iontorrent.tar.gz	http://seqmule.usc.edu/hg_index/hg18iontorrent.tar.gz	14646d62cf699e46801f432d7967d4a5
+hg19nimblegen	hg19nimblegen.tar.gz	http://seqmule.usc.edu/hg_index/hg19nimblegen.tar.gz	16080ba5ea61e5c5b236fcca1a8846c5
+hg18nimblegen	hg18nimblegen.tar.gz	http://seqmule.usc.edu/hg_index/hg18nimblegen.tar.gz	90cfcb807b83a80c503dcee85280918a

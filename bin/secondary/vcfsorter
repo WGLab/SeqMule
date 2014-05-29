@@ -1,0 +1,90 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my $contig_bed;
+my $help;
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'contig-bed=s'	=>	\$contig_bed,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @contig=&SeqMule::Utils::readBED($contig_bed);
+my %contig_dict=map { (${$contig[$_-1]}[0]=>$_) } (1..@contig);
+my %contig_dict_reverse=reverse %contig_dict;
+
+die "ERROR: duplicate contig name: @contig\n" unless scalar @contig == scalar keys %contig_dict;
+
+#change chr to number
+my $tmp="/tmp/$$".rand($$).".tmp.vcf";
+open TMP,'>',$tmp or die "ERROR: Failed to write to $tmp: $!\n";
+while(<>)
+{
+    print and next if /^#/;
+    if (/^([^\t]+)/)
+    {
+	my $chr=$1;
+	die "ERROR: $chr is not found in contig name.\n" unless $contig_dict{$chr};
+	s/^$chr/$contig_dict{$chr}/;
+	print TMP;
+    } else
+    {
+	die "ERROR: unknown line: $_\n";
+    }
+}
+close TMP;
+
+#sort first tow cols
+open SORT,'-|',"sort -k 1,1n -k 2,2n $tmp" or die "ERROR: Failed to sort: $!\n";
+while(<SORT>)
+{
+    s/^(\d+)/$contig_dict_reverse{$1}/ or die "ERROR: no numerical order for CHROM: $_\n";
+    print;
+}
+
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    vcfsorter -contig-bed <bed> 1.vcf > 1.sort.vcf
+    #input and output
+    'contig-bed=s'	=>	\$contig_bed,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

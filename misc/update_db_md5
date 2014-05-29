@@ -1,0 +1,29 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use lib "../../lib";
+use SeqMule::Utils;
+
+my $db_loc="db_locations";
+
+open DBLOC,'<',$db_loc or die;
+while(<DBLOC>)
+{
+    print and next if /^#|^\s*$|g1k|soap|bwa|bowtie/;
+    my @f=split /\t/;
+    chomp @f;
+    shift @f;
+
+    while(@f)
+    {
+	my $db=shift @f;
+	shift @f; #drop URL
+	my $md5=shift @f;
+
+	my $new_md5=`md5sum $db`;
+	$new_md5=~s/^(\S+).*/$1/s;
+	s/$md5/$new_md5/;
+    }
+    print;
+}

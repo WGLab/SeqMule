@@ -1,0 +1,64 @@
+#!/usr/bin/env perl
+
+die "Usage: mergeBAM <samtools> <threads> <outfile> <1.bam 2.bam ...>\n" unless @ARGV>=5;
+
+use strict;
+use warnings;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+
+my $samtools=shift @ARGV;
+my $threads=shift @ARGV;
+my $out=shift @ARGV;
+my @bam=@ARGV;
+my $sam_for_header="/tmp/$$".rand($$).".header.sam";
+
+my %rg;
+my $header;
+
+#assume @SQ tag in all input has been checked, and are the same
+$header=`$samtools view -H $bam[0] | grep -v '^\@RG'`;
+warn "NOTICE: header section in merged BAM comes from $bam[0].\n";
+
+#prepare @RG
+for my $bam(@bam)
+{
+    my %onebam_rg=&SeqMule::Utils::getRG($samtools,$bam);
+    for my $id(keys %onebam_rg)
+    {
+	if (defined $rg{$id})
+	{
+	    warn "WARNING: Duplicate readgroup IDs found while merging, tags will be combined for each ID.\n";
+	    for my $tag(keys %{$onebam_rg{$id}})
+	    {
+		push @{$rg{$id}{$tag}}, @{$onebam_rg{$id}{$tag}};
+	    }
+	} else
+	{
+	    $rg{$id}=$onebam_rg{$id};
+	}
+    }
+}
+
+for my $id(sort keys %rg)
+{
+    my %rg_field=%{$rg{$id}};
+    $header.="\@RG\tID:$id";
+    for my $tag(sort keys %rg_field)
+    {
+	my %unique_value=map { ($_=>1) } @{$rg_field{$tag}};
+	$header.="\t$tag:".(join ',',keys %unique_value);
+    }
+    $header.="\n";
+}
+
+#write new header to a file
+open HEADER,'>',$sam_for_header or die "ERROR: Failed to write to $sam_for_header: $!\n";
+print HEADER $header;
+close HEADER;
+
+#output, different from mergeBAMOneRG, here we use samtools' own merge function, which probably is faster
+warn "NOTICE: Start merging BAM files, readgroup IDs will remain intact.\n";
+!system("$samtools merge -@ $threads -h $sam_for_header $out @bam") or die "ERROR: failed to merge @bam into $out: $!\n";

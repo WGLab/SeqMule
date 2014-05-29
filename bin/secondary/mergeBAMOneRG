@@ -1,0 +1,62 @@
+#!/usr/bin/env perl
+
+die "Usage: mergeBAM <samtools> <threads> <readgroup ID> <outfile> <1.bam 2.bam ...>\n" unless @ARGV>=6;
+
+use strict;
+use warnings;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+
+my $samtools=shift @ARGV;
+my $threads=shift @ARGV;
+my $rg=shift @ARGV;
+my $out=shift @ARGV;
+my @bam=@ARGV;
+
+
+my %rg_field;
+my $header;
+
+#assume @SQ tag in all input has been checked
+$header=`$samtools view -H $bam[0] | grep -v '^\@RG'`;
+warn "NOTICE: header section in merged BAM comes from $bam[0].\n";
+
+#prepare @RG
+for my $bam(@bam)
+{
+    my %onebam_rg=&SeqMule::Utils::getRG($samtools,$bam);
+    for my $id(keys %onebam_rg)
+    {
+	for my $tag(keys %{$onebam_rg{$id}})
+	{
+	    push @{$rg_field{$tag}},@{$onebam_rg{$id}{$tag}};
+	}
+
+    }
+}
+
+$header.="\@RG\tID:$rg";
+for my $tag(keys %rg_field)
+{
+    my %unique_value=map { ($_=>1) } @{$rg_field{$tag}};
+    $header.="\t$tag:".(join ',',keys %unique_value);
+}
+$header.="\n";
+
+#output
+open OUT,'|-',"$samtools view -b -S -@ $threads /dev/stdin > $out" or die "ERROR: Failed to open SAMtools pipe: $!\n";
+print OUT $header;
+for my $bam(@bam)
+{
+    open IN,'-|',"$samtools view $bam" or die "ERROR: Failed to read $bam: $!\n";
+    while(<IN>)
+    {
+#M01558:4:000000000-A4GH7:1:1101:12961:1661	99	1	115247754	60	7M1D217M27S	=	115247762	225	AAACCCCCATATCTCTAAAGTGTTTCCCTATCCTTGCTTTCAAGTCCTGACAAAAAAATTCACAGCAGTTTAAAGGATGGTGAAAGACTAAACATGGGCCCACTAAAATAGAGATTAATTTTACCTATTACACTCCTATAGTAAAAGTTGTAATAAGTATGATATTGTATTAAGTAACATTCTATAGTAAGCCGTTGGAGCAAATACAGCATTTAACAGGTTCAGCGAATTTCGACGATCGTTGCATTAAC	1>A>>AAD>1CFFGGFF1B1B1DEG33AB111BG3FGF1112222B12B1A1BEGEEAGGG1121AGBGGGEBGEGHFGFFGHDDDFGHHF@GHHGGEFHGEGHGHE1FBG1EFFGGHGHHGHHHHHHHHHHGHHHHGHHH>GHHHHHHGHGHHHHHG2GGHHDGGGHHHHHHGGG2F1FGGFFG1GDF1DFGAAFCG1>>FHFHHHG0<<<DGFGGF<GFEG00=;-;A.GC/.;-99C9;./;;09;0B	NM:i:4	AS:i:202	XS:i:171	RG:Z:READGROUP
+	s/\tRG:Z:[^\t\n]+|$/\tRG:Z:$rg/i;
+	print OUT;
+    }
+    close IN;
+}
+close OUT;

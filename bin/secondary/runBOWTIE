@@ -1,0 +1,127 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my ($advanced,$n,$help,
+    $bowtie,$samtools,$java,$jmem,$sortsam,$ref,$bam,$threads,$rg,$sample,$pl,$lb);
+my $picardtmp;
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'bowtie=s'		=>	\$bowtie,
+    'samtools=s'	=>	\$samtools,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$jmem,
+    'sortsam=s'		=>	\$sortsam,
+    'ref=s'		=>	\$ref,
+    'bam=s'		=>	\$bam,
+    'threads=i'		=>	\$threads,
+    'rg=s'		=>	\$rg,
+    'sample=s'		=>	\$sample,
+    'pl=s'		=>	\$pl,
+    'lb=s'		=>	\$lb,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    'picardtmp=s'	=>	\$picardtmp,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+
+my @fq=@ARGV;
+my ($bam_prefix)= $bam=~/(.*?)\.bam$/ or die "ERROR: expect *.bam for BAM files: $bam\n";
+my $cmd;
+
+$cmd.="$bowtie $ref --sam";
+$cmd.=" --best" if defined $options{ReportBest} && $options{ReportBest} ne "";
+$cmd.=" --chunkmbs $options{ChunkMBs}" if defined $options{ChunkMBs} && $options{ChunkMBs} ne "";
+$cmd.=" --minins $options{minIns}" if defined $options{minIns} && $options{minIns} ne "";
+$cmd.=" --maxins $options{maxIns}" if defined $options{maxIns} && $options{maxIns} ne "";
+$cmd.=" --nomaqround" if $options{NoMaqRound}==1;
+$cmd.=" -p $threads" if $threads>=2;
+$cmd.=" --sam-RG ID:$rg ";
+$cmd.=" --sam-RG SM:$sample ";
+$cmd.=" --sam-RG PL:$pl ";
+$cmd.=" --sam-RG LB:$lb ";
+$cmd.=" $options{additional} " if $options{additional} ne '';
+$cmd.=" --seed 1 "; #make results reproducible
+if (@fq>1)
+{   
+    $cmd.=" -1 $fq[0] -2 $fq[1]";
+} else 
+{  
+    $cmd.=" $fq[0]";
+}
+
+$cmd.=" /dev/stdout |";
+$cmd.=" perl -ne 'if (/^[^\@]/) {s/\\s+\$//;s/\$/\\tRG:Z:$rg\\n/;}print;' |"; #add RGID for each read
+$cmd.=" $samtools view -b -S ";
+$cmd.=" -F 256 "; #only output primary alignment
+$cmd.=($threads>=2? " -@ $threads ":"");
+$cmd .= " - | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix";
+
+if ($picardtmp)
+{
+$cmd.=" TMP_DIR=$picardtmp ";
+mkdir $picardtmp or die "ERROR: Failed to create Picard tool temp folder: $!\n" unless -d $picardtmp;
+}
+exec $cmd;
+#warn $cmd,"\n";
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'bowtie=s'		=>	\$bowtie,
+    'samtools=s'	=>	\$samtools,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$jmem,
+    'sortsam=s'		=>	\$sortsam,
+    'ref=s'		=>	\$ref,
+    'bam=s'		=>	\$bam,
+    'threads=i'		=>	\$threads,
+    'rg=s'		=>	\$rg,
+    'sample=s'		=>	\$sample,
+    'pl=s'		=>	\$pl,
+    'lb=s'		=>	\$lb,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    'picardtmp=s'	=>	\$picardtmp,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

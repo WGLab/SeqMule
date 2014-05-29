@@ -1,0 +1,141 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use File::Basename qw/basename dirname/;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my ($advanced,$n,$help,
+    $samtools,    $java,    $java_mem,    $varscan,
+    $ref,
+    $vcf_filter,    $bed,);
+my @bam;
+
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'samtools=s'	=>	\$samtools,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'varscan=s'		=>	\$varscan,
+    'ref=s'		=>	\$ref,
+    'bam=s'		=>	\@bam,
+    'vcf-filter=s'	=>	\$vcf_filter,
+    'bed=s'		=>	\$bed,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+
+my @cmd;
+my $cmd='';
+
+open IN,"$samtools mpileup ".($bed?" -l $bed ":"")." -B -f $ref @bam |" or die "Failed to open samtools pipe: $!\n";
+
+if (<IN>)
+{
+    $cmd="$samtools mpileup ";
+    $cmd.=" -l $bed " if $bed;
+    $cmd.=" $options{SAMadditional} " if $options{SAMadditional} ne '';
+    $cmd.=" -B -f $ref @bam | ";
+    $cmd.="$java -Xmx$java_mem -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
+    $cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
+    $cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
+    $cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
+    $cmd.=" --p-value $options{P}" if $options{P};
+    $cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
+    $cmd.=" > $vcf_filter";
+} 
+
+close IN;
+push @cmd,$cmd;
+$cmd='';
+
+#occasionally, VarScan doesn't generate header even if samtools mpileup has output
+my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
+$cmd="$addheader -caller varscan -vcf $vcf_filter ";
+map {$cmd.=" -sample $_ ";} &SeqMule::Utils::getBAMSample($samtools,@bam);
+push @cmd,$cmd;$cmd='';
+
+#remove duplicate ALT allele since GATK will complain
+my $rmDupAltVCF=File::Spec->catfile($RealBin,"rmDupAltVCF");
+push @cmd,"$rmDupAltVCF $vcf_filter";
+
+#add sample name if it's absent
+my $fixVarscanSample=File::Spec->catfile($RealBin,"fixVarscanSample");
+push @cmd,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @bam)." -vcf $vcf_filter";
+
+#make sure number of samples on every line is the same as that specified in header
+my $checkSampleGT=File::Spec->catfile($RealBin,"checkSampleGT");
+push @cmd,"$checkSampleGT -vcf $vcf_filter";
+
+if (@bam>1)
+{
+    for (@bam)
+    {
+	my ($new_prefix)= /^(.*)\.bam$/i;
+	if ($vcf_filter=~/_(\d+)_/) #if true, we are under QUICK mode
+	{
+	$new_prefix=File::Spec->catfile((dirname $new_prefix),"_${1}_.".(basename $new_prefix));
+	}
+	my $out="${new_prefix}_varscan.multi-call.filter.vcf";
+#make a copy of final vcf for each prefix (samplename)
+	push @cmd,"cp $vcf_filter $out";
+    }
+}
+
+my $script=&SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'samtools=s'	=>	\$samtools,
+    'bcftools=s'	=>	\$bcftools,
+    'ref=s'		=>	\$ref,
+    'bam=s'		=>	\@bam,
+    'vcfutils=s'	=>	\$vcfutils,
+    'vcf=s'		=>	\$vcf,
+    'vcf-filter=s'	=>	\$vcf_filter,
+    'bed=s'		=>	\$bed,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

@@ -1,0 +1,128 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>SeqMule Report</title>
+<meta name="keywords" content="green jelly, theme, free templates, nivo image slider, website, templatemo, CSS, HTML" />
+<meta name="description" content="Green Jelly Theme, free CSS template provided by templatemo.com" />
+<link href="../css/templatemo_style.css" rel="stylesheet" type="text/css" />
+
+<link rel="stylesheet" href="../css/nivo-slider.css" type="text/css" media="screen" />
+
+<script language="javascript" type="text/javascript">
+function clearText(field)
+{
+    if (field.defaultValue == field.value) field.value = '';
+    else if (field.value == '') field.value = field.defaultValue;
+}
+</script>
+
+<link rel="stylesheet" type="text/css" href="../css/ddsmoothmenu.css" />
+
+<script type="text/javascript" src="../js/jquery.min.js"></script>
+<script type="text/javascript" src="../js/ddsmoothmenu.js">
+
+/***********************************************
+ * Smooth Navigational Menu- (c) Dynamic Drive DHTML code library (www.dynamicdrive.com)
+ * This notice MUST stay intact for legal use
+ * Visit Dynamic Drive at http://www.dynamicdrive.com/ for full source code
+ ***********************************************/
+
+</script>
+
+<script type="text/javascript">
+
+ddsmoothmenu.init({
+	mainmenuid: "templatemo_menu", //menu DIV id
+	orientation: 'h', //Horizontal or vertical menu: Set to "h" or "v"
+	classname: 'ddsmoothmenu', //class added to menu's outer DIV
+	//customtheme: ["#1c5a80", "#18374a"],
+	contentsource: "markup" //"markup" or ["container_id", "path_to_menu_file"]
+	})
+
+</script>
+
+</head>
+<body>
+
+<div id="templatemo_wrapper">
+    <div id="templatemo_header"></div> <!-- end of header -->
+    <div id="templatemo_menu" class="ddsmoothmenu">
+	<ul>
+	    <li><a href="../home.html" >Home</a></li>
+	    <li><a href="installation.html">Install</a> </li>
+	    <li><a href="tutorial.html">Tutorial</a> </li>
+	    <li><a href="manual.html">Manual</a></li>
+	    <li><a href="faq.html">FAQ</a></li>
+	    <li><a href="technotes.html" class="selected">TechNotes</a></li>
+	</ul>
+	<br style="clear: left" />
+    </div> <!-- end of menu -->
+    
+    <script type="text/javascript" src="../js/jquery-1.4.3.min.js"></script>
+    <script type="text/javascript" src="../js/jquery.nivo.slider.js"></script>
+    <script type="text/javascript">
+$(window).load(function() {
+	$('#slider').nivoSlider();
+	});
+    </script>
+    
+    <div id="templatemo_main"><br class="cleaner" />
+	<h1>SeqMule Technical Notes</h1>
+	<div id="table-of-content"></div>
+	<h3 id="q1">Merging indels</h3>
+	<p>Because there isn't a standard way to record inerstions and deletions (indels)
+	, SeqMule will not try to check if two indels are identical. They will be treated
+	identically only if they have exact the same chromomsome, start, end, reference allele 
+	and observed allele.
+	</p>
+	<br>
+	<h3 id="q2">Small contigs in human genome</h3>
+	<p>Contigs like GL000192.1 will be treated the same way as chromomsome 1 and others since
+	some genes are mapped to these contigs.
+	</p>
+	<br>
+	<h3 id="q3">Description of some files in misc</h3>
+	<p>
+	db_locations: database names, URLs, MD5 hash<br>
+	advanced_config: pipeline configuration template<br>
+	exe_locations: external program package download links<br>
+	predefined_config: folder containging pre-tested configuration files<br>
+	</p>
+	<br>
+	<h3 id="q4">CPUs for GATK genotyping</h3>
+	<p>
+	Since Linux will limit number of files opened, sometimes GATK UnifiedGenotyper will encounter problems. 
+	An easy solution is to decrease CPUs used. I have set this option to a relatively safe number based on my 
+	experience, users can change it by '-gatknt' option.
+	</p>
+	<br>
+	<h3 id="q5">Parallelization</h3>
+	<p>
+	SeqMule can run scripts in a non-parallel or parallel (quick mode) fashion. Some of its external programs can run themselves in parallel mode, though. Under quick mode, SeqMule will go through all steps before variant calling as in regular mode, then splits region of interest into N pieces, where N is determined by the number of threads. Variant calling is done separately for each piece. At last, all resulting VCF files will be merged together.
+	</p><br>
+	<h3 id="q6">Output naming rules</h3>
+	<p>
+	All output files specific to a particular sample should have a filename beginning with 'samplename' (specified by -prefix) and no underscore allowed in prefix. For BAM file input, the file name prefix remains the same, unless '-merge' option is in effect.
+	</p><br>
+	<h3 id="q7">Multiple alignments</h3>
+	<p>SeqMule only outputs primary alignments because secondary alignments really do not help too much for variant calling, and they make it more difficult to calculate alignment statistics.</p>
+	<br>
+    </div> <!-- end of main -->
+    
+    <div id="templatemo_footer">
+	<div class="cleaner"></div>
+    </div> <!-- end of footer -->
+</div>
+
+<div id="templatemo_cr_bar_wrapper">
+    <div id="templatemo_cr_bar">
+	Copyright 2014 <a href="http://genomics.usc.edu">USC Wang Lab</a> | Designed by <a href="http://www.templatemo.com" target="_parent">Free CSS Templates</a>
+    </div>
+</div>
+
+
+<script src='../js/custom.js'></script>
+<script type='text/javascript' src='../js/logging.js'></script>
+</body>
+</html>

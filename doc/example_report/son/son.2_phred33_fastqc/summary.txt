@@ -1,0 +1,11 @@
+PASS	Basic Statistics	son.2_phred33.fastq
+PASS	Per base sequence quality	son.2_phred33.fastq
+PASS	Per sequence quality scores	son.2_phred33.fastq
+PASS	Per base sequence content	son.2_phred33.fastq
+PASS	Per base GC content	son.2_phred33.fastq
+PASS	Per sequence GC content	son.2_phred33.fastq
+PASS	Per base N content	son.2_phred33.fastq
+PASS	Sequence Length Distribution	son.2_phred33.fastq
+WARN	Sequence Duplication Levels	son.2_phred33.fastq
+PASS	Overrepresented sequences	son.2_phred33.fastq
+WARN	Kmer Content	son.2_phred33.fastq

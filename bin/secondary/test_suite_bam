@@ -1,0 +1,95 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename qw/basename/;
+use File::Spec;
+
+my $ncpu=8;
+my $mem="6g";
+my $jmem="1750m";
+my $gatknt=4;
+my $exe="/home/yunfeiguo/projects/seqmule_parallel/bin/seqmule";
+my $test_folder="/home/yunfeiguo/projects/data/test_exome";
+my $config_folder="/home/yunfeiguo/projects/seqmule_parallel/misc/predefined_config";
+
+my $first_bam="fa.bam";
+my $second_bam="son.bam";
+
+my $basic; 
+my $basic_merge;
+my $basic_ms;
+my @config_files=glob "$config_folder/*.config";
+
+$basic="$exe pipeline -bam $first_bam,$second_bam -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
+#$basic_merge="$exe pipeline -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
+#$basic_ms="$exe pipeline -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
+
+chdir $test_folder or die "Can't enter $test_folder: $!\n";
+my $count=0;
+
+for my $q("","-quick")
+{
+    for my $j(@config_files)
+    {
+	for my $ms("","-ms","-merge")
+	{
+	    next if $ms eq '-ms' or $ms eq '-merge';
+	    next unless $j=~/bwa/;
+		my @cmd;
+		my @target_files;
+		my $starting_point;
+		my $job="bam$count";
+		my $tmp_dir=$job.basename($j)."-$q-$ms";
+
+		$tmp_dir=~s/[\.\/]/_/g;
+		$tmp_dir=~s/-+/-/g;
+		$tmp_dir=~s/-$//g;
+
+		push @cmd,"rm -rf $tmp_dir" if -d $tmp_dir;
+		push @cmd,"mkdir $tmp_dir";
+		push @cmd,"cd $tmp_dir";
+
+		if ($ms eq '')
+		{
+		    @target_files=($first_bam,$second_bam);
+		    $starting_point=$basic;
+
+		    #} elsif ($ms eq '-merge')
+		    #{
+		    #    @target_files=(@first_fq,@second_fq);
+		    #    $starting_point=$basic_merge;
+		    #} elsif ($ms eq '-ms')
+		    #{
+		    #    $starting_point=$basic_ms;
+
+		}
+
+		for (@target_files)
+		{
+		    my $target=File::Spec->catfile($test_folder,$_);
+		    push @cmd,"ln -sf $target .";
+		}
+
+		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job ";
+		#push @cmd, "$starting_point $q --advanced $j";
+		push @cmd, "cd $test_folder";
+
+		&exec(@cmd) if $count>=1 && $count<=1;
+		$count++;
+	}
+    }
+}
+
+
+sub exec
+{
+    my @cmd=@_;
+    my $tmp="/tmp/seqmule_test.$$".rand($$);
+    open OUT,'>',$tmp or die "Can't open $tmp: $!\n";
+    print OUT "#!/bin/sh\nset -e\n";
+    print OUT join("\n",@cmd);
+    close OUT;
+    chmod 0755,$tmp;
+    !system($tmp) or die "Failed to run $tmp\n";
+}

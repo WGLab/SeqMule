@@ -1,0 +1,91 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my ($advanced,$n,$help,
+    $samtools,$bam,$threads,
+    $out);
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'samtools=s'	=>	\$samtools,
+    'bam=s'		=>	\$bam,
+    'out=s'		=>	\$out,
+    'threads=i'		=>	\$threads,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+my $cmd;
+
+if ($options{mapQ})
+{
+    open SAM,'-|',"$samtools view -h $bam" or die "ERROR: Failed to read $bam: $!\n";
+    open OUT,'|-',"$samtools view -@ $threads -Sb -o $out -" or die "ERROR: Failed to write output: $!\n";
+    while(<SAM>)
+    {
+	print OUT and next if /^@/;
+	my @f=split /\t/;
+
+	if ($options{mapQ}>$f[4])
+	{
+	    $f[1]=$f[1]+4 unless $f[1] & 0x4;
+	}
+	print OUT join("\t",@f),"\n";
+    }
+} else
+{
+    $cmd='cp $bam $out';
+}
+
+exec $cmd if $cmd;
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'samtools=s'	=>	\$samtools,
+    'bam=s'		=>	\$bam,
+    'out=s'		=>	\$out,
+    'threads=i'		=>	\$threads,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

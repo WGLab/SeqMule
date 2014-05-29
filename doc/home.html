@@ -1,0 +1,169 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>SeqMule Homepage</title>
+<meta name="keywords" content="variant detection,next-generation sequencing"/>
+<meta name="description" content="An automated next-generation sequencing data analysis pipeline"/>
+<link href="css/templatemo_style.css" rel="stylesheet" type="text/css" />
+
+<link rel="stylesheet" href="css/nivo-slider.css" type="text/css" media="screen" />
+
+<script language="javascript" type="text/javascript">
+function clearText(field)
+{
+    if (field.defaultValue == field.value) field.value = '';
+    else if (field.value == '') field.value = field.defaultValue;
+}
+</script>
+<script type="text/javascript">
+
+var _gaq = _gaq || [];
+_gaq.push(['_setAccount', 'UA-36141737-1']);
+_gaq.push(['_trackPageview']);
+
+(function() {
+ var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+ ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+ var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+ })();
+
+</script>
+
+<link rel="stylesheet" type="text/css" href="css/ddsmoothmenu.css" />
+
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/ddsmoothmenu.js">
+
+/***********************************************
+ * Smooth Navigational Menu- (c) Dynamic Drive DHTML code library (www.dynamicdrive.com)
+ * This notice MUST stay intact for legal use
+ * Visit Dynamic Drive at http://www.dynamicdrive.com/ for full source code
+ ***********************************************/
+
+</script>
+
+<script type="text/javascript">
+
+ddsmoothmenu.init({
+	mainmenuid: "templatemo_menu", //menu DIV id
+	orientation: 'h', //Horizontal or vertical menu: Set to "h" or "v"
+	classname: 'ddsmoothmenu', //class added to menu's outer DIV
+	//customtheme: ["#1c5a80", "#18374a"],
+	contentsource: "markup" //"markup" or ["container_id", "path_to_menu_file"]
+	})
+
+</script>
+
+</head>
+<body>
+
+<div id="templatemo_wrapper">
+    <div id="templatemo_header"></div> <!-- end of header -->
+    <div id="templatemo_menu" class="ddsmoothmenu">
+	<ul>
+	    <li><a href="home.html" class="selected">Home</a></li>
+	    <li><a href="pages/installation.html">Install</a> </li>
+	    <li><a href="pages/tutorial.html">Tutorial</a> </li>
+	    <li><a href="pages/manual.html">Manual</a></li>
+	    <li><a href="pages/faq.html">FAQ</a></li>
+	    <li><a href="pages/technotes.html">TechNotes</a></li>
+	</ul>
+	<br style="clear: left" />
+    </div> <!-- end of menu -->
+    
+    <div id="templatemo_slider_wrapper">
+	<div id="htmlcaption" class="nivo-html-caption">
+	    <strong>This</strong> is an example of a HTML caption with <a href="#">a link</a>.
+	</div>
+	
+    </div>
+    
+    <script type="text/javascript" src="js/jquery-1.4.3.min.js"></script>
+    <script type="text/javascript" src="js/jquery.nivo.slider.js"></script>
+    <script type="text/javascript">
+$(window).load(function() {
+	$('#slider').nivoSlider();
+	});
+    </script>
+    
+    <div id="templatemo_main"><br class="cleaner" />
+	
+	<!-- Place this tag where you want the +1 button to render. -->
+	<div class="g-plusone" data-annotation="inline" data-width="300"></div>
+	<!-- Place this tag after the last +1 button tag. -->
+	<script type="text/javascript">
+(function() {
+ var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
+ po.src = 'https://apis.google.com/js/plusone.js';
+ var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s);
+ })();
+	</script>
+	<br>
+	<script>
+<iframe id="forum_embed"
+src="javascript:void(0)"
+scrolling="no"
+frameborder="0"
+width="900"
+height="700">
+</iframe>
+
+<script type="text/javascript">
+document.getElementById("forum_embed").src =
+"https://groups.google.com/forum/embed/?place=forum/seqmule-dev" +
+"&showsearch=true&showpopout=true&parenturl=" +
+encodeURIComponent(window.location.href);
+	</script>
+	</script>
+
+	<h2>Introduction</h2>
+	<p>SeqMule takes single-end or paird-end FASTQ or BAM files, generates a script consisting of more than 10 popular alignment, analysis tools and runs the script line by line. Users have the choice to directly modify the pipeline. SeqMule also has some built-in functions, such as pooling consensus calls from various callers, plotting a Venn diagram showing intersection among different callers, and downloading databases.</p>
+	<br>
+	<h2>Features</h2>
+	<ul>
+	<li>Multiple aligners</li>
+	<p>BWA-MEM, BWA-BACKTRACK, Bowtie, Bowtie2, SOAP2</p>
+	<li>Multiple variant callers</li>
+	<p>As stated on 1000 Genomes Project website, genotypes obtained through a consensus procedure are estimated to have 30% fewer errors than those generated by any single caller. GATK, SAMtools, VarScan, SOAPsnp, Freebayes are available.</p>
+	<li>Easy downloading and installation.</li>
+	<p>Most jobs can be done with one-line command.</p>
+	<li>Fast and easy customization</li>
+	<p>Just change the 'advanced_config' file!</p>
+    </ul>
+
+	<br>
+	<h2>Download</h2>
+	<p>Download SeqMule here <A HREF="seqmule.beta.tar.gz">seqmule.beta.tar.gz</A>
+	</p><br>
+	<p>Alternatively,<br></p>
+	<code>svn checkout http://seqmule.googlecode.com/svn/trunk seqmule</code>
+	<br>
+	<p>NOTE: if you download seqmule via SVN, run the following command to update it<br></p>
+	<code>cd seqmule<br></code>
+	<code>svn update</code>
+	<br>
+	<br>
+
+	<h2>Revision History</h2> 
+	<p>For details, please go to <A HREF="https://code.google.com/p/seqmule/source/list">here</A><p>
+	<br>
+
+	<h2>Contact</h2>
+	<p>yunfeigu@usc.edu</p>
+	<p>Please join <a href="https://groups.google.com/forum/#!forum/seqmule-dev">SeqMule-dev</A> for updates!</p>
+	<br>
+    </div> <!-- end of main -->
+    
+    <div id="templatemo_footer">
+	<div class="cleaner"></div>
+    </div> <!-- end of footer -->
+</div>
+
+<div id="templatemo_cr_bar_wrapper">
+    <div id="templatemo_cr_bar">
+	Copyright 2014 <a href="http://genomics.usc.edu">USC Wang Lab</a> | Designed by <a href="http://www.templatemo.com" target="_parent">Free CSS Templates</a>
+    </div>
+</div>
+
+

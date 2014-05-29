@@ -1,0 +1,192 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","lib");
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+use SeqMule::Utils;
+
+
+my $program="soapsnp2vcf";
+my %iupac = (R=>'AG', Y=>'CT', S=>'CG', W=>'AT', K=>'GT', M=>'AC', A=>'AA', C=>'CC', G=>'GG', T=>'TT', B=>'CGT', D=>'AGT', H=>'ACT', V=>'ACG', N=>'ACGT', '.'=>'-', '-'=>'-');
+
+my ($sample,$dpfilter,$headerfile,$help);
+GetOptions( 
+    "s=s"	=>	\$sample,
+    "d=i"	=>	\$dpfilter,
+    "header=s"	=>	\$headerfile,
+    "h|help"	=>	\$help,
+) or pod2usage(2);
+pod2usage(1) if $help;
+
+my $in=shift @ARGV or pod2usage(2);
+my $out=shift @ARGV or pod2usage(2);
+
+
+#prepare header
+my $header="##fileformat=VCFv4.1\n##source=SOAPsnp\n";
+
+if ($headerfile)
+{
+my @contig_lines=&SeqMule::Utils::samSQ2vcf($headerfile);
+my $contig=join("\n",@contig_lines);
+$header.="$contig\n" if $contig;
+}
+
+if (defined $dpfilter)
+{
+    die "Negative DP filter not allowed\n" if $dpfilter<0;
+    $dpfilter=int($dpfilter+0.5);
+    $header.="##FILTER=<ID=DP$dpfilter,Description=\"Depth below $dpfilter\">\n";
+}
+
+$header.=
+"##INFO=<ID=RankSum,Number=1,Type=Float,Description=\"Z-score From Wilcoxon rank sum test of Alt vs. Ref sequencing qualities\">
+##INFO=<ID=CNNearby,Number=1,Type=Float,Description=\"Average copy number of nearby region\">
+##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">
+##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes for each ALT allele, in the same order as listed\">
+##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency for each ALT allele in the same order as listed\">
+##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Combined depth across samples\">
+##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth\">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT";
+
+##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype Quality, the Phred-scaled probability of the called genotype\">
+
+if ($sample)
+{
+    $header.="\t$sample\n" 
+} else
+{
+    $header.="\n" 
+}
+
+
+open IN,'<',$in or die "Can't open $in: $!\n";
+open OUT,'>',$out or die "Can't write to $out: $!\n";
+
+my $countvar=0;
+print OUT $header;
+while(<IN>)
+{
+    s/[\r\n]+$//;
+    my @f=split /\t/,$_,-1;
+    die "Expected 17 columns: $_\n" unless @f==17; 
+    my $line;
+
+    my ($chr, $pos, $wt, $call,$geno_qual)=@f[0..4];
+    my ($best,$best_qual,$best_uniq_count,$best_all_count) = @f[5..8];
+    my ($second,$second_qual,$second_uniq_count,$second_all_count)=@f[9..12];
+    my ($dp,$ranksum,$cn)=@f[13..15];
+
+    next if $dp==0 || $geno_qual==0; #skip SNP where coverage is 0 or genotype quality is 0
+
+    my ($gt,$ac,$an,$af);
+
+    my $obs = $iupac{$call} or die "Error: invalid best call in <$_>\n";
+    my @obs = split (//, $obs);
+    @obs == 2 or die "Error: observed IUPAC allele $call should correspond to two nucleotide alleles: <$_>\n";
+    die "Genotype score smaller than 0\n" if $geno_qual<0;
+    $geno_qual=int($geno_qual+0.5);
+
+    $line="$chr\t$pos\t.\t$wt"; #CHROM,POS,ID,REF
+
+    #ALT
+    $an=2; #assume diploid human genome, single sample
+    if ($obs[0] eq $wt and $obs[1] eq $wt) {
+	die "Error: reference alleles are identical to observed alleles: <$_> at line $. of $in\n";
+    } elsif ($obs[0] eq $wt) {
+	$line.="\t$obs[1]";
+	$gt="0/1";
+	$ac=1;
+	$af=0.5;
+	if ($obs[1] ne $best && $obs[1] ne $second)
+	{
+	    warn "Alt allele $obs[1] is not the best or second best base at line $. of $in\n" and next;
+	}
+    } elsif ($obs[1] eq $wt) {
+	$line.="\t$obs[0]";
+	$gt="0/1";
+	$ac=1;
+	$af=0.5;
+	if ($obs[0] ne $best && $obs[0] ne $second)
+	{
+	    warn "Alt allele $obs[0] is not the best or second best base at line $. of $in\n" and next;
+	}
+    } elsif ($obs[1] ne $obs[0]) {
+	$line.="\t$obs[0],$obs[1]";
+	$gt="1/2";
+	$countvar++;
+	$ac="1,1";
+	$af="0.5,0.5";
+	if ($obs[0] eq $best && $obs[1] eq $second)
+	{
+	    1;
+	} elsif ($obs[0] eq $second && $obs[1] eq $best)
+	{
+	    1;
+	} else
+	{
+	    warn "Alt alleles $obs[0] and $obs[1] are not the best or second best base at line $. of $in\n" and next;
+	}
+    } else {
+	$line.="\t$obs[0]";
+	$gt="1/1";
+	$ac=2;
+	$af="1.0";
+	if ($obs[0] eq $best)
+	{
+	    1;
+	} else
+	{
+	    warn "Homologous alt allele $obs[0] is not the best base at line $. of $in\n" and next;
+	}
+    }
+    $line.="\t$geno_qual"; #QUAL
+
+    #FILTER
+    if (defined $dpfilter)
+    {
+	if ($dp>=$dpfilter)
+	{
+	    $line.="\tPASS";
+	} else
+	{
+	    $line.="\tDP$dpfilter";
+	}
+
+    } else
+    {
+	$line.="\t.";
+    }
+
+    $line.="\tRankSum=$ranksum;CNNearby=$cn;DP=$dp;AC=$ac;AN=$an;AF=$af"; #INFO
+    $line.="\tGT:DP"; #FORMAT
+    $line.="\t$gt:$dp"; #sample
+
+    print OUT "$line\n";
+    $countvar++;
+}
+
+warn "NOTICE: write $countvar variants\n";
+
+__END__
+
+=head1 NAME
+
+soapsnp2vcf
+
+=head1 SYNOPSIS
+
+soapsnp2vcf [options] <soapsnp.output> <out.vcf>
+
+  Options:
+    -d			depth filter
+    -s			sample name
+    -header		SAM header file containing @SQ
+    -h,--help		help
+
+=cut

@@ -1,0 +1,82 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use FindBin qw/$RealBin/;
+use lib "$RealBin/lib"; #libary just needed for configuration
+use SeqMule::Install;
+
+chdir($RealBin); #alway go here for safety
+
+#vars
+my $author='Wang Genomics Lab <yunfeigu@usc.edu>',
+my $intro=
+"SeqMule is an automated pipeline designed for next-generation sequencing data analysis.".
+"It automatizes the calling of variants (SNPs, indels) from raw sequencing data generated".
+"by Illumina and Iontorrent sequencing platforms. It integrates several most popular ".
+"variant calling algorithms and is able to produce a comprehensive set of variants. ".
+"Subsequently, these variants can be annotated and filtered by ANNOVAR with either a ".
+"default or custom procedure";
+my %sys_require=( #system-wide executables required
+		'java' 		=> ['java'],
+		'GNU_Cplusplus'	=> ['g++'],
+		'gcc'		=> ['gcc'],
+		'unzip'		=> ['unzip'],
+		'r' 		=> ['Rscript'],
+		'make'		=> ['make'],
+		'automake'	=> ['automake'],
+		'autoconf'	=> ['autoconf'],
+		'git'		=> ['git'],
+		'gzip'		=> ['gzip','gunzip'],
+		'tar'		=> ['tar'],
+);
+my %exe_require=( #core executables for each program
+		'fastqc' 	=> ['fastqc'],
+		'bowtie' 	=> ['bowtie'],
+		'bowtie2' 	=> ['bowtie2'],
+		'bwa' 		=> ['bwa'],
+		'samtools' 	=> ['samtools'],
+		'gatk' 		=> ['GenomeAnalysisTKLite.jar'],
+		'gatkfull' 	=> ['GenomeAnalysisTK.jar'],
+		'picard' 	=> ['SortSam.jar','MarkDuplicates.jar'],
+		'soap'		=> ['soap'],
+		'varscan' 	=> ['varscan.jar'],
+		'soapsnp' 	=> ['soapsnp','msort','soap2sam.pl'],
+		'tabix'		=> ['bgzip','tabix'],
+		'vcftools'	=> ['vcftools'],
+		'freebayes'	=> ['freebayes'],
+		#'snver'	=> ['SNVerIndividual.jar'],
+);
+my %opt_action=(
+		'status'	=> \&SeqMule::Install::status,
+		'installexes'   => \&SeqMule::Install::installexes,
+		'freshinstall'  => \&SeqMule::Install::freshinstall,
+		'clean'		=> \&SeqMule::Install::clean,
+		###########EXEs######################
+		'fastqc' 	=> \&SeqMule::Install::fastqc,
+		'bowtie' 	=> \&SeqMule::Install::bowtie,
+		'bowtie2' 	=> \&SeqMule::Install::bowtie2,
+		'bwa'	 	=> \&SeqMule::Install::bwa,
+		'samtools' 	=> \&SeqMule::Install::samtools,
+		'gatk' 		=> \&SeqMule::Install::gatk,
+		'gatkfull'	=> \&SeqMule::Install::gatkfull,
+		'picard' 	=> \&SeqMule::Install::picard,
+		'soap'		=> \&SeqMule::Install::soap,
+		'varscan' 	=> \&SeqMule::Install::varscan,
+		'tabix'		=> \&SeqMule::Install::tabix,
+		'java' 		=> \&SeqMule::Install::java,
+		'soapsnp' 	=> \&SeqMule::Install::soapsnp,
+		'vcftools'	=> \&SeqMule::Install::vcftools,
+		'freebayes'	=> \&SeqMule::Install::freebayes,
+		#'snver'	=> \&SeqMule::Install::snver,
+);
+
+#user input
+my $opt=shift @ARGV;
+if ( (! defined $opt) or (! defined $opt_action{$opt}) )
+{
+    warn "Invalid option!\n" if (defined $opt && ! defined $opt_action{$opt});
+    &{$opt_action{'status'}}($RealBin,\%sys_require,\%exe_require); #only status subroutine needs argument
+    exit 0;
+}
+&{$opt_action{$opt}}($RealBin,\%sys_require,\%exe_require);

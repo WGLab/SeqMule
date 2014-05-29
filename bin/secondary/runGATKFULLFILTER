@@ -1,0 +1,270 @@
+#!/usr/bin/env perl
+
+#run GATK full version UnifiedGenotyper
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my (
+    $capture,   $java,    $java_mem,    $gatk,
+    $ref,    $local_threads,    $gatk_nt,    $internal_caller,
+    $gatk_hard_filter_bam_size,
+    $gatk_indel_hard_filter_bam_size,
+    $dbsnp,    $kg,    $hapmap,$goldindel,
+    $indel,    $indel_filter,
+    $snp,    $snp_filter,
+    $vcf_filter,$vcf,
+    $tranches,
+    $recal_file,
+    $plots,
+    $indel_tranches,    $indel_recal_file,    $indel_plots,
+    $help,$advanced,    $n,);
+my @bam;
+my @vcf;
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'capture=s'		=>	\$capture,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'gatk=s'		=>	\$gatk,
+    'ref=s'		=>	\$ref,
+    'threads=i'		=>	\$local_threads,
+    'gatk-nt=i'		=>	\$gatk_nt,
+    'internal-caller=s'	=>	\$internal_caller,
+    'gatk-hfilter-size=s'=>	\$gatk_hard_filter_bam_size,
+    'gatk-indelfilter-size=s'=>	\$gatk_indel_hard_filter_bam_size,
+    'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg,
+    'hapmap=s'		=>	\$hapmap,
+    'goldindel=s'	=>	\$goldindel,
+    'bam=s'		=>	\@bam, #specify it multiple times
+    'indel=s'		=>	\$indel,
+    'indel-filter=s'	=>	\$indel_filter,
+    'snp=s'		=>	\$snp,
+    'snp-filter=s'	=>	\$snp_filter,
+    'vcf=s'		=>	\$vcf,
+    'vcf-part=s'	=>	\@vcf,
+    'vcf-filter=s'	=>	\$vcf_filter,
+    'tranches=s'	=>	\$tranches,
+    'recal-file=s'	=>	\$recal_file,
+    'plots=s'		=>	\$plots,
+    'indel-tranches=s'	=>	\$indel_tranches,
+    'indel-recal-file=s'=>	\$indel_recal_file,
+    'indel-plots=s'	=>	\$indel_plots,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+
+if ($internal_caller ne 'haplotypecaller' && $internal_caller ne 'unifiedgenotyper')
+{
+    die "unrecognized internal caller: $internal_caller.\n";
+}
+
+my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
+my @cmd;
+
+if (@vcf && @vcf>1)
+{
+    #if multiple input VCF, combine them first
+    my $cmd="$java -Xmx$java_mem -jar $gatk -T CombineVariants -R $ref ";
+    map {$cmd.=" --variant $_ " } @vcf;
+    $cmd.=" -o $vcf ".($capture? " -L $capture":"");
+    push @cmd,$cmd;
+}
+if ($options{filter}==1)
+{
+#split SNP and INDEL
+    push @cmd, "$java -Xmx$java_mem -jar $gatk -T SelectVariants -R $ref --variant $vcf -o $indel -selectType INDEL".($capture? " -L $capture":"");
+
+    push @cmd,"$java -Xmx$java_mem -jar $gatk -T SelectVariants -R $ref --variant $vcf -o $snp -selectType SNP".($capture? " -L $capture":"");
+#VQSR and filtering
+
+    #SNP
+    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR})
+    {
+	#if size is big enough, do VQSR otherwise hard filtering
+	my $cmd;
+	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantRecalibrator -R $ref -input $snp";
+	$cmd.=" --maxGaussians $options{maxGaussians}" if $options{maxGaussians};
+	$cmd.=" --minNumBadVariants $options{numBadVariants}" if $options{numBadVariants};
+	if (defined $options{annotations})
+	{
+	    map { $cmd.=" -an $_" } (split ',',$options{annotations});
+	}
+#existence of various db has been checked
+	$cmd.=" -resource:hapmap,known=false,training=true,truth=true,prior=15.0 $hapmap -resource:omni,known=false,training=true,truth=false,prior=12.0 $kg -resource:dbsnp,known=true,training=false,truth=false,prior=6.0 $dbsnp -mode SNP -recalFile $recal_file -tranchesFile $tranches";
+	$cmd.=" -nt $nt" if $nt > 1;
+
+	$cmd.=" -rscriptFile $plots";
+	$cmd.=" -L $capture" if $capture;
+	push @cmd,$cmd;$cmd="";
+
+	$cmd.="$java -Xmx$java_mem -jar $gatk -T ApplyRecalibration -R $ref -input $snp -tranchesFile $tranches -recalFile $recal_file";
+	$cmd.=" --ts_filter_level $options{snptsfilter}" if $options{snptsfilter};
+	$cmd.=" -o $snp_filter";
+	$cmd.=" -L $capture" if $capture;
+	push @cmd,$cmd;$cmd="";
+    } else
+    {
+	warn "NOTICE:BAM input for GATK VQSR is too small, use hard filtering for SNPs instead.\n";
+	my $cmd;
+	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantFiltration -R $ref --variant $snp";
+	if ($options{snpfilters})
+	{
+	    for my $filter(split ';',$options{snpfilters})
+	    {
+		my ($filtername,$filterexp)=split ',',$filter;
+		if ($filtername && $filterexp)
+		{
+		    $cmd.=" --filterExpression '$filterexp' --filterName $filtername";#single quote is necessary
+		}
+	    }
+	}
+
+	$cmd.=" -o $snp_filter";
+	$cmd.=" -L $capture" if $capture;
+	push @cmd,$cmd;
+    }
+
+
+    #indel
+    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_indel_hard_filter_bam_size or $options{forceINDELVQSR})
+    {
+	#if size is big enough, do VQSR otherwise hard filtering
+	my $cmd;
+	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantRecalibrator -R $ref -input $indel";
+	$cmd.=" --maxGaussians $options{indelMaxGaussians}" if $options{indelMaxGaussians};
+	$cmd.=" --minNumBadVariants $options{indelNumBadVariants}" if $options{indelNumBadVariants};
+	if (defined $options{indelAnnotations})
+	{
+	    map { $cmd.=" -an $_" } (split ',',$options{indelAnnotations});
+	}
+#existence of various db has been checked
+	$cmd.=" -resource:mills,known=true,training=true,truth=true,prior=12.0 $goldindel -mode INDEL -recalFile $indel_recal_file -tranchesFile $indel_tranches";
+	$cmd.="  -tranche 100.0 -tranche 99.9 -tranche 99.0 -tranche 90.0 ";
+	$cmd.=" -nt $nt" if $nt > 1;
+
+	$cmd.=" -rscriptFile $indel_plots";
+	$cmd.=" -L $capture" if $capture;
+	push @cmd,$cmd;$cmd="";
+
+	$cmd.="$java -Xmx$java_mem -jar $gatk -T ApplyRecalibration -R $ref -input $indel -tranchesFile $indel_tranches -recalFile $indel_recal_file";
+	$cmd.=" --ts_filter_level $options{indeltsfilter}" if $options{indeltsfilter};
+	$cmd.=" -o $indel_filter";
+	$cmd.=" -L $capture" if $capture;
+	push @cmd,$cmd;$cmd="";
+    } else
+    {
+	warn "NOTICE:BAM input for GATK VQSR is too small, use hard filtering for Indels instead.\n";
+	my $cmd;
+	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantFiltration -R $ref --variant $indel";
+	$cmd.=" --clusterWindowSize $options{clusterWindowSize}" if $options{clusterWindowSize};
+	if ($options{indelfilters})
+	{
+	    for my $filter(split ';',$options{indelfilters})
+	    {
+		my ($filtername,$filterexp)=split ',',$filter;
+		if ($filtername && $filterexp)
+		{
+		    $cmd.=" --filterName $filtername --filterExpression '$filterexp'"; #single quote is necessary
+		}
+	    }
+	}
+
+	$cmd.=" -o $indel_filter";
+	$cmd.=" -L $capture" if $capture;
+	push @cmd,$cmd;
+    }
+    push @cmd,"$java -Xmx$java_mem -jar $gatk -T CombineVariants -R $ref --variant $snp_filter --variant $indel_filter -o $vcf_filter".($capture? " -L $capture":"");
+}
+
+#make a copy of final_vcf for each sample, with "multi-call" keyword
+if (@bam>1)
+{
+    my $final_vcf=($options{filter}==1? $vcf_filter:$vcf);
+    for (@bam)
+    {
+	my ($new_prefix)= /^(.*)\.bam$/i;
+	my $out="${new_prefix}_gatkug.multi-call".($options{filter}? ".filter":"").".vcf";
+	$out=~s/_gatkug/_gatkhc/ if $internal_caller eq 'haplotypecaller';
+	#make a copy of final vcf for each prefix (samplename)
+	push @cmd,"cp $final_vcf $out";
+    }
+}
+
+#generate shell script and run
+my $script=&SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'capture=s'		=>	\$capture,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'gatk=s'		=>	\$gatk,
+    'ref=s'		=>	\$ref,
+    'threads=i'		=>	\$local_threads,
+    'gatk-nt=i'		=>	\$gatk_nt,
+    'internal-caller=s'	=>	\$internal_caller,
+    'gatk-hfilter-size=s'=>	\$gatk_hard_filter_bam_size,
+    'gatk-indelfilter-size=s'=>	\$gatk_indel_hard_filter_bam_size,
+    'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg,
+    'hapmap=s'		=>	\$hapmap,
+    'bam=s'		=>	\@bam, #specify it multiple times
+    'indel=s'		=>	\$indel,
+    'indel-filter=s'	=>	\$indel_filter,
+    'snp=s'		=>	\$snp,
+    'snp-filter=s'	=>	\$snp_filter,
+    'vcf=s'		=>	\$vcf,
+    'vcf-filter=s'	=>	\$vcf_filter,
+    'tranches=s'	=>	\$tranches,
+    'recal-file=s'	=>	\$recal_file,
+    'plots=s'		=>	\$plots,
+    'indel-tranches=s'	=>	\$indel_tranches,
+    'indel-recal-file=s'=>	\$indel_recal_file,
+    'indel-plots=s'	=>	\$indel_plots,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

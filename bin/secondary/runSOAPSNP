@@ -1,0 +1,125 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my ($advanced,$n,$help,
+    $msort,    $soapsnp,    $soapsnp2vcf,$samtools,
+    $ref,
+    $in,    $bam,    $sample,    $sorted,    $soapsnp_out,    $vcf,
+);
+@ARGV or pod2usage ({-exitval=>2});
+
+GetOptions(
+    #input and output
+    'msort=s'		=>	\$msort,
+    'soapsnp=s'		=>	\$soapsnp,
+    'samtools=s'	=>	\$samtools,
+    'soapsnp2vcf=s'	=>	\$soapsnp2vcf,
+    'ref=s'		=>	\$ref,
+    'in=s'		=>	\$in,
+    'bam=s'		=>	\$bam,
+    'sample=s'		=>	\$sample,
+    'sorted=s'		=>	\$sorted,
+    'soapsnp-out=s'	=>	\$soapsnp_out,
+    'vcf=s'		=>	\$vcf,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+my @cmd;
+
+push @cmd,"$msort -k fm8 -k fn9 $in > $sorted";
+
+{
+    my $cmd;
+$cmd.="$soapsnp -i $sorted -d $ref";
+$cmd.=" -r $options{althom}" if $options{althom} ne "";
+$cmd.=" -e $options{het}" if $options{het} ne "";
+$cmd.=" -t" if $options{titv2} && $options{titv2}==1;
+$cmd.=" -u" if $options{ranksum} && $options{ranksum}==1;
+$cmd.=" -n" if $options{binomial} && $options{binomial}==1;
+$cmd.=" -q"; #only output potential SNPs
+$cmd.=" -L $options{readlen}" if $options{readlen};
+$cmd.=" $options{additional} " if $options{additional} ne '';
+$cmd.=" -o $soapsnp_out";
+push @cmd,$cmd;
+}
+
+{
+    my $cmd;
+    my $header="$sorted.samheader";
+    !system("$samtools view -H $bam > $header") or die "Failed to extract header from $bam: $!\n";
+    $cmd.="$soapsnp2vcf $soapsnp_out $vcf -header $header";
+    if ($sample ne '')
+    {
+	$cmd.=" -s $sample";
+    }
+    if ($options{minDepth} =~ /^\d+$/)
+    {
+	$cmd.=" -d $options{minDepth}";
+    }
+    push @cmd,$cmd;
+    push @cmd,"rm -f $header";
+}
+
+my $script=&SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'msort=s'		=>	\$msort,
+    'soapsnp=s'		=>	\$soapsnp,
+    'soapsnp2vcf=s'	=>	\$soapsnp2vcf,
+    'ref=s'		=>	\$ref,
+    'in=s'		=>	\$in,
+    'bam=s'		=>	\$bam,
+    'sample=s'		=>	\$sample,
+    'sorted=s'		=>	\$sorted,
+    'soapsnp-out=s'	=>	\$soapsnp_out,
+    'vcf=s'		=>	\$vcf,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

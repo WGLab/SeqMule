@@ -1,0 +1,895 @@
+#!/usr/bin/env perl
+
+#Copyright (C) <2012>  <Yunfei Guo>
+
+##This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+##This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+##You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+use warnings;
+use strict;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use File::Basename qw/basename dirname/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+use Cwd qw/abs_path/;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+#CONSTANT
+my $ARGCOUNT=100000; #number of regions to extract using command line, max number if restricted by kernel config
+
+my ($prefix,
+    $bam,$vcf,
+    $buildver,$capture,
+    $venn,$aln,
+    $ref,$minN,$consensus_vcf,$union_vcf,$consensus_files,$union_files,
+    $sample,$filter,
+    $jmem,$nt,
+    $help,$noclean,
+);
+my $install_dir=File::Spec->catdir($RealBin,"..","..");
+my @gunlink;
+my %loc; #exe locations, used for speeding exe search
+my $rev='$Revision: 153 $';
+my $lastchangeddate='$LastChangedDate: 2013-10-02 17:23:20 -0700 (Wed, 02 Oct 2013) $';
+warn "$lastchangeddate\n$rev\n";
+
+
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    'prefix|p=s'	=>	\$prefix,
+    'bam=s'		=>	\$bam,
+    'vcf=s'		=>	\$vcf,
+    'aln'		=>	\$aln,
+    'capture:s'	        =>	\$capture,
+    'sample|s=s'	=>	\$sample,
+    'filter'		=>	\$filter,
+
+    'consensus|c=s'     =>      \$consensus_files,
+    'union|u=s'		=>	\$union_files,
+
+    'ref=s'		=>	\$ref,
+    'c-vcf=s'		=>	\$consensus_vcf,
+    'N=i'		=>	\$minN,
+    'u-vcf=s'		=>	\$union_vcf,
+    'jmem=s'		=>	\$jmem,
+    't=i'		=>	\$nt,
+
+    'venn=s'		=>	\$venn,
+
+    'help|h'	        =>	\$help,
+    'noclean'		=>	\$noclean,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+#option check
+die "No prefix while multiple input files are used!\n" if ( ($consensus_files || $union_files || $venn || $consensus_vcf || $union_vcf ) && !$prefix);
+die "Please supply a sorted BAM file (-bam)\n" if ($aln && ! $bam );
+die "Please supply a sorted BAM file (-bam) or VCF file (-vcf)\n" if (defined $capture && ! ( $bam or $vcf));
+die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-c)\n" if ($consensus_files && $consensus_files=~s/,/,/g < 1);
+die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-u)\n" if ($union_files && $union_files=~s/,/,/g < 1);
+die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($venn && $venn=~s/,/,/g < 1);
+die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
+die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
+die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
+
+#set default
+$jmem=$jmem||'3g';
+$nt=$nt || 1;
+
+if ($union_vcf)
+{
+    &vcf_union(split /,/,$union_vcf);
+}
+
+if ($consensus_vcf)
+{
+    &vcf_consensus(split /,/,$consensus_vcf);
+}
+
+if ($union_files)
+{
+    &var_union(
+	&conv2anno(split /,/,$union_files) );
+}
+
+if ($consensus_files)
+{
+&var_consensus(
+    &conv2anno(split /,/,$consensus_files) 
+);
+}
+
+if ($venn)
+{
+    my @files=split /,/,$venn;
+    &genPlot(
+	&venn( &conv2anno(@files) ),scalar(@files) 
+    ); 
+}
+
+if (defined $capture) 
+{
+    if ($bam)
+    {
+	my $stat_output = &coverage_stat($capture,$bam) 
+	    or die "Unable to calculate coverage statistics\n";
+	&coverage_plot($stat_output);
+    }
+    if ($capture && $vcf)
+    {
+	&extractVar($capture,$vcf);
+    }
+}
+&aln_stat($bam) if ($bam && $aln);
+if (defined $vcf)
+{
+    if (defined $sample)
+    {
+&var_stat($vcf,$sample);
+    } else
+    {
+&var_stat($vcf);
+}
+}
+
+
+END { &clean_up()}
+
+#SIGINT handler
+
+$SIG{INT}='clean_up';
+######################SUBROUTINES############################    
+sub vcf_consensus
+{
+    my @in=@_;
+    die "At least 2 VCF files for extracting consensus calls\n" unless @in>1;
+    my $java=&getExe("java");
+    my $gatk=&getExe("GenomeAnalysisTKLite.jar","GenomeAnalysisTK.jar");
+    my $out=&getPrefix(@in)."_consensus.vcf";
+    my $local_minN=$minN || scalar @in;
+
+    my ($unzipped,$unlink)=&SeqMule::Utils::gunzip(@in);
+    @in=@$unzipped;
+    push @gunlink,@$unlink;
+
+    my $cmd=
+    "$java -Xmx$jmem -jar $gatk -T CombineVariants".
+    " -R $ref".
+    " -nt $nt".
+    " -o $out";
+
+    $cmd.=" -minN $local_minN" and 
+    warn "NOTICE: extracting variants shared by at least $local_minN input files.\n".
+    	 "NOTICE: variants filtered in any INPUT will NOT be printed.\n" if $local_minN;
+    map {$cmd.=" -V:".(basename $_).",VCF $_ "} @in;
+
+    !system($cmd) or die "Failed to merge VCF files: $!\n";
+}
+sub vcf_union
+{
+    my @in=@_;
+    die "At least 2 VCF files for extracting union calls\n" unless @in>1;
+    my $java=&getExe("java");
+    my $gatk=&getExe("GenomeAnalysisTKLite.jar","GenomeAnalysisTK.jar");
+    my $out=&getPrefix(@in)."_union.vcf";
+
+    my ($unzipped,$unlink)=&SeqMule::Utils::gunzip(@in);
+    @in=@$unzipped;
+    push @gunlink,@$unlink;
+
+    my $cmd=
+    "$java -Xmx$jmem -jar $gatk -T CombineVariants".
+    " -R $ref".
+    " -nt $nt".
+    " -o $out";
+
+    map {$cmd.=" -V:".(basename $_).",VCF $_"} @in;
+
+    !system($cmd) or die "Failed to merge VCF files: $!\n";
+}
+sub extractVar
+{
+    my ($bed,$vcf)=@_;
+    my $local_prefix=&getPrefix($vcf);
+    my $outfile="${local_prefix}.extract.vcf";
+    my $gzvcf="$vcf.gz"; 
+    my @region=&SeqMule::Utils::readBED($bed);
+    my @tabix_region;
+    my $bgzip=&getExe("bgzip");
+    my $tabix=&getExe("tabix");
+
+    #convert bed regions to tabix arguments
+    for (@region)
+    {
+	my @line=@{$_};
+	next unless @line>=3;
+	push @tabix_region,"$line[0]:$line[1]-$line[2]";
+    }
+    warn "Extracting variants from specified BED file.\n";
+    !system("$bgzip -c $vcf > $gzvcf") and 
+    !system("$tabix -p vcf $gzvcf") or die "Can't compress and index $vcf: $!\n"; 
+
+    open STDOUT,'>',$outfile or die "Cannot write to $outfile: $!\n";
+    while (@tabix_region)
+    {
+	my @tmp_region;
+	if (@tabix_region>$ARGCOUNT)
+	{
+	    @tmp_region= map {shift @tabix_region} (1..$ARGCOUNT);
+	} else
+	{
+	    @tmp_region= @tabix_region;
+	    @tabix_region=();
+	}
+	!system($tabix,$gzvcf,@tmp_region) or die "Can't extract variants from $vcf: $!\n"; 
+    }
+    my $varcount=`wc -l $outfile`;chomp $varcount; $varcount=~s/^(\d+)\s.*/$1/;
+    warn "$varcount extracted variants written to $outfile\n";
+}
+
+sub aln_stat
+{
+    my $bam=shift;
+    my $samtool=&getExe("samtools");
+    my $local_prefix=&getPrefix($bam);
+    my $outfile="${local_prefix}_aln_stat.txt";
+    my $output;
+
+    warn "Generating alignment stats\n";
+    open IN,'-|',"$samtool flagstat $bam" or die "Can't read samtools output: $!\n";
+    $output.="$bam=Alignment stats\n";
+    while(<IN>)
+    {
+	$output.="QC-passed reads=$1\nQC-failed-reads=$2\n" if /(\d+) \+ (\d+) in total \(QC-passed reads \+ QC-failed reads\)/;
+	$output.="Duplicates=$1\n" if /(\d+) \+ \d+ duplicates/; 
+	$output.="Mapped reads=$1($2)\n" if /(\d+) \+ \d+ mapped \((.*?%):.*\)/;
+	$output.= "Paired reads=$1\n" if /(\d+) \+ \d+ paired in sequencing/;
+	$output.= "Read1=$1\n" if /(\d+) \+ \d+ read1/;
+	$output.="Read2=$1\n" if /(\d+) \+ \d+ read2/;
+	$output.= "Properly paired=$1($2)\n" if /(\d+) \+ \d+ properly paired \((.*?%):.*\)/;
+	$output.= "Reads with itself and mate mapped=$1\n" if /(\d+) \+ \d+ with itself and mate mapped/;
+	$output.= "Singletons=$1($2)\n" if /(\d+) \+ \d+ singletons \((.*?%):.*\)/;
+	$output.= "Reads with mate mapped to a different chromosome=$1\n" if /(\d+) \+ \d+ with mate mapped to a different chr$/;
+	$output.= "Reads with mate mapped to a different chr (mapQ at least 5)=$1\n" if /(\d+) \+ \d+ with mate mapped to a different chr \(mapQ>=5\)$/;
+    }
+    close IN;
+
+    #write to output
+    &SeqMule::Utils::write2outfile($output,$outfile);
+    warn "Output written to $outfile\n";
+}
+
+sub var_stat
+{
+    my $vcf=shift;
+    my $sample=shift;
+    my $local_prefix=&getPrefix($vcf);
+    my $outfile="${local_prefix}_var_stat.txt";
+    my $vcftools=&getExe("vcf-stats");
+    my $dump;
+    my $output;
+    my @sample_in_vcf=&SeqMule::Utils::getVCFSample($vcf);
+
+    if (! defined $sample)
+    {
+	die "Multiple samples in VCF, please specify sample name (-s option)\n" if @sample_in_vcf>1;
+    } else
+    {
+	die "$sample NOT found in VCF\n" if (grep { $_ eq $sample} @sample_in_vcf) == 0;
+	die "$sample duplicates in VCF\n" if (grep { $_ eq $sample} @sample_in_vcf) > 1;
+    }
+
+    warn "Generating variant stats\n";
+    &loadPM($vcftools);
+    if ($filter)
+    {
+        #only consider variants with 'PASS' or '.' in FILTER
+        my $tmp="/tmp/$$.filtered.vcf";
+        !system("perl -ne '\@f=split /\t/; print if /^#/ or \$f[6] eq \"PASS\" or \$f[6] eq \".\";' $vcf > $tmp")
+    		or die "Failed to output filtered variants: $!\n";
+        $vcf=$tmp;
+    }
+    if (defined $sample)
+    {
+	$dump=`$vcftools $vcf -s $sample 2>/dev/null` or die "Cannot read output from vcf-stats: $!\n";
+    } else
+    {
+	$dump=`$vcftools $vcf 2>/dev/null` or die "Cannot read output from vcf-stats: $!\n";
+    }
+
+    if (0)
+    { #example output
+	my $VAR1 = {
+	    'samples' => {
+		'father' => {
+		    'hom_AA_count' => 97282, #1/1,2/2 variant
+		    'indel_count' => 6057,
+		    'indel' => {
+			'-13' => 11,
+			'5' => 78,
+			#ignore some lines
+		    },
+		    'het_RA_count' => 47435, #0/1 variant
+		    'snp_count' => 138743, #number of SNPs
+		    'count' => 162826, #snp+indel
+		    'hom_RR_count' => 18026, #0/0 non-mutation
+		    'ref' => 65461,
+		    'private' => 144800, #snp_count+indel_count-shared_variant
+		    'missing' => 50070,
+		    'het_AA_count' => 83, #1/2,1/3 etc., variant
+		    'snp' => {
+			'A>C' => 5648,
+			'A>G' => 24308, #ti
+			'T>G' => 5694,
+			'T>A' => 3587,
+			'T>C' => 24096, #ti
+			'C>T' => 23792, #ti
+			'C>A' => 5222,
+			'A>T' => 3600,
+			'G>T' => 5301,
+			'C>G' => 6885,
+			'G>C' => 6765,
+			'G>A' => 23859 #ti
+		    },
+		    'unphased' => 162826,
+		    'ref_count' => 65461
+		}
+	    },
+	    'all' => {
+		'indel_count' => 6863,
+		'indel' => {
+		    '-13' => 13,
+		    '5' => 90
+		    #ignore some lines
+		},
+		'snp_count' => 206033,
+		'count' => 212896,
+		'nalt_1' => 212763,
+		'shared' => {
+		    '1' => 144800,
+		    '0' => 68096
+		},
+		'nalt_2' => 132,
+		'snp' => {
+		    'A>C' => 8268,
+		    'A>G' => 35693,
+		    'T>G' => 8306,
+		    'T>A' => 5287,
+		    'C>T' => 35659,
+		    'T>C' => 35731,
+		    'C>A' => 7870,
+		    'A>T' => 5463,
+		    'G>T' => 7841,
+		    'C>G' => 10121,
+		    'G>C' => 10001,
+		    'G>A' => 35826
+		},
+		'nalt_3' => 1
+	    }
+	};
+    }
+    $dump.='%sample_hash= %{$$VAR1{samples}};'."\n";
+    $dump.='($sample)=keys %sample_hash;'."\n";
+    $dump.='%sample_stat= %{$sample_hash{$sample}};'."\n";
+    $dump.='$nsnp=$sample_stat{snp_count} if exists $sample_stat{snp_count};'."\n";
+    $dump.='$nindel=$sample_stat{indel_count} if exists $sample_stat{indel_count};'."\n";
+    $dump.='$total=$nsnp+$nindel if defined $nsnp && defined $nindel;'."\n";
+    $dump.='$nti=0;map {$nti+=${$sample_stat{snp}}{$_} if exists ${$sample_stat{snp}}{$_} } qw(A>G G>A C>T T>C);'."\n";
+    $dump.='$ntv=0;map {$ntv+=${$sample_stat{snp}}{$_} if exists ${$sample_stat{snp}}{$_} } qw(A>C C>A G>T T>G A>T T>A C>G G>C);'."\n";
+    $dump.='$titv= $ntv ? $nti/$ntv : 0;'."\n";
+    $dump.='$titv= sprintf "%.2f",$titv;'."\n";
+    $dump.='$nhet_RA=$sample_stat{het_RA_count} if exists $sample_stat{het_RA_count};'."\n";
+    $dump.='$nhet_AA=$sample_stat{het_AA_count} if exists $sample_stat{het_AA_count};'."\n";
+    $dump.='$nhet=$sample_stat{het_AA_count}+$sample_stat{het_RA_count} if exists $sample_stat{het_AA_count} && exists $sample_stat{het_RA_count};'."\n";
+    $dump.='$nhom=$sample_stat{hom_AA_count} if exists $sample_stat{hom_AA_count};'."\n";
+
+
+    $dump.="print 'Number of variants='.(\$total).\"\\n\" if defined \$total;\n";
+    $dump.="print 'Number of SNPs='.(\$nsnp).\"\\n\" if defined \$nsnp;\n";
+    $dump.="print 'Number of indels='.(\$nindel).\"\\n\" if defined \$nindel;\n";
+    $dump.="print 'Transitions='.(\$nti).\"\\n\" if defined \$nti;\n";
+    $dump.="print 'Transversions='.(\$ntv).\"\\n\" if defined \$ntv;\n";
+    $dump.="print 'Ti/Tv Ratio='.(\$titv).\"\\n\" if defined \$titv;\n";
+    $dump.="print 'Total heterozygotes='.(\$nhet).\"\\n\" if defined \$nhet;\n";
+    $dump.="print 'Ref/Alt heterozygotes='.(\$nhet_RA).\"\\n\" if defined \$nhet_RA;\n";
+    $dump.="print 'Alt/Alt heterozygotes='.(\$nhet_AA).\"\\n\" if defined \$nhet_AA;\n";
+    $dump.="print 'Homozygotes='.(\$nhom).\"\\n\" if defined \$nhom;\n";
+
+    my $tmp_script="/tmp/$$.seqmule.varstat";
+    open SCRIPT,'>',$tmp_script or die "Failed to write to $tmp_script\n";
+    print SCRIPT $dump;
+    close SCRIPT;
+
+    open IN,'-|',"$^X $tmp_script 2>/dev/null" or die "Failed to read from vcf-stats dump: $!\n";
+    $output.="$vcf=Variant stats\n";
+    while(<IN>)
+    {
+	$output.=$_;
+    }
+    close IN;
+    &SeqMule::Utils::write2outfile($output,$outfile);
+    warn "Output written to $outfile\n";
+}
+
+
+
+sub clean_up 
+{
+    warn "Cleaning...\n" and unlink @gunlink if (@gunlink && !$noclean);
+}
+
+sub coverage_plot
+{
+    my $stat_file=shift;
+    my $n=3; #skip non-coverage lines
+    my $lines;
+    my $r=&getExe("Rscript");
+
+    return undef unless $stat_file;
+    warn "$stat_file missing\n" and return undef unless -f $stat_file;
+
+    $lines=`wc -l $stat_file`;
+    chomp $lines;
+    $lines=~s/^(\d+).*/$1/;
+    unless ($lines>$n)
+    {
+        warn "WARNING: No coverage statistics: too few alignments or too small region?\n";
+	return undef;
+    }
+
+    my $source="/tmp/$$.coverage_plot.script";
+    my $local_prefix=&getPrefix($bam);
+    my $pdf="${local_prefix}_cov.pdf";
+    my $jpg="${local_prefix}_cov.jpg";
+    my $code=#skip first N lines
+    "x=read.table(\"$stat_file\",skip=$n,sep=\" \")
+    x\$V9=sub('<0.01%','0',x\$V9)
+    x\$V9=as.numeric(sub('%','',x\$V9))/100
+    coverage=subset(x,select=c(3,9))
+    names(coverage)=c(\"Coverage\",\"Cumulative fraction\")
+    xlim=c(max(coverage[[1]]),1)
+    pdf(\"$pdf\")
+    suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim,ylim=c(0,1),axes=FALSE))
+    axis(side=1,at=c(10000,1000,100,20,10,5,1))
+    axis(side=2,at=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1))
+    box()
+    garbage <- dev.off()
+    jpeg(\"$jpg\",width=5,height=5,units='in',res=500)
+    suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim,ylim=c(0,1),axes=FALSE))
+    axis(side=1,at=c(10000,1000,100,20,10,5,1))
+    axis(side=2,at=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1))
+    box()
+    garbage <- dev.off()
+    ";
+    &SeqMule::Utils::write2outfile($code,$source);
+    system ("$r --vanilla $source 1>&2");
+    warn "Failed to plot $stat_file" and return undef if $?;
+    warn "$pdf and $jpg generated\n";
+    push @gunlink,$source;
+}
+
+#summary statistics
+sub coverage_stat 
+{
+    my $cap_region=shift;
+    my $file=shift;
+    my $local_prefix=&getPrefix($file);
+    my $cap_out="${local_prefix}_cov_stat.txt";
+    my $cap_out_detail="${local_prefix}_cov_stat_detail.txt";
+    my $exe=&getExe("cal_genome_enrichment.pl");
+    my $exe_samtools=&getExe("samtools");
+
+    warn "Calculating coverage for $file. This takes a while\n";
+    ! system ("$^X $exe $exe_samtools $file $cap_region > $cap_out_detail") or die "Failed to caculate coverage stat for $file\n";
+
+    open IN,'<',$cap_out_detail or die "Can't open $cap_out_detail: $!\n";
+    open OUT,'>',$cap_out or die "Can't write to $cap_out: $!\n";
+    print OUT "$file=Coverage stats\n";
+    while(<IN>)
+    {
+    print OUT $_ if /fraction/i;
+    print OUT $_ if /total length/i;
+    print OUT $_ if /coverage stats/i;
+    print OUT $_ if /average/i;
+    print OUT "Percentage above 5=$2\n" if (/coverage\s+=\s+(\d+).*?cum_frac\s+=\s+(<?\s*\d+\.?\d*%)/i && $1 == 5);
+    print OUT "Percentage above 10=$2\n" if (/coverage\s+=\s+(\d+).*?cum_frac\s+=\s+(<?\s*\d+\.?\d*%)/i && $1 == 10);
+    print OUT "Percentage above 20=$2\n" if (/coverage\s+=\s+(\d+).*?cum_frac\s+=\s+(<?\s*\d+\.?\d*%)/i && $1 == 20);
+    print OUT "Percentage above 30=$2\n" if (/coverage\s+=\s+(\d+).*?cum_frac\s+=\s+(<?\s*\d+\.?\d*%)/i && $1 == 30);
+    }
+    close IN;
+    close OUT;
+    warn "Statistics written to $cap_out and $cap_out_detail\n";
+    return $cap_out_detail;
+}
+
+#generate Venn Diagram
+sub venn 
+{
+    warn "Do not support more than 5 files right now\n" and return undef unless (@_<=5);
+    warn "No need to plot for single file\n" and return undef if (@_==1);
+
+    my $exe=&getExe("Rscript");
+    #first check if Venn.diagram available
+    my $rlibpath=File::Spec->catdir($install_dir,"rlib");
+    #check installed packages in seqmule rlib and user's rlib
+    my $installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
+    unless ( $installed_packages=~/venndiagram/i)
+    {
+	warn "VennDiagram not installed, now try to install it.\n";
+	&SeqMule::Utils::install_R_package($exe,"$install_dir/lib/VennDiagram_1.5.1.tar.gz",$rlibpath)
+	    or die "Cannot install...\nPlease do it manually\n";
+	$installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
+    }
+
+    #generate index
+    die "No VennDiagram package in R, please install it manually and try again.\n" unless $installed_packages=~/venndiagram/i;
+    my @avinput_pool=@_;
+    my @index_matrix;
+    my $max=0;
+    my $variant_index_pool;
+
+    map {push @gunlink,$_ if /\.tmp$/i} @avinput_pool;
+
+    #remove empty file
+    for (@avinput_pool)
+    {
+	$_=undef unless -s $_ >0;
+    }
+    @avinput_pool=grep {defined $_} @avinput_pool;
+    warn "WARNING: failed to plot Venn diagram, number of nonzero files is more than 5 or smaller than 2.\n" and return unless @avinput_pool<=5 && @avinput_pool>=2;
+
+    #generate index matrix
+    for my $count(0..$#avinput_pool)
+    {
+	my ($name_prefix)=$avinput_pool[$count]=~/^(.*)(\.avinput|\.tmp)$/;
+	my %appear; #force uniqueness
+
+	open IN,"<",$avinput_pool[$count] or die "Cannot open $avinput_pool[$count]:$!\n";
+	$index_matrix[$count]=[];
+	push @{$index_matrix[$count]},$name_prefix;
+	while (<IN>) 
+	{
+	    /^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t.*$/ or next;
+
+	    my $key="$1+$2+$3+$4+$5";
+	    push @{$index_matrix[$count]},$key and $appear{$key}=1 unless $appear{$key};
+	}
+	close IN;
+	$max=@{$index_matrix[$count]} if @{$index_matrix[$count]} > $max;
+    }
+
+    $variant_index_pool=$$."_index_pool.tmp";
+    open OUT,">",$variant_index_pool or die "Cannot create $variant_index_pool for Venn Diagram: $!\n";
+    for my $j(1..$max)
+    {
+	my @line;
+	push @line,($index_matrix[$_-1][$j-1] || "NA") for (1..@avinput_pool);
+	print OUT join("\t",@line),"\n";
+    }
+    close OUT;
+    return $variant_index_pool;
+}
+sub genPlot
+{
+    my $variant_index_pool=shift;
+    my $count=shift;
+
+    return unless $variant_index_pool && $count;
+    #generate plot
+
+    warn "Generating Venn diagram...\n"; 
+    my $local_prefix=&getPrefix(split /,/,$venn);
+    my $tiff="${local_prefix}_venn.tiff";
+    my $jpg="${local_prefix}_venn.jpg";
+    my $rfile="${local_prefix}_venn.R";
+    my $exe=&getExe("Rscript");
+    my $rlibpath=File::Spec->catdir($install_dir,"rlib");
+    my $rscript="#!$exe\n"; #exe path
+    $rscript.=
+    "x=read.delim(\"$variant_index_pool\",na.strings=\"NA\")\n".
+    "y=list()\n".
+    "title=''\n";
+    #convert dataframe to list such that na=remove works
+    for my $no(1..$count) 
+    {
+	$rscript.=
+	"y[[$no]]=x[[$no]]\nnames(y)[$no]=$no\n".
+	"tmp=paste($no,names(x)[$no],sep=':')\n".
+	"title=paste(title,tmp,sep=\"\\n\")\n"; #prevent category name overlapping with images
+
+    }
+    $rscript.="require(
+    'VennDiagram',lib.loc=c('$rlibpath',.libPaths())
+    )\n";
+
+
+    #high resolution tiff output
+    if ($count==5)
+    {
+	$rscript.="
+	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=0.65,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
+	";
+    } elsif ($count==4) 
+    {
+	$rscript.="
+	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=0.8,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
+	";
+    } else
+    {
+	$rscript.="
+	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=1,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=0,ext.length=0.9)
+	";
+    }
+#jpeg output for html report
+    if ($count==5)
+    {
+	$rscript.="
+	obj=venn.diagram(y,fill=rainbow(length(y)),filename=NULL,na=\"remove\",cex=0.65,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
+	jpeg('$jpg',width=5,height=5,units='in',res=500)
+	grid.draw(obj)
+	garbage <- dev.off()
+	";
+    } elsif ($count==4) 
+    {
+	$rscript.="
+	obj=venn.diagram(y,fill=rainbow(length(y)),filename=NULL,na=\"remove\",cex=0.8,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
+	jpeg('$jpg',width=5,height=5,units='in',res=500)
+	grid.draw(obj)
+	garbage <- dev.off()
+	";
+    } else
+    {
+	$rscript.="
+	obj=venn.diagram(y,fill=rainbow(length(y)),filename=NULL,na=\"remove\",cex=1,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=0,ext.length=0.9)
+	jpeg('$jpg',width=5,height=5,units='in',res=500)
+	grid.draw(obj)
+	garbage <- dev.off()
+	";
+    }
+
+    &SeqMule::Utils::write2outfile($rscript,$rfile);
+    chmod 0755,$rfile;
+    die "Execution failed, please run $rfile manually\n" if system("$exe --vanilla $rfile 1>&2");
+    push @gunlink,$rfile;
+    push @gunlink,$variant_index_pool;
+    warn "Venn Digram plotted to $tiff and $jpg\n";
+}
+
+#convert files to annovar input format for easy handling
+sub conv2anno 
+{
+    my @files=@_;
+    my @return_files;
+    my $exe_conver=&getExe("convert2annovar.pl");
+    warn "NOTICE: Converting input file to ANNOVAR format, only variants passed filtering will be used.\n";
+    for (@files) 
+    {
+	if (/^(.*)\.vcf(\.gz)?$/i)
+	{
+	    system("$^X $exe_conver -includeinfo -format vcf4 ".($filter? " -filter PASS":"")." $_ > $1.avinput.tmp 2>/dev/null");
+	    s/\.vcf$/.avinput.tmp/i;
+	    push @return_files,$_;
+	} elsif (/^(.*)\.consensus$/) 
+	{
+	    system("$^X $exe_conver -includeinfo -format soap $_ > $1.avinput.tmp 2>/dev/null");
+	    s/\.consensus$/.avinput.tmp/i;
+	    push @return_files,$_;
+	} elsif (/\.avinput$/i) 
+	{
+	    push @return_files,$_;
+	}else 
+	{
+	    warn "CAUTION: Unable to recognize $_, it will be ignored, only *.vcf, *.vcf.gz,*.consensus (by SOAPsnp) and *.avinput (by ANNOVAR) files are supported\n";
+	}
+    }
+    return @return_files;
+}
+
+#extract consensus calls from candidate files	
+sub var_consensus 
+{
+    my @to_be_extract=@_;
+    my $first_file;
+    my $output;
+    my %count;
+    my $consensus_var_count=0;
+    my $local_prefix=&getPrefix(@to_be_extract);
+    my $outfile="${local_prefix}_consensus.avinput";
+
+    warn "Extracting consensus variants from @to_be_extract..\n";
+    push @gunlink, (grep {/\.tmp$/i } @to_be_extract);
+
+    no strict "vars"; #suppress undef warnings
+    for my $item(@to_be_extract) 
+    {
+	open IN,"<", $item or die "ERROR: Cannot open $item: $!\n";
+	while(<IN>) 
+	{
+	    warn "Invalid: $_\n" and next unless /^([^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+)\t.*$/;
+	    $count{$1}++;
+	}
+	close IN;
+    }
+    use strict "vars";
+    #6th and beyond columns come from the first file specified
+    $first_file=$to_be_extract[0] or die "No input file\n";
+
+    open IN,"<", $first_file or die "ERROR: Cannot open $first_file: $!\n";
+    while(<IN>)
+    {
+	next unless /^([^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+)\t.*$/;
+	$output.=$_ and $consensus_var_count++ if $count{$1}==@to_be_extract;
+    }
+    close IN;
+
+    &SeqMule::Utils::write2outfile($output,$outfile);
+    warn "$consensus_var_count variants written to $outfile ...\n";
+}
+
+#extract union calls from candidate files	
+sub var_union 
+{
+    my @to_be_extract=@_;
+    my $local_prefix=&getPrefix(@to_be_extract);
+    my $outfile="${local_prefix}_union.avinput";
+    my %union_lines;
+    my $output;
+
+    warn "Extracting union variants from @to_be_extract...\n";
+    push @gunlink, (grep {/\.tmp$/i} @to_be_extract);
+
+    no strict "vars";
+    for my $item(@to_be_extract)
+    {
+	open IN,"<", $item or die "ERROR: Cannot open $item: $!\n";
+	while(<IN>)
+	{
+	    #6th and beyond columns come from the last file with the variant
+	    warn "Invalid: $_\n" and next unless /^([^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+)\t.*$/;
+	    #chr include GL000192.1, ref and alt include . and - and +
+	    $union_lines{$1}=$_; 
+	}
+	close IN;
+    }
+    use strict "vars";
+
+    #output
+    $output.= $union_lines{$_} for (keys %union_lines);
+    &SeqMule::Utils::write2outfile($output,$outfile);
+    warn scalar (keys %union_lines)," variants written to $outfile.\n";
+}
+
+sub getPrefix
+{
+    my @files=@_;
+    @files=map { abs_path $_ } @files;
+    if ($prefix)
+    {
+	return $prefix;
+    } else
+    {
+	die "Empty list" unless @_;
+	return join("-",map { $1 if /(.*)\./ or /(.*)/ } @files); 
+    }
+}
+
+sub getExe
+{
+    for my $exename(@_)
+    {
+	if ($loc{$exename})
+	{
+	    return $loc{$exename};
+	} else
+	{
+	    if(my $exepath=&SeqMule::Utils::search($install_dir,$exename))
+	    {
+		$loc{$exename}=$exepath;
+		return $exepath;
+	    }
+	}
+    }
+    die "ERROR: Failed to find @_\n";
+}
+sub loadPM
+{
+    eval {
+	require VcfStats;
+	require Vcf;
+    };
+
+    if ($@)
+    { #no module found
+	my $vcftools=shift;
+	my $dir;
+	$vcftools=abs_path($vcftools);
+	$dir=dirname $vcftools;
+	$dir=File::Spec->catdir($dir,"../perl");
+
+	if (-f File::Spec->catfile($dir,"Vcf.pm") && -f File::Spec->catfile($dir,"VcfStats.pm"))
+	{
+	    $ENV{PERL5LIB}=$ENV{PERL5LIB}.":$dir";
+	} else
+	{
+	    die "Failed to find Vcf.pm and VcfStats.pm for VCFtools\n";
+	}
+    } else
+    {
+	return 1;
+    }
+}
+
+
+__END__
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+seqmule stats <options>
+
+For details, please use 'seqmule stats -h':
+
+Options:
+
+	--prefix,-p <STRING>      output prefix. Mandatory for multiple input files.
+	--bam <BAM>               a sorted BAM file (used with --capture, --aln)
+	--capture [BED]           a BED file for capture regions (or any other regions of interest). If no file is given, infer contig lengths from BAM header.
+	--vcf <VCF>               output variant stats for a VCF file. If a BED file is supplied, extract variants based on the BED file.
+	--aln                     output alignment stats for a BAM file
+	--consensus,-c <LIST>     comma separated list of files for extracting consensus calls. 
+				  VCF4 and SOAPsnp *.consensus format or ANNOVAR *.avinput required.
+	--union,-u <LIST>         comma separated list of files for pooling variants (same format as above).
+	--venn <LIST>             comma separated list of files for Venn diagram plotting (same format as above).
+	--c-vcf <LIST>		  comma separated list of SORTED VCF files for extracting consensus calls. *.vcf or *.vcf.gz suffix required
+	--u-vcf <LIST>		  comma separated list of SORTED VCF files for extracting union calls. *.vcf or *.vcf.gz suffix required
+	--ref <FASTA>		  reference file in FASTA format. Effective for --c-vcf and --u-vcf.
+	-s,--sample <STRING>	  sample name for VCF file
+	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
+	-jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 3g
+	-t <INT>		  number of threads. Only effective for --c-vcf and --u-vcf. Default: 1
+	-filter		          If specified, only consider variants with 'PASS' or '.' FILTER in VCF.
+	-h,--help                 help
+	--noclean                 do not clean temporary files
+
+Examples:
+
+ seqmule stats -p gatk-soap-varscan -venn gatk.vcf,soap.avinput,varscan.vcf
+
+ seqmule stats -p gatk-soap-varscan -u gatk.vcf,soap.avinput,varscan.vcf
+
+ seqmule stats -p gatk_soap_varscan -c gatk.vcf,soap.avinput,varscan.vcf
+
+ seqmule stats -p gatk_soap_varscan -c-vcf gatk.vcf,soapsnp.vcf,varscan.vcf -ref hg19.fa
+
+ seqmule stats -p gatk_soap_varscan -u-vcf  gatk.vcf,soapsnp.vcf,varscan.vcf -ref hg19.fa
+
+ seqmule stats -p sample -capture region.bed --bam sample.bam
+ 
+ seqmule stats -bam sample.bam -aln
+ 
+ seqmule stats -vcf sample.vcf
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--capture>
+
+Specify the capture region for exome sequencing, or chromosome regions for whole-genome sequencing. BED format required.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

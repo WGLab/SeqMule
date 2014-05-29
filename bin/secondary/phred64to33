@@ -1,0 +1,13 @@
+#!/usr/bin/env perl
+
+use warnings;
+use strict;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Utils;
+use Getopt::Long;
+
+die "Usage: phred64to33 <1.fq 2.fq...> <1.out.fq 2.out.fq...>" unless (@ARGV >=2 && @ARGV % 2 ==0);
+
+&SeqMule::Utils::phred64to33(@ARGV) or die "Conversion from phred64 to phred33 failed\n";

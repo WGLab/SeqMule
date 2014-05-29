@@ -1,0 +1,48 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"../../lib");
+use SeqMule::Utils;
+
+warn "Check for upgrade ...\n";
+my $server="http://seqmule.usc.edu";
+my $localVersionFile="version";
+my $webVersionFile="/tmp/$$".rand($$).".seqmuleversion.tmp";
+&SeqMule::Utils::getstore("$server/$localVersionFile",$webVersionFile,["-q","-s"]);
+if (-s $webVersionFile && -s File::Spec->catfile($RealBin,"../../$localVersionFile"))
+{
+    my $localVersion=&readVersion(File::Spec->catfile($RealBin,"../../$localVersionFile"));
+    my $webVersion=&readVersion($webVersionFile);
+
+    if ($localVersion < $webVersion)
+    {
+	warn "-----------------------------UPDATE AVAILABLE---------------------------------\n";
+	warn "------------------------------------------------------------------------------\n";
+	warn "Please download from http://seqmule.usc.edu\n";
+	warn "------------------------------------------------------------------------------\n";
+	warn "------------------------------------------------------------------------------\n";
+	sleep 2;
+    } else
+    {
+	warn "NOTICE: This is the latest version!\n";
+    }
+} else
+{
+    warn "Downloading \'$localVersionFile\' from $server failed\n";
+    warn "Please check your Internet connection.\n";
+    warn "NOTICE: Upgrade unknown\n";
+}
+
+#################SUBROUTINES#########################
+sub readVersion
+{
+    my $file=shift;
+    my $version=`cat $file`;
+
+    $version=~s/\D//g;
+
+    return $version;
+}

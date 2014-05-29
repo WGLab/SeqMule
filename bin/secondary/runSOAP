@@ -1,0 +1,145 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+
+my ($advanced,$n,$help,
+    $soap,    $samtools,    $soap2sam,    $java,    $jmem,    $sortsam,
+    $index,    $bam,    $sam,    $unpaired, $unmapped,    $alnfile,
+    $threads,
+    $rg,    $sample,    $pl,    $lb,
+);
+my $picardtmp;
+my @fq;
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'soap=s'		=>	\$soap,
+    'samtools=s'	=>	\$samtools,
+    'soap2sam=s'	=>	\$soap2sam,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$jmem,
+    'sortsam=s'		=>	\$sortsam,
+    'index=s'		=>	\$index,
+    'bam=s'		=>	\$bam,
+    'sam=s'		=>	\$sam,
+    'unpaired=s'	=>	\$unpaired,
+    'unmapped=s'	=>	\$unmapped,
+    'soapaln=s'		=>	\$alnfile,
+    'threads=i'		=>	\$threads,
+    'rg=s'		=>	\$rg,
+    'sample=s'		=>	\$sample,
+    'pl=s'		=>	\$pl,
+    'lb=s'		=>	\$lb,
+    'fq=s'		=>	\@fq, #specify it multiple times
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+my $paired=0;
+$paired=1 if @fq>1;
+
+my $cmd="$soap -D $index";
+my @cmd;
+
+$cmd.=" -p $threads" if $threads > 1;
+if ($paired) 
+{    
+    $cmd.=" -a $fq[0] -b $fq[1] -o $alnfile -2 $unpaired -u $unmapped";
+}
+else 
+{
+    $cmd.="-a $fq[0] -o $alnfile -u $unmapped";
+}
+$cmd.=" -x $options{maxIns}" if $options{maxIns};
+$cmd.=" -m $options{minIns}" if $options{minIns} && $options{minIns} ne '';
+$cmd.=" -v $options{maxMis}" if $options{maxMis} && $options{maxMis} ne '';
+$cmd.=" -n $options{maxN}" if $options{maxN} && $options{maxN} ne '';
+$cmd.=" $options{additional} " if $options{additional} ne '';
+push @cmd,$cmd;$cmd='';
+
+#insert header containing platform information
+open SOAPSAM, ">", $sam or die "ERROR: Can't write to $sam : $!\n";
+map {print SOAPSAM "\@SQ\tSN:$$_[0]\tLN:$$_[1]\n" } &SeqMule::Utils::SOAPIndex2Contig("$index.ann");
+print SOAPSAM "\@RG\tID:$rg\tSM:$sample\tPL:$pl\tLB:$lb\n";
+print SOAPSAM "\@PG\tID:SOAPalinger\n";
+close SOAPSAM;
+
+if ($paired) 
+{    $cmd="$^X $soap2sam -p -a -o $sam -u $unmapped -s $unpaired $alnfile"} 
+else 
+{ $cmd="$^X $soap2sam -a -o $sam -u $unmapped $alnfile"}
+
+push @cmd,$cmd; $cmd="";
+my ($bam_prefix)= $bam=~/(.*?)\.bam$/ or die "ERROR: expect *.bam for BAM files: $bam\n";
+$cmd="$samtools view -@ $threads -b -S $sam | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix";
+
+push @cmd,$cmd;$cmd="";
+
+my $script=&SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'soap=s'		=>	\$soap,
+    'samtools=s'	=>	\$samtools,
+    'soap2sam=s'	=>	\$soap2sam,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$jmem,
+    'sortsam=s'		=>	\$sortsam,
+    'index=s'		=>	\$index,
+    'bam=s'		=>	\$bam,
+    'sam=s'		=>	\$sam,
+    'unpaired=s'	=>	\$unpaired,
+    'unmapped=s'	=>	\$unmapped,
+    'soapaln=s'		=>	\$alnfile,
+    'threads=i'		=>	\$threads,
+    'rg=s'		=>	\$rg,
+    'sample=s'		=>	\$sample,
+    'pl=s'		=>	\$pl,
+    'lb=s'		=>	\$lb,
+    'fq=s'		=>	\@fq, #specify it multiple times
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

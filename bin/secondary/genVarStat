@@ -1,0 +1,40 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use Getopt::Std;
+use File::Basename qw/basename dirname/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+
+die "Usage: $0 [-s <sample>] <prefix> <1.vcf 2.vcf ...>\n" unless @ARGV>=2;
+
+my %opts;
+getopt('s:',\%opts);
+my $sample=$opts{s} if defined $opts{s};
+my $prefix=shift @ARGV;
+my @vcf=@ARGV;
+
+for (@vcf)
+{
+    warn "examine: $_\n";
+    next unless -f $_;
+    if (-s $_>0)
+    {
+	my $var_ln_count=`grep -v '#' $_ | wc -l`;
+	chomp $var_ln_count;
+	warn "count: <<$var_ln_count>>\n";
+	if ($var_ln_count=~/^(\d+)/)
+	{
+	    if ($1>0)
+	    {
+		#variant exists
+		my $seqmule=File::Spec->catfile($RealBin,"../seqmule");
+		exec("$seqmule stats -vcf $_ -p $prefix ".(defined $sample? "-s $sample":""));
+	    }
+	}
+    }
+}
