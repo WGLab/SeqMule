@@ -71,8 +71,29 @@ $(window).load(function() {
 	<h2>Tutorial</h2>
 	<p>After you have downloaded and installed SeqMule (assume in <b>seqmule</b> folder), this tutorial will tell you most important steps to get your analysis done.</p>
 	<br>
+	<h4>Didn't find what you want?</h4>
+	<div id="google_search_box">
+	    <script>
+(function() {
+ var cx = '008188935612181942143:nvfabc15_jq';
+ var gcse = document.createElement('script');
+ gcse.type = 'text/javascript';
+ gcse.async = true;
+ gcse.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') +
+ '//www.google.com/cse/cse.js?cx=' + cx;
+ var s = document.getElementsByTagName('script')[0];
+ s.parentNode.insertBefore(gcse, s);
+ })();
+	    </script>
+	    <gcse:searchbox-only></gcse:searchbox-only>
+	</div>
 	<div id="table-of-content"></div>
 
+	<h3 id="q7">EXAMPLE OUTPUT</h3>
+	<p>Click here to see what output report looks like. <a href="../example_report/summary.html">Example output</a></p>
+	<p>You can find an application example in my (<A HREF="../images/SeqMule-ASHG-2012.pdf">poster</A>) at 2012 ASHG meeting.</p>
+	<br>
+	<br>
 	<h3 id="q1">QUICK START</h3>
 	<h4>Step 1: Prepare database</h4>
 	<p>Reference genome, index of reference genome, various SNP and INDEL databases are needed for alignment and variant calling. The following command will download all necessary files.</p>
@@ -104,7 +125,6 @@ $(window).load(function() {
 	<br><p>All region definition (BED) files are also downloaded along with databases and saved inside individual folders with manufacture name.</p>
 	    <br>
 	<h3 id="q3">USE REGION DEFINITION (BED) FILE</h3>
-	<br>
 	<p>If you have downloaded region definition files for different capture kits, you can use them in your analysis. By default they are located inside <b>seqmule/database</b>. Find your region definition file according to manufacture and capture kit. Then use <b>-capture path_to_your_file</b> along with other options for pipeline command. For example</p>
 	<br>
 	<code>
@@ -112,8 +132,7 @@ $(window).load(function() {
 	</code>
 	<p>Each line in BED represents a region in your captured sequence. Definition of BED format can be found on <a href='http://genome.ucsc.edu/FAQ/FAQformat.html#format1'>UCSC genome browser.</a></p>
 	<br>
-	<h3 id="q4">CHANGE PIPELINE</h3>
-	<br>
+	<h3 id="q4">CHANGE PIPELINE (CHANGE advanced_config)</h3>
 	<p>If you want to change the default pipeline:</p>
 	<code>
 	    <b>seqmule pipeline -advanced</b><br>
@@ -148,14 +167,32 @@ $(window).load(function() {
 	</code>
 	<p>Basically you concatenate input files or sample names by commas. If you know your samples come from a single family, you can do multi-sample variant calling by simply adding <b>-ms</b> to the above command. It is believed that multi-sample calling could be more accurate.</p>
 	<br>
-	<h3 id="q7">EXAMPLE OUTPUT</h3>
+	<h3 id="q10">SAVE RUNTIME LOGGING INFO</h3>
+	<p>Please refer to the <a href="http://seqmule.usc.edu/pages/faq.html#q1">FAQ</a> page.</p>
 	<br>
-	<p><a href="../example_report/summary.html">Example output</a></p>
-	<p>You can find an application example in my (<A HREF="../images/SeqMule-ASHG-2012.pdf">poster</A>) at 2012 ASHG meeting.</p>
+	<h3 id="qAEWE201406090432">ANALYSIS EXIT WITH ERROR (CONTINUE STOPPED ANALYSIS)</h3>
+	<p>
+	If your analysis exits erroneously. You can examine the runtime logging information (<a href="http://seqmule.usc.edu/pages/faq.html#q1">how to get it?</a>) to identify the error, then fix it by <a href="#q4">changing advanced_config</a> or <a href="q9">the script</a>, and at last continue the analysis. Commands are shown below.
+	</p>
+	<code>seqmule run your_analysis.script</code><br>
+	<p>This command will resume the analysis.</p>
+	<code>seqmule run -n 10 your_analysis.script</code><br>
+	<p>This command will run your analysis from step 10.</p>
 	<br>
+	<h3 id="q9">FINETUNE PIPELINE (MODIFY SCRIPT)</h3>
+	<p>
+	Each time you run 'seqmule pipeline', a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output. An example script file is shown below.</p>
+	<pre>
+#step	command	message	nCPU_requested	nCPU_total	status	pid
+1	seqmule/bin/secondary/mod_status father-mother-son.script 1 seqmule/bin/secondary/phred64to33 father_result/father.1.fastq mother_result/mother.1.fastq son_result/son.1.fastq father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq	Convert phred64 to phred33	8	8	finished	31171
+2	seqmule/bin/secondary/mod_status father-mother-son.script 2 seqmule/bin/secondary/phred64to33 father_result/father.2.fastq mother_result/mother.2.fastq son_result/son.2.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq	Convert phred64 to phred33	8	8	finished	526
+3	seqmule/bin/secondary/mod_status father-mother-son.script 3 seqmule/exe/fastqc/fastqc --extract -t 8 father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq	QC assesment on FASTQ files	8	8	finished	2438
+	</pre>
+	<p>Every line consists of some tab-delimited fields, the column name is shown on the first line. Any line that is blank or begins with '<b>#</b>' will be ignored. The 1st field shows the step number. 2nd shows the exact command for each step. Second last column shows the status of this step, it can be '<b>finished</b>', '<b>waiting</b>', '<b>started</b>' or '<b>error</b>'. The 2nd field begins with '<b>mod_status your_analysis.script step_no</b>', where <b>mod_status</b> is an internal program handling this script. This begining part has nothing to do with analysis itself, so no need to change it. Only change commands after it.</p>
+	<p>This script is not meant to be changed by users. If you really want to, modify the 2nd field <b>ONLY</b>. Do <b>NOT</b> add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters (*$&gt&lt&amp?;|`) are not allowed.</p>
+	<p>Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMule's explicit programs (e.g. <b>stats</b>).</p>
 	<br>
 	<h3 id="q8">CAVEAT</h3>
-	<br>
 	<p>
 	NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under <b>seqmule/misc/predefined_config</b> folder.<br>
 	</p> <br>
