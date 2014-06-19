@@ -81,8 +81,8 @@ $(window).load(function() {
 	<p>SeqMule added 'set -e' at the begining of script to make it exit at first error. If your job scheduling system (eg SGE) tries to execute the script by csh or tcsh, it will return the above error. Please use sh or bash at qsub instead. For example, under SGE, you can use:
 	<br><code>echo 'your_seqmule_command' | qsub -V -cwd <b>-S /bin/sh</b> -N sample</code>
 	<br>
-	<h3 id='q3'>How to solve GATK "##### ERROR MESSAGE: Unable to parse header with error: /tmp/org.broadinstitute.sting.gatk.io.stubs.VariantContextWriterStub8698395686116224981.tmp (Too many open files), 
-	    for input source: /tmp/org.broadinstitute.sting.gatk.io.stubs.VariantContextWriterStub8698395686116224981.tmp"?</h3>
+	<h3 id='q3'>How to solve GATK "##### ERROR MESSAGE: Unable to parse header with error: /tmp/org.broadinstitute.sting.gatk.io.stubs.VariantContextWriterStub116224981.tmp (Too many open files), 
+	    for input source: /tmp/org.broadinstitute.sting.gatk.io.stubs.VariantContextWriterStub116224981.tmp"?</h3>
 	<p>This happens because Linux limits the number of files opened. The easiest way is to use '-gatknt' option in seqmule to specify a lower number of CPUs (eg 1 or 2) used for GATK genotyping. Another option is to request your system administer to increase the limit.</p>
 	<br>
 	<h3 id='q4'>Does SeqMule support merging of BAM files?</h3>
