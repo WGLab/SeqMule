@@ -711,28 +711,37 @@ sub conv2anno
     my @files=@_;
     my @return_files;
     my $exe_conver=&getExe("convert2annovar.pl");
-    warn "NOTICE: Converting input file to ANNOVAR format, only variants passed filtering will be used.\n" unless $nofilter;
     for (@files) 
     {
 	if (/^(.*)\.vcf(\.gz)?$/i)
 	{
+	    my $local_prefix=$1;
+	    my $newout=$local_prefix.(defined $sample?".$sample":"").".avinput.tmp";
+	    my $vcf_to_proc=$_;
+
+	    unless($nofilter)
+	    {
+		#extract variants with PASS or . in FILTER field before conversion
+		warn "NOTICE: Converting input file to ANNOVAR format, variants that failed to pass filtering will be ignored.\n" unless $nofilter;
+		my $vcf_no_filtered_record="/tmp/$$".rand($$)."_nofiltered.vcf";
+		!system("$^X -ne 'print if /^#|^[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t(PASS|\\.)\\t/' $vcf_to_proc > $vcf_no_filtered_record") or die "ERROR: Failed to extract variants that passed filtering or have no filter.\n";
+		warn "NOTICE: ",
+		(&SeqMule::Utils::countline($vcf_to_proc)-&SeqMule::Utils::countline($vcf_no_filtered_record)),
+		    " records removed.\n";
+		$vcf_to_proc=$vcf_no_filtered_record;
+	    }
+
 	    if (defined $sample)
 	    {
 		my $tmp_prefix="/tmp/$$".rand($$)."_annovar"; #each sample will be saved at $tmp_prefix.<sample>.avinput
-		my $newout="$1.$sample.avinput.tmp";
-		#!system("$^X $exe_conver -includeinfo -format vcf4 ".($nofilter? "":" -filter PASS")." -allsample -outfile $tmp_prefix $_ 2>/dev/null")
-		!system("$^X $exe_conver -includeinfo -format vcf4 ".($nofilter? "":" -filter PASS")." -allsample -outfile $tmp_prefix $_ ")
+		!system("$^X $exe_conver -includeinfo -format vcf4 -allsample -outfile $tmp_prefix $vcf_to_proc")
 		    and !system("mv $tmp_prefix.$sample.avinput $newout") or die "ERROR:$!\n";
-		push @return_files,$newout;
 	    } else
-	    {
-		system("$^X $exe_conver -includeinfo -format vcf4 ".($nofilter? "":" -filter PASS")." $_ > $1.avinput.tmp 2>/dev/null");
-		s/\.vcf$/.avinput.tmp/i;
-		push @return_files,$_;
-	    }
+	    { system("$^X $exe_conver -includeinfo -format vcf4 $vcf_to_proc > $local_prefix.avinput.tmp") or die;}
+	    push @return_files,$newout;
 	} elsif (/^(.*)\.consensus$/) 
 	{
-	    system("$^X $exe_conver -includeinfo -format soap $_ > $1.avinput.tmp 2>/dev/null");
+	    system("$^X $exe_conver -includeinfo -format soap $_ > $1.avinput.tmp");
 	    s/\.consensus$/.avinput.tmp/i;
 	    push @return_files,$_;
 	} elsif (/\.avinput$/i) 
@@ -950,12 +959,6 @@ Options:
 =over 8
 
 =item B<--capture>
-
-Specify the capture region for exome sequencing, or chromosome regions for whole-genome sequencing. BED format required. Effective for --bam and --vcf options. For --bam, if no file is given, infer contig lengths from BAM header.
-
-=back
-
-=head1 DESCRIPTION
 
 SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
 
