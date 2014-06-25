@@ -96,10 +96,10 @@ o_samtools_mapQ=30 #filter out reads with low mapping quality (marked as unmappe
 
 #Local realignment
 #CAUTION: if you want to use GATK for bowtie and bowtie2, the reference genome must agree with bowtie and bowtie2 index
-6px_gatk_realign=1 #use GenomeAnalysisTKLite from GATK to generate GATK intervals and then do realignment (1 enable, 0 disable, usually enabled). Invoke GenomeAnalysisTKLite RealignerTargetCreator and IndelRealigner to do realignment
+6px_gatk_realign=0 #use GenomeAnalysisTKLite from GATK to generate GATK intervals and then do realignment (1 enable, 0 disable, usually enabled). Invoke GenomeAnalysisTKLite RealignerTargetCreator and IndelRealigner to do realignment
 o_gatk_maxInMemory=200000 #max reads in memory. -maxInMemory for IndelRealigner 
 o_gatk_additional=-rf NotPrimaryAlignment -l ERROR #extra arguments to gatk lite IndelRealigner command, no quotes
-6px_gatkfull_realign=0 #use GenomeAnalysisTK full version instead.
+6px_gatkfull_realign=1 #use GenomeAnalysisTK full version instead.
 o_gatkfull_LOD=0.4 #LOD threshold above which the cleaner will clean. This term is equivalent to "significance" - i.e. is the improvement significant enough to merit realignment? Note that this number should be adjusted based on your particular data set. For low coverage and/or when looking for indels with low allele frequency, this number should be smaller. -LOD for IndelRealigner
 o_gatkfull_maxInMemory=200000 #max reads in memory. -maxInMemory for IndelRealigner 
 o_gatkfull_additional= -rf NotPrimaryAlignment --consensusDeterminationModel USE_READS -l ERROR #add extra arguments to gatk full version IndealRealigner, no quotes
@@ -116,7 +116,7 @@ o_gatkfull_additional=--disable_indel_quals -rf BadCigar -l ERROR #add extra arg
 
 #Variant calling
 #All outputs will be VCF format except SOAPsnp
-8p_gatk_variant=1 #default variant calling algorithm from GATK Lite (UnifiedGenotyper)
+8p_gatk_variant=0 #default variant calling algorithm from GATK Lite (UnifiedGenotyper)
 o_gatk_originalBAM=0 #0 for using GATK base quality recalibration, and indel realignment, 1 otherwise
 o_gatk_filter=1 #whether to recalibrate SNPs and filter variants. 1 for yes, 0 for no.
 o_gatk_maxGaussians=4 #maximum number of Gaussians to try during variational Bayes algorithm
@@ -136,7 +136,7 @@ o_gatk_UGadditional=-rf BadCigar --genotype_likelihoods_model BOTH -l ERROR #add
 o_gatk_forceSNPVQSR=0 #if set to 1, force using VQSR (a better filtering method) on SNP, otherwise seqmule use VQSR only if BAM size is larger than 1GB. CAUTION: if number of variants  is too small, VQSR doesn't work.
 o_gatk_forceINDELVQSR=0 #if set to 1, force using VQSR (a better filtering method) on INDEL, otherwise seqmule use VQSR only if BAM size is larger than 15GB. CAUTION: if number of variants  is too small, VQSR doesn't work.
 
-8p_gatkfull_UnifiedGenotyper=0 #variant calling algorithm (UnifiedGenotyper) from GATK full version
+8p_gatkfull_UnifiedGenotyper=0 #variant calling algorithm (UnifiedGenotyper) from GATK
 o_gatkfull_originalBAM=0 #0 for using GATK base quality recalibration, and indel realignment, 1 otherwise
 o_gatkfull_filter=1 #whether to recalibrate SNPs and filter variants. 1 for yes, 0 for no.
 o_gatkfull_maxGaussians=4 #maximum number of Gaussians to try during variational Bayes algorithm
@@ -154,7 +154,7 @@ o_gatkfull_UGadditional= -rf BadCigar -l ERROR #add extra arguments to gatk full
 o_gatkfull_forceSNPVQSR=0 #if set to 1, force using VQSR (a better filtering method) on SNP, otherwise seqmule use VQSR only if BAM size is larger than 1GB. CAUTION: if number of variants  is too small, VQSR doesn't work.
 o_gatkfull_forceINDELVQSR=0 #if set to 1, force using VQSR (a better filtering method) on INDEL, otherwise seqmule use VQSR only if BAM size is larger than 15GB. CAUTION: if number of variants  is too small, VQSR doesn't work.
 
-8p_gatkfull_HaplotypeCaller=0 #alternative variant calling algorithm (HaplotypeCaller) from GATK full version
+8p_gatkfull_HaplotypeCaller=1 #alternative variant calling algorithm (HaplotypeCaller) from GATK
 o_gatkfull_originalBAM=0 #0 for using GATK base quality recalibration, and indel realignment, 1 otherwise
 o_gatkfull_filter=1 #whether to recalibrate SNPs and filter variants. 1 for yes, 0 for no.
 o_gatkfull_maxGaussians=4 #maximum number of Gaussians to try during variational Bayes algorithm
@@ -204,7 +204,7 @@ o_soapsnp_readlen=200 #max read length. -L
 o_soapsnp_minDepth=10 #minimum read depth, 0 for unlimited min depth. This function is implemented by SeqMule.
 o_soapsnp_additional= #extra arguments for soapsnp. -q already specified
 
-8p_freebayes=0 #optional variant calling algorithm
+8p_freebayes=1 #optional variant calling algorithm
 o_freebayes_originalBAM=1 #0 for using GATK base quality recalibration, and indel realignment, 1 otherwise
 o_freebayes_minMapQual=30 #minimum mapping quality for a read to be called. --min-mapping-quality
 o_freebayes_minBaseQual=10 #minimum base quality for an allele. --min-base-quality

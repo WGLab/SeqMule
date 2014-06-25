@@ -507,7 +507,7 @@ sub countline
     #count non-empty lines and return total line count
     #usage: $result=&countline($file)
     my $file=shift;
-    warn "Counting lines in $file\n";
+    warn "NOTICE: Counting lines in $file\n";
     my $line_count=`grep -Pv \'^\\s*\$\' $file | wc -l`;
     chomp $line_count;
     return $line_count;
