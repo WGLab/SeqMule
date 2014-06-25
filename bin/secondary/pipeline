@@ -67,7 +67,7 @@ my @presplit_bam;
 my @presplit_original_bam; #original BAM files prior to splitting
 my %original_bam_toggle;
 my @aligners;
-my @callers; #lowercase, variant callers, including gatk, gatk_full_ug, gatk_full_hc,samtools,snver,freebayes,varscan, soapsnp
+my @callers; #lowercase, variant callers, including gatk, gatk_ug, gatk_hc,samtools,snver,freebayes,varscan, soapsnp
 my %soapaln_sample;
 my @symlink;
 my @small_bed;
@@ -252,11 +252,11 @@ sub cmd_gen
     {
 	return &picard(@_);
     }
-    elsif ($program eq 'gatk') 
+    elsif ($program eq 'gatklite') 
     {
 	return &gatk(@_);
     }
-    elsif ($program eq 'gatkfull') 
+    elsif ($program eq 'gatk') 
     {
 	return &gatk_full(@_);
     }
@@ -1357,7 +1357,7 @@ sub gatk_full
 	warn "CAUTION: GATK variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK UnifiedGenotyper.\n" and sleep 1 if (grep { /soap/ } @aligners);
 	my @target_bam_files;
-	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_full_ug':'gatk_full_hc';
+	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
 
 	if ($options{'originalBAM'})
 	{
@@ -1395,7 +1395,7 @@ sub gatk_full
 	}
     } else
     { 
-	die "ERROR: Unrecognized subprogram $subprogram for GATK full version\n";
+	die "ERROR: Unrecognized subprogram $subprogram for GATK\n";
     }
 }
 
@@ -1408,17 +1408,17 @@ sub gatk_full_variant
 
     if ($internal_caller eq 'haplotypecaller')
     {
-	push @callers,'gatk_full_hc';
+	push @callers,'gatk_hc';
     } elsif ($internal_caller eq 'unifiedgenotyper')
     {
-	push @callers,'gatk_full_ug';
+	push @callers,'gatk_ug';
     } else
     {
 	die "ERROR: Unrecognized internal caller for GATK: $internal_caller.\n";
     }
 
     my @bam=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatkfull"));
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
     my $exe_java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLCALL");
     my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLFILTER");
@@ -1575,7 +1575,7 @@ sub gatk_full_variant
 sub gatk_full_recal
 {
     my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatkfull"));
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
     my $exe_java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 
@@ -1615,7 +1615,7 @@ sub gatk_full_recal
 sub gatk_full_realign
 {
     my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatkfull"));
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
     my $exe_java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 

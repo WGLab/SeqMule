@@ -369,25 +369,25 @@ sub samtools
     warn "Finished installing $exe\n";
     chdir($cwd);
 }
-sub gatkfull
-{
-    my $install_dir=shift;
-    my $exe_base="$install_dir/exe";
-    mkdir $exe_base unless -d $exe_base;
-    my $exe='gatkfull';
-    my $executable="GenomeAnalysisTK.jar";
-    mkdir "$exe_base/$exe";
-    warn "CAUTION: SeqMule cannot automatically install GATK full version due to license limitations.\n",
-         "Please download, unpack it and copy $executable to $exe_base/$exe\n";
-    sleep 5;
-}
-
 sub gatk
 {
     my $install_dir=shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='gatk';
+    my $executable="GenomeAnalysisTK.jar";
+    mkdir "$exe_base/$exe";
+    warn "CAUTION: SeqMule cannot automatically install GATK due to license limitations.\n",
+         "Please download, unpack it and copy $executable to $exe_base/$exe\n";
+    sleep 5;
+}
+
+sub gatklite
+{
+    my $install_dir=shift;
+    my $exe_base="$install_dir/exe";
+    mkdir $exe_base unless -d $exe_base;
+    my $exe='gatklite';
     my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.bz2"; #file to save to
     my $url = $exe_locations{$exe};
@@ -790,25 +790,25 @@ sub status
     }
 
     print "\n\nImportant commands:\n".
-    "\t./Build freshinstall\t\#(re)install all external programs (Recommended)\n".
-    "\t./Build installexes\t\#installs all missing external programs\n".
-    "\t./Build status\t\t\#Shows this status message\n\n".
+    "	./Build freshinstall	#(re)install all external programs (Recommended)\n".
+    "	./Build installexes	#installs all missing external programs\n".
+    "	./Build status		#Shows this status message\n\n".
     "Other Commands:\n".
-    "\t./Build fastqc\t\t\#installs FastQC (for quality control)\n".
-    "\t./Build bowtie\t\t\#installs Bowtie (for read alignment)\n".
-    "\t./Build bwa\t\t\#installs BWA (for read alignment)\n".
-    "\t./Build bowtie2\t\t\#installs Bowtie 2\n".
-    "\t./Build soap\t\t\#installs SOAPaligner\n".
-    "\t./Build samtools\t\#installs SAMtools\n". 
-    "\t./Build gatk\t\t\#installs GATK (for realignment, variant calling etc.)\n".
-    "\t./Build gatkfull\t\#instruction for GATK full version setup\n".
-    "\t./Build varscan\t\t\#installs VarScan  (variant calling)\n".
-    "\t./Build picard\t\t\#installs Picard tools\n".
-    "\t./Build soapsnp\t\t\#installs SOAPsnp tools\n".
-    "\t./Build tabix\t\t#installs tabix\n".
-    "\t./Build snver\t\t#installs snver\n".
-    "\t./Build freebayes\t#installs freebayes\n".
-    "\t./Build vcftools\t#installs vcftools\n";
+    "	./Build fastqc		#installs FastQC (for quality control)\n".
+    "	./Build bowtie		#installs Bowtie (for read alignment)\n".
+    "	./Build bwa		#installs BWA (for read alignment)\n".
+    "	./Build bowtie2		#installs Bowtie 2\n".
+    "	./Build soap		#installs SOAPaligner\n".
+    "	./Build samtools	#installs SAMtools\n". 
+    "	./Build gatklite	#installs GATKLite \n".
+    "	./Build gatk		#instruction for GATK setup\n".
+    "	./Build varscan		#installs VarScan  (variant calling)\n".
+    "	./Build picard		#installs Picard tools\n".
+    "	./Build soapsnp		#installs SOAPsnp tools\n".
+    "	./Build tabix		#installs tabix\n".
+    "	./Build snver		#installs snver\n".
+    "	./Build freebayes	#installs freebayes\n".
+    "	./Build vcftools	#installs vcftools\n";
     select(STDOUT);
 }
 
