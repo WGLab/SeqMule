@@ -113,7 +113,7 @@ sub db_down
     @down_list=grep {defined $_ } @down_list;	#remove unrecognized options
     warn "NOTICE: Start downloading: \n",join ("\n", map {$db_alias{$_}} @down_list),"\n";
     mkdir $db_dir and warn "NOTICE: $db_dir created.\n" unless -d $db_dir;
-    warn "NOTICE: all downloaded items will be saved to $db_dir.\n" 
+    warn "NOTICE: all downloaded items will be saved to $db_dir.\n";
 
 
     #read database locations and names
