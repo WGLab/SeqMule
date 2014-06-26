@@ -154,7 +154,7 @@ sub vcf_consensus
     my @in=@_;
     die "At least 2 VCF files for extracting consensus calls\n" unless @in>1;
     my $java=&getExe(&SeqMule::Utils::getProgramExe("java"));
-    my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatk"),&SeqMule::Utils::getProgramExe("gatkfull"));
+    my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatklite"),&SeqMule::Utils::getProgramExe("gatk"));
     my $out=&getPrefix(@in)."_consensus.vcf";
     my $local_minN=$minN || scalar @in;
 
@@ -204,7 +204,7 @@ sub vcf_union
     my @in=@_;
     die "At least 2 VCF files for extracting union calls\n" unless @in>1;
     my $java=&getExe(&SeqMule::Utils::getProgramExe("java"));
-    my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatk"),&SeqMule::Utils::getProgramExe("gatkfull"));
+    my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatklite"),&SeqMule::Utils::getProgramExe("gatk"));
     my $out=&getPrefix(@in)."_union.vcf";
 
     my ($unzipped,$unlink)=&SeqMule::Utils::gunzip(@in);

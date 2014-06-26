@@ -5,7 +5,7 @@ bowtie	http://downloads.sourceforge.net/project/bowtie-bio/bowtie/1.0.1/bowtie-1
 bwa	http://downloads.sourceforge.net/project/bio-bwa/bwa-0.7.8.tar.bz2?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fbio-bwa%2Ffiles%2F%3Fsource%3Dnavbar&ts=1398443700&use_mirror=softlayer-dal
 samtools	http://downloads.sourceforge.net/project/samtools/samtools/0.1.19/samtools-0.1.19.tar.bz2?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fsamtools%2Ffiles%2Fsamtools%2F0.1.19%2F&ts=1369257963&use_mirror=hivelocity
 picard	http://downloads.sourceforge.net/project/picard/picard-tools/1.115/picard-tools-1.115.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fpicard%2Ffiles%2Fpicard-tools%2F1.115%2F&ts=1403799951&use_mirror=softlayer-dal
-gatk	ftp://ftp.broadinstitute.org/pub/gsa/GenomeAnalysisTK/GenomeAnalysisTKLite-latest.tar.bz2
+gatklite	http://seqmule.usc.edu/exe/GenomeAnalysisTKLite-latest.tar.bz2
 varscan	http://downloads.sourceforge.net/project/varscan/VarScan.v2.3.6.jar?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fvarscan%2Ffiles%2F%3Fsource%3Dnavbar&ts=1381883319&use_mirror=hivelocity
 bowtie2	http://downloads.sourceforge.net/project/bowtie-bio/bowtie2/2.2.3/bowtie2-2.2.3-source.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fbowtie-bio%2Ffiles%2Fbowtie2%2F2.2.3%2F&ts=1403800105&use_mirror=softlayer-dal
 soapsnp	http://seqmule.usc.edu/exe/SOAPsnp-v1.03.tar.gz
