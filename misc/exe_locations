@@ -1,6 +1,6 @@
 ##SeqMule
 #FORMAT:program\tURL
-fastqc	http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.2_source.zip
+fastqc	http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.2.zip
 bowtie	http://downloads.sourceforge.net/project/bowtie-bio/bowtie/1.0.1/bowtie-1.0.1-src.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fbowtie-bio%2Ffiles%2Fbowtie%2F1.0.1%2F&ts=1403799845&use_mirror=softlayer-dal
 bwa	http://downloads.sourceforge.net/project/bio-bwa/bwa-0.7.8.tar.bz2?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fbio-bwa%2Ffiles%2F%3Fsource%3Dnavbar&ts=1398443700&use_mirror=softlayer-dal
 samtools	http://downloads.sourceforge.net/project/samtools/samtools/0.1.19/samtools-0.1.19.tar.bz2?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fsamtools%2Ffiles%2Fsamtools%2F0.1.19%2F&ts=1369257963&use_mirror=hivelocity
