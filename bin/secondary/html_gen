@@ -353,7 +353,7 @@ sub genSamplePage
 }
 sub modStaticPage
 {
-    for my $item("help","pipeline","parameter")
+    for my $item("pipeline","parameter")
     {
 	my $page=File::Spec->catfile("pages","$item.html");
 	my $page_content=`cat $page`;
