@@ -3,9 +3,8 @@
 #option_name	file1	url_file1	md5_file1	file2	url_file2	MD5_file2
 #
 
-
-hg19	human_g1k_v37.fasta.gz	ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz	45f81df94f0408d082363e34a081ed81	human_g1k_v37.fasta.fai	ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.fai	772484cc07983aba1355c7fb50f176d4
-hg18	human_b36_both.fasta.gz	http://seqmule.usc.edu/hg_index/human_b36_both.fasta.gz	c779b2ea9507478a015a168d92e77f3c	human_b36_both.fasta.fai.gz	http://seqmule.usc.edu/hg_index/human_b36_both.fasta.fai.gz	3056c519bd2949c699a248d894bd9655
+hg19	human_g1k_v37.fasta.gz	http://seqmule.usc.edu/hg_index/human_g1k_v37.fasta.gz	2758fdb5b93870b0e2f9101896cfaf6d  	human_g1k_v37.fasta.fai	http://seqmule.usc.edu/hg_index/human_g1k_v37.fasta.fai	772484cc07983aba1355c7fb50f176d4	human_g1k_v37.dict	http://seqmule.usc.edu/hg_index/human_g1k_v37.dict	d07118184c948f11c48cd782b485a44e
+hg18	human_b36_both.fasta.gz	http://seqmule.usc.edu/hg_index/human_b36_both.fasta.gz	c779b2ea9507478a015a168d92e77f3c	human_b36_both.fasta.fai	http://seqmule.usc.edu/hg_index/human_b36_both.fasta.fai	d10be4d05764a93a2a3540120e0573b9	human_b36_both.dict	http://seqmule.usc.edu/hg_index/human_b36_both.dict	6a1f983ac435d4b6014a15120b816852
 hg19ibwa	index_bwa_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bwa_human_g1k_v37.fasta.index.tar.gz	e6542e5fd3699d7e2f62003ca4ce9c04
 hg19ibowtie	index_bowtie_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bowtie_human_g1k_v37.fasta.index.tar.gz	9be4bca4f9413c5f8c4992c4692d3a50
 hg19ibowtie2	index_bowtie2_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/bowtie2_human_g1k_v37.fasta.index.tar.gz	6d9ff1dd375d1094fbaf2e7e54357eaa

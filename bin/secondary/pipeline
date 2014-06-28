@@ -105,7 +105,7 @@ GetOptions(
     'bam=s'		=>	\$bam,
     'merge|m'		=>	\$merge,
     'ms'		=>	\$multi_sample_calling,
-    'N'			=>	\$minN,
+    'N=i'		=>	\$minN,
     #analysis param
     'build=s'	        =>	\$buildver,
     'platform|pl=s'	=> 	\$pl,

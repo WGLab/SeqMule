@@ -119,7 +119,10 @@ sub db_down
     #read database locations and names
     warn "Reading database locations and names...\n";
     my $webdbfile="web_db_locations";
-    &SeqMule::Utils::getstore("seqmule.usc.edu/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from seqmule.usc.edu failed\nTry local \'db_locations\'...\n";
+    unless ($debug)
+    {
+	&SeqMule::Utils::getstore("seqmule.usc.edu/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from seqmule.usc.edu failed\nTry local \'db_locations\'...\n";
+    }
     my $db_loc_file=-s $webdbfile ? $webdbfile: File::Spec->catfile($install_dir,"misc","db_locations");
     push @gunlink,$webdbfile;
     my @loc_info_ref=&SeqMule::Utils::readLocFile($db_loc_file);
@@ -241,6 +244,7 @@ Options:
       -v,--verbose		verbose output. Default: disabled
       -h,--help			help
       --noclean			do not clean temporary files
+      --debug			debug mode
 
 =head1 EXAMPLE
 

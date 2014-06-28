@@ -10,44 +10,44 @@ my $original="../advanced_config";
     my $out="bowtie2_gatk.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatk_norealn_norecal.config";
+    my $out="bowtie2_gatklite_norealn_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatk_norecal.config";
+    my $out="bowtie2_gatklite_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatk_samtools.config";
+    my $out="bowtie2_gatklite_samtools.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
 
 {
-    my $out="bowtie2_gatk_samtools_varscan.config";
+    my $out="bowtie2_gatklite_samtools_varscan.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
@@ -75,92 +75,92 @@ my $original="../advanced_config";
 #    &procOriginal($out,$regex);
 #}
 {
-    my $out="bowtie2_gatkfull_UnifiedGenotyper.config";
+    my $out="bowtie2_gatk_UnifiedGenotyper.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;";
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_UnifiedGenotyper_norealn_norecal.config";
+    my $out="bowtie2_gatk_UnifiedGenotyper_norealn_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;";
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_UnifiedGenotyper_norecal.config";
+    my $out="bowtie2_gatk_UnifiedGenotyper_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;";
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_HaplotypeCaller.config";
+    my $out="bowtie2_gatk_HaplotypeCaller.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;";
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_HaplotypeCaller_norealn_norecal.config";
+    my $out="bowtie2_gatk_HaplotypeCaller_norealn_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;";
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_HaplotypeCaller_norecal.config";
+    my $out="bowtie2_gatk_HaplotypeCaller_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;";
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_UnifiedGenotyper_samtools.config";
+    my $out="bowtie2_gatk_UnifiedGenotyper_samtools.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_HaplotypeCaller_samtools.config";
+    my $out="bowtie2_gatk_HaplotypeCaller_samtools.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
 
 {
-    my $out="bowtie2_gatkfull_UnifiedGenotyper_samtools_varscan.config";
+    my $out="bowtie2_gatk_UnifiedGenotyper_samtools_varscan.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatkfull_HaplotypeCaller_samtools_varscan.config";
+    my $out="bowtie2_gatk_HaplotypeCaller_samtools_varscan.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
@@ -170,43 +170,43 @@ my $original="../advanced_config";
     my $out="bwa_gatk.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatk_norealn_norecal.config";
+    my $out="bwa_gatklite_norealn_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatk_norecal.config";
+    my $out="bwa_gatklite_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatk_samtools.config";
+    my $out="bwa_gatklite_samtools.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatk_samtools_varscan.config";
+    my $out="bwa_gatklite_samtools_varscan.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
@@ -233,91 +233,91 @@ my $original="../advanced_config";
 #    &procOriginal($out,$regex);
 #}
 {
-    my $out="bwa_gatkfull_UnifiedGenotyper.config";
+    my $out="bwa_gatk_UnifiedGenotyper.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;";
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_UnifiedGenotyper_norealn_norecal.config";
+    my $out="bwa_gatk_UnifiedGenotyper_norealn_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;";
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_UnifiedGenotyper_norecal.config";
+    my $out="bwa_gatk_UnifiedGenotyper_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;";
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_HaplotypeCaller.config";
+    my $out="bwa_gatk_HaplotypeCaller.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;";
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_HaplotypeCaller_norealn_norecal.config";
+    my $out="bwa_gatk_HaplotypeCaller_norealn_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;";
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_HaplotypeCaller_norecal.config";
+    my $out="bwa_gatk_HaplotypeCaller_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;";
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_UnifiedGenotyper_samtools.config";
+    my $out="bwa_gatk_UnifiedGenotyper_samtools.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_HaplotypeCaller_samtools.config";
+    my $out="bwa_gatk_HaplotypeCaller_samtools.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_UnifiedGenotyper_samtools_varscan.config";
+    my $out="bwa_gatk_UnifiedGenotyper_samtools_varscan.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatkfull_HaplotypeCaller_samtools_varscan.config";
+    my $out="bwa_gatk_HaplotypeCaller_samtools_varscan.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
-    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;".
+    "s/gatk_realign=0/gatk_realign=1/;".
+    "s/gatk_recal=0/gatk_recal=1/;".
+    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
@@ -335,28 +335,28 @@ my $original="../advanced_config";
     my $out="bwa_backtrack_gatk.config";
     my $regex=
     "s/bwa=0/bwa=1/;".
-    "s/gatk_variant=0/gatk_variant=1/;".
-    "s/gatk_realign=0/gatk_realign=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;";
+    "s/gatklite_variant=0/gatklite_variant=1/;".
+    "s/gatklite_realign=0/gatklite_realign=1/;".
+    "s/gatklite_recal=0/gatklite_recal=1/;";
     &procOriginal($out,$regex);
 }
 #{
-#    my $out="bwa_backtrack_gatk_samtools.config";
+#    my $out="bwa_backtrack_gatklite_samtools.config";
 #    my $regex=
 #    "s/bwa=0/bwa=1/;".
-#    "s/gatk_variant=0/gatk_variant=1/;".
-#    "s/gatk_realign=0/gatk_realign=1/;".
-#    "s/gatk_recal=0/gatk_recal=1/;".
+#    "s/gatklite_variant=0/gatklite_variant=1/;".
+#    "s/gatklite_realign=0/gatklite_realign=1/;".
+#    "s/gatklite_recal=0/gatklite_recal=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;";
 #    &procOriginal($out,$regex);
 #}
 #{
-#    my $out="bwa_backtrack_gatk_samtools_varscan.config";
+#    my $out="bwa_backtrack_gatklite_samtools_varscan.config";
 #    my $regex=
 #    "s/bwa=0/bwa=1/;".
-#    "s/gatk_variant=0/gatk_variant=1/;".
-#    "s/gatk_realign=0/gatk_realign=1/;".
-#    "s/gatk_recal=0/gatk_recal=1/;".
+#    "s/gatklite_variant=0/gatklite_variant=1/;".
+#    "s/gatklite_realign=0/gatklite_realign=1/;".
+#    "s/gatklite_recal=0/gatklite_recal=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;".
 #    "s/varscan=0/varscan=1/;";
 #    &procOriginal($out,$regex);
@@ -383,21 +383,21 @@ my $original="../advanced_config";
 #    &procOriginal($out,$regex);
 #}
 #{
-#    my $out="bwa_backtrack_gatkfull_HaplotypeCaller.config";
+#    my $out="bwa_backtrack_gatk_HaplotypeCaller.config";
 #    my $regex=
 #    "s/bwamem=0/bwamem=1/;".
-#    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-#    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-#    "s/gatkfull_HaplotypeCaller=0/gatkfull_HaplotypeCaller=1/;";
+#    "s/gatk_realign=0/gatk_realign=1/;".
+#    "s/gatk_recal=0/gatk_recal=1/;".
+#    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
 #    &procOriginal($out,$regex);
 #}
 #{
-#    my $out="bwa_backtrack_gatkfull_UnifiedgenoTyper.config";
+#    my $out="bwa_backtrack_gatk_UnifiedgenoTyper.config";
 #    my $regex=
 #    "s/bwamem=0/bwamem=1/;".
-#    "s/gatkfull_realign=0/gatkfull_realign=1/;".
-#    "s/gatkfull_recal=0/gatkfull_recal=1/;".
-#    "s/gatkfull_UnifiedGenotyper=0/gatkfull_UnifiedGenotyper=1/;";
+#    "s/gatk_realign=0/gatk_realign=1/;".
+#    "s/gatk_recal=0/gatk_recal=1/;".
+#    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
 #    &procOriginal($out,$regex);
 #}
 ##################BOWTIE1###################
@@ -446,14 +446,14 @@ sub procOriginal
 	s/bwamem=\s*\d/bwamem=0/;
 	s/bowtie=\s*\d/bowtie=0/;
 	s/bowtie2=\s*\d/bowtie2=0/;
-	s/gatk_variant=\s*\d/gatk_variant=0/;
-	s/gatk_realign=\s*\d/gatk_realign=0/;
-	s/gatk_recal=\s*\d/gatk_recal=0/;
+	s/gatklite_variant=\s*\d/gatklite_variant=0/;
+	s/gatklite_realign=\s*\d/gatklite_realign=0/;
+	s/gatklite_recal=\s*\d/gatklite_recal=0/;
 	s/samtools_mpileup=\s*\d/samtools_mpileup=0/;
-	s/gatkfull_realign=\s*\d/gatkfull_realign=0/; 
-	s/gatkfull_recal=\s*\d/gatkfull_recal=0/;
-	s/gatkfull_UnifiedGenotyper=\s*\d/gatkfull_UnifiedGenotyper=0/;
-	s/gatkfull_HaplotypeCaller=\s*\d/gatkfull_HaplotypeCaller=0/;
+	s/gatk_realign=\s*\d/gatk_realign=0/; 
+	s/gatk_recal=\s*\d/gatk_recal=0/;
+	s/gatk_UnifiedGenotyper=\s*\d/gatk_UnifiedGenotyper=0/;
+	s/gatk_HaplotypeCaller=\s*\d/gatk_HaplotypeCaller=0/;
 	s/varscan=\s*\d/varscan=0/;
 	s/soapsnp=\s*\d/soapsnp=0/;
 	s/freebayes=\s*\d/freebayes=0/;
@@ -485,19 +485,19 @@ sub procOriginal
 4p_picard_markduplicates=1 #use MarkDuplicates from Picard tools to remove duplicates (1 enable, 0 disable, usually enabled)
 5Px_samtools_index=1 #use samtools to index duplicate removed BAM files (1 enable, 0 disable, must be enabled) 
 
-6px_gatk_realign=1 #use GenomeAnalysisTKLite from GATK to generate GATK intervals and then do realignment (1 enable, 0 disable, usually enabled). Invoke GenomeAnalysisTKLite RealignerTargetCreator and IndelRealigner to do realignment
-6px_gatkfull_realign=0 #use GenomeAnalysisTK full version instead.
+6px_gatklite_realign=1 #use GenomeAnalysisTKLite from GATK to generate GATK intervals and then do realignment (1 enable, 0 disable, usually enabled). Invoke GenomeAnalysisTKLite RealignerTargetCreator and IndelRealigner to do realignment
+6px_gatk_realign=0 #use GenomeAnalysisTK full version instead.
 
 
-7px_gatk_recal=1 #count covariates for base quality recalibration
-7px_gatkfull_recal=0 #use GenomeAnalysisTK full version instead
+7px_gatklite_recal=1 #count covariates for base quality recalibration
+7px_gatk_recal=0 #use GenomeAnalysisTK full version instead
 
 
-8p_gatk_variant=1 #default variant calling algorithm from GATK Lite (UnifiedGenotyper)
+8p_gatklite_variant=1 #default variant calling algorithm from GATK Lite (UnifiedGenotyper)
 
-8p_gatkfull_UnifiedGenotyper=0 #variant calling algorithm (UnifiedGenotyper) from GATK full version
+8p_gatk_UnifiedGenotyper=0 #variant calling algorithm (UnifiedGenotyper) from GATK full version
 
-8p_gatkfull_HaplotypeCaller=0 #alternative variant calling algorithm (HaplotypeCaller) from GATK full version
+8p_gatk_HaplotypeCaller=0 #alternative variant calling algorithm (HaplotypeCaller) from GATK full version
 
 
 8p_samtools_mpileup=1 #default variant calling algorithm
