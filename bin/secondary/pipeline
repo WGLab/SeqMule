@@ -67,7 +67,7 @@ my @presplit_bam;
 my @presplit_original_bam; #original BAM files prior to splitting
 my %original_bam_toggle;
 my @aligners;
-my @callers; #lowercase, variant callers, including gatk, gatk_ug, gatk_hc,samtools,snver,freebayes,varscan, soapsnp
+my @callers; #lowercase, variant callers, including gatklite, gatk_ug, gatk_hc,samtools,snver,freebayes,varscan, soapsnp
 my %soapaln_sample;
 my @symlink;
 my @small_bed;
@@ -1058,7 +1058,7 @@ sub gatk
     } 
     elsif ($subprogram=~/variant/) 
     {
-	my $caller='gatk';
+	my $caller='gatklite';
 	push @callers,$caller;
 	warn "CAUTION: GATKLite variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } @aligners);
@@ -1112,7 +1112,7 @@ sub gatk_variant
     my $n=shift;
     my %options=%{shift @_};
     my @bam=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
     my $exe_java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEFILTER");
     my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITECALL");
@@ -1255,7 +1255,7 @@ sub gatk_variant
 sub gatk_recal
 {
     my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
     my $exe_java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 
@@ -1297,7 +1297,7 @@ sub gatk_recal
 sub gatk_realign
 {
     my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
     my $exe_java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 
@@ -1437,7 +1437,7 @@ sub gatk_full_variant
 	for my $filter(split ';',$i)
 	{
 	    my ($filtername,$filterexp)=split ',',$filter;
-	    die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
+	    die "Missing filter name or expression for GATK indel/SNP filtering.\n" unless ($filtername && $filterexp);
 	}
     }
     my $cmd_common_call="$runGATKCMDCALL -internal-caller $internal_caller -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt ";
