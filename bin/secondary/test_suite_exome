@@ -47,7 +47,8 @@ for my $q("","-quick")
     for my $j(@config_files)
     {
 	#for my $ms("","-ms","-merge")
-	for my $ms("","-ms")
+	#for my $ms("","-ms")
+	for my $ms("")
 	{
 		my @cmd;
 		my @target_files;
@@ -92,7 +93,7 @@ for my $q("","-quick")
 		#&exec(@cmd) if $count>=108 && $count<=108;
 		#&exec(@cmd) if $j=~/bwa/ && $j=~/samtools/ && $count>=48 && $count<=59;
 		#&exec(@cmd) if $count==25;
-		&exec(@cmd) if $count>=151 && $count<=160;
+		&exec(@cmd) if $count>=0 && $count<=0;
 		$count++;
 	}
     }

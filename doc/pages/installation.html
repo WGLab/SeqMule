@@ -73,7 +73,7 @@ ddsmoothmenu.init({
 	<h3>Supported platform</h3>
 	<p>x86-64 Linux</p><br>
 	<h3>Prerequisites</h3>
-	<p>make, gcc, g++, curses.h, R, unzip, automake, autoconf, git, gzip, tar, java
+	<p>make, cmake, gcc, g++, curses.h, R, unzip, automake, autoconf, git, gzip, tar, java
 	</p>
 	<br>
 	<h3>Install</h3>
@@ -96,15 +96,22 @@ ddsmoothmenu.init({
 
 	<h3>NOTES</h3>
 	<p>To install prerequisites, on RedHat, CentOS, Fedora, run<br></p>
-	<code>sudo yum install -y gcc gcc-c++ make ncurses-devel ncurses R unzip automake autoconf git-core gzip tar</code>
+	<code>sudo yum install -y gcc gcc-c++ make cmake ncurses-devel ncurses R unzip automake autoconf git-core gzip tar</code>
 	<br>
+	<p>If you fail to install R on Centos, please run the following command.</p>
+	<code>
+	    rpm -Uvh http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
+	    <br>
+	    sudo yum install R
+	</code>
 	<br>
 	<p>To install prerequisites, on Ubuntu, run<br></p>
 	<code>sudo apt-get update</code>
-	<code>sudo apt-get install -y build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar</code>
+	<code>sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar</code>
 	<br>
 	<br>
-	<p>To use seqmule without typing entire path, please modify your PATH environmental variable
+	<p>To use seqmule without typing entire path, please modify your PATH environmental variable.
+	<br>Don't forget to replace 'absolute_path_to_seqmule' by the actual path to seqmule folder
 	<br>In bash:</p>
 	<code>export PATH=$PATH:absolute_path_to_seqmule/bin</code>
 	<br>

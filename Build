@@ -24,6 +24,7 @@ my %sys_require=( #system-wide executables required
 		'unzip'		=> ['unzip'],
 		'r' 		=> ['Rscript'],
 		'make'		=> ['make'],
+		'cmake'		=> ['cmake'],
 		'automake'	=> ['automake'],
 		'autoconf'	=> ['autoconf'],
 		'git'		=> ['git'],

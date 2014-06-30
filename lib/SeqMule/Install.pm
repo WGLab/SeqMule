@@ -16,12 +16,12 @@ use SeqMule::Utils;
 
 my @unlink;
 my $INSTALLATION_GUIDELINE="To install prerequisites, on RedHat, CentOS, Fedora, run:
-sudo yum install -y make gcc gcc-c++ ncurses-devel ncurses R unzip automake autoconf git-core gzip tar
+sudo yum install -y make cmake gcc gcc-c++ ncurses-devel ncurses R unzip automake autoconf git-core gzip tar
 #for java, please follow instructions on http://java.com
 
 To install prerequisites, on Ubuntu, run:
 sudo apt-get update
-sudo apt-get install -y build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar
+sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar
 #for java, please follow instructions on http://java.com
 ";
 
@@ -31,6 +31,7 @@ sub install_dev_tools
     &gcc;
     &unzip;
     &make;
+    &cmake;
     &automake;
     &autoconf;
     &git;
@@ -69,6 +70,7 @@ sub freshinstall
     {
 	eval ("&$exe(\$install_dir)");
     }
+	&status($install_dir,\%sys_require,\%exe_require);
 }
 sub installexes
 {
@@ -219,6 +221,10 @@ sub git
 sub make
 {
     die "Error: make NOT found.\n$INSTALLATION_GUIDELINE\n" unless &sys_which("make");
+}
+sub cmake
+{
+    die "Error: cmake NOT found.\n$INSTALLATION_GUIDELINE\n" unless &sys_which("cmake");
 }
 
 sub automake
