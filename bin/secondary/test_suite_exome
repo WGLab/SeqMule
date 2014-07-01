@@ -9,9 +9,9 @@ my $ncpu=8;
 my $mem="4.5g";
 my $jmem="1750m";
 my $gatknt=4;
-my $exe="/home/yunfeiguo/projects/seqmule_parallel/bin/seqmule";
+my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/data/test_exome";
-my $config_folder="/home/yunfeiguo/projects/seqmule_parallel/misc/predefined_config";
+my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
 #for no merge, no ms
 my $first_fq="fa_1.fq";
 my $second_fq="fa_2.fq";

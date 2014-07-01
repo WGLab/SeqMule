@@ -74,7 +74,7 @@ $(window).load(function() {
 	<div id="table-of-content"></div>
 
 	<h3 id='q1'>Is there a log file showing the runtime error?</h3>
-	<p>SeqMule only saves runtime parameters to *.log file. If you want to check the runtime output after running SeqMule in the background (or submitted to a cluster), please use 'nohup your_seqmule_command &gt output.txt &amp' or 'your_seqmule_command 2&gtstderr.txt', the STDERR message will be saved in output.txt and stderr.txt, respectively. Please use different files to store output from each analysis, otherwise, it's hard to tell the progress and status of each run.
+	<p>SeqMule only saves runtime parameters to *.log file. If you want to check the runtime output after running SeqMule in the background (or submitted to a cluster), please use 'nohup your_seqmule_command &gt output.txt &amp'. <b>nohup</b>can run your command even after you log out. All messages that were printed on screen will be saved in <b>output.txt</b> file. Alternatively, you can append ' 2&gtstderr.txt' to your SeqMule command. The STDERR message (all error messages) will be saved in output.txt and stderr.txt, respectively. Please use different files to store output from each analysis, otherwise, it's hard to tell the progress and status of each run.
 	<br>
 	</p>
 	<h3 id='q2'>Why did I get 'set: Variable name must begin with a letter.' error when I tried to run the analysis script by qsub?
@@ -92,11 +92,11 @@ $(window).load(function() {
 	</p>
 	<br>
 	<h3 id='q5'>What if GATK complains for insufficient memory?</h3>
-	<p>Please use '-jmem' option to give GATK more memory. Note, however, you have to request more memory if you will run your analysis on a computation cluster as there is memory overhead for java virtual machine.
+	<p>Please use '-jmem' option to give GATK more memory. Note, however, you have to request more memory than specified by '-jmem' if you run your analysis on a computation cluster as there is memory overhead for java virtual machine.
 	</p>
 	<br>
 	<h3 id='q6'>How does the QUICK mode work?</h3>
-	<p>Under QUICK mode, total region to be called will be split into N parts. N is the number of threads. Variant calling is then performed in each part simultaneously. Afterwards, the resulting VCF will be merged. For GATK, variant filtering is not done until after merging because VQSR filtering requires a lot of variants to calculate some statistics.</p>
+	<p>Under QUICK mode, total region to be called will be split into N parts. N is the number of threads. Variant calling is then performed on each part simultaneously. Afterwards, the resulting VCF will be merged. For GATK, variant filtering is not done until after merging because VQSR filtering requires a lot of variants to calculate some statistics.</p>
 	<br>
 	<h3 id='q7'>Why are the numbers on Venn diagram different from the statistics I got from the consensus VCF file?</h3>
 	<p>ANNOVAR is used to generate the Venn diagram, while GATK is used to extract consensus calls. Therefore, it is largely due to the difference between the way ANNOVAR and GATK handle variants. This is expected for INDELs since there is no unique way to represent them in some cases. This should not affect SNPs which most often account for the majority of all variants.</p>

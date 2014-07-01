@@ -79,18 +79,21 @@ ddsmoothmenu.init({
 	<h3>Install</h3>
 	<p>Executables of SeqMule itself are basically some scripts in Perl, you can use them right after unpacking. However, external programs do need installation. SeqMule ignores what you have outside seqmule directory for sake of compatibility.</p>
 	<br>
+	<p>The following commands will download and install SeqMule for you. # and texts after it are just comments.</p>
+	<br>
 	<code>
 	    wget seqmule.usc.edu/seqmule.beta.tar.gz<br>   
 	    tar zxvf seqmule.beta.tar.gz<br>
 	    cd seqmule<br> 
-	    ./Build status #show all commands and missing external programs<br>
-	    ./Build freshinstall #install all external programs regardless of what you have<br>
+	    ./Build freshinstall
 	    <br>
-	    Alternatively, you can use:<br>
-	    ./Build installexes #install all missing external programs<br>
 	</code>
+	<p>Alternatively, you can use the following command to just install MISSING programs:<br></p>
+	    ./Build installexes<br>
+	</code>
+	<br>
 	<p>
-	Due to copyright limitations, you have to download and install GATK (one of default variant callers) yourself. Use <code>./Build gatk</code> to get instructions. If everything goes smooth, you are ready to go. Good luck!
+	Due to copyright limitations, you have to download and install GATK (one of default variant callers) yourself. Use <b>./Build gatk</b> to get instructions. If everything goes smooth, you are ready to go. Good luck!
 	</p>
 	<br>
 

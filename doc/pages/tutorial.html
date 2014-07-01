@@ -92,7 +92,7 @@ $(window).load(function() {
 
 	<h3 id="q7">EXAMPLE OUTPUT</h3>
 	<p>Click here to see what output report looks like. <a href="example_report/summary.html">Example output</a></p>
-	<p>You can find an application example in my (<A HREF="../images/SeqMule-ASHG-2012.pdf">poster</A>) at 2012 ASHG meeting.</p>
+	<p>You can find an application example in my <A HREF="../images/SeqMule-ASHG-2012.pdf">poster</A> at 2012 ASHG meeting.</p>
 	<br>
 	<br>
 	<h3 id="q1">QUICK START</h3>
@@ -152,11 +152,11 @@ $(window).load(function() {
 	    2P_bowtie2=1
 	</code>
 	<p>Some lines between them are not shown here. Comments begin with '#', they have no effects on other parts of the file. Read the comments at the beginning of file for detailed instructions on how to modify it.</p>
-	<p>After you have modified the 'advanced_config' file, you can use it by prepend <b>-advanced advanced_config</b> to your analysis command.</p>
+	<p>After you have modified the 'advanced_config' file, you can use it by append <b>-advanced advanced_config</b> to your analysis command.</p>
 	<code>
 	    <b>seqmule pipeline -a 1.fastq -b 2.fastq -prefix exomeData -capture default -threads 4 -e -advanced advanced_config</b><br>
 	</code>
-	<p>Some users maybe don't know how to edit a file on Linux if they don't have graphics user interface (GUI). The easiest way is download it to your PC, change it with NotePad, upload it. Alternatively, you can refer to a VIM tutorial (it's everywhere on the web!).</p>
+	<p>Some users maybe don't know how to edit a file on Linux if they don't have graphics user interface (GUI). The easiest way is download it to your PC, change it with NotePad, upload it. Alternatively, you can refer to a <a href="https://www.math.northwestern.edu/resources/computer_information/vimtutor">VIM tutorial</a>.</p>
 	<br>
 	<h3 id="q5">WHOLE GENOME ANALYSIS</h3>
 	<br>
@@ -175,7 +175,7 @@ $(window).load(function() {
 	<br>
 	<h3 id="qAEWE201406090432">ANALYSIS EXIT WITH ERROR (CONTINUE STOPPED ANALYSIS)</h3>
 	<p>
-	If your analysis exits erroneously. You can examine the runtime logging information (<a href="http://seqmule.usc.edu/pages/faq.html#q1">how to get it?</a>) to identify the error, then fix it by <a href="#q4">changing advanced_config</a> or <a href="q9">the script</a>, and at last continue the analysis. Commands are shown below.
+	If your analysis exits erroneously. You can examine the runtime logging information (<a href="http://seqmule.usc.edu/pages/faq.html#q1">how to get it?</a>) to identify the error, then fix it by <a href="#q4">changing advanced_config</a> or <a href="#q9">the script</a>, and at last continue the analysis. Commands are shown below.
 	</p>
 	<code>seqmule run your_analysis.script</code><br>
 	<p>This command will resume the analysis.</p>
@@ -184,7 +184,7 @@ $(window).load(function() {
 	<br>
 	<h3 id="q9">FINETUNE PIPELINE (MODIFY SCRIPT)</h3>
 	<p>
-	Each time you run 'seqmule pipeline', a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output. An example script file is shown below.</p>
+	Each time you run 'seqmule pipeline', a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output (it is also your sample name). An example script file is shown below.</p>
 	<pre>
 #step	command	message	nCPU_requested	nCPU_total	status	pid
 1	seqmule/bin/secondary/mod_status father-mother-son.script 1 seqmule/bin/secondary/phred64to33 father_result/father.1.fastq mother_result/mother.1.fastq son_result/son.1.fastq father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq	Convert phred64 to phred33	8	8	finished	31171
