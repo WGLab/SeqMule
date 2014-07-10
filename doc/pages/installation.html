@@ -115,12 +115,14 @@ ddsmoothmenu.init({
 	<br>
 	<p>To use seqmule without typing entire path, please modify your PATH environmental variable.
 	<br>Don't forget to replace 'absolute_path_to_seqmule' by the actual path to seqmule folder
-	<br>In bash:</p>
-	<code>export PATH=$PATH:absolute_path_to_seqmule/bin</code>
+	<br>If you use bash:</p>
+	<code>echo 'export PATH=$PATH:absolute_path_to_seqmule/bin' &gt&gt ~/.bashrc</code><br>
+	<code>source ~/.bashrc</code><br>
 	<br>
 	<br>
-	<p>In tcsh:</p>
-	<code>setenv PATH $PATH:absolute_path_to_seqmule/bin</code>
+	<p>If you use tcsh:</p>
+	<code>echo 'setenv PATH absolute_path_to_seqmule/bin:$PATH' &gt&gt ~/.tcshrc</code><br>
+	<code>source ~/.tcshrc</code><br>
 	<p>If you don't know which shell (bash/tcsh/csh etc.) you are using, type the following command to figure out</p>
 	<br>
 	<code>echo $0</code>
