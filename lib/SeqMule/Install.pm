@@ -367,6 +367,7 @@ sub samtools
     chdir($exe_base);
     my ($dir) = grep {-d $_} <samtools-*>; #dir got after unpacking
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    system("chmod +x $exe");
     chdir($exe);
     if (-f "sam.c")
     {
@@ -692,6 +693,7 @@ sub tabix
     chdir($exe_base);
     my ($dir) = grep {-d $_} <tabix-*>; #dir got after unpacking
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    system("chmod +x $exe");
     chdir($exe);
     if (-f "main.c")
     {
