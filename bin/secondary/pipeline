@@ -2753,8 +2753,12 @@ sub getConsensusCall
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 	my $cmd;
 
-	next unless @one_sample_var>1;
-	next if $minN && @one_sample_var<$minN;
+	next unless @one_sample_var>1;#at least two files must exist to extract consensus calls
+	warn
+	"WARNING: user requests to extract consensus calls from at least $minN files,\n",
+	"WARNING: but there only ",scalar(@one_sample_var)," files.\n" 
+	    and next
+	if $minN && @one_sample_var<$minN;
 
 	$cmd=
 	"$exe stats -ref $local_ref".
