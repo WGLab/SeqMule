@@ -1,0 +1,71 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+if(0)
+{#download
+    #download HiSeqXTendata
+    #1000genomes NA12878 data 
+    my @files=qw(
+    https://dnanexus-rnd.s3.amazonaws.com/NA12878-xten/mappings/NA12878D_HiSeqX_R1.bam 
+    https://dnanexus-rnd.s3.amazonaws.com/NA12878-xten/mappings/NA12878D_HiSeqX_R1.bam.bai
+    https://dnanexus-rnd.s3.amazonaws.com/NA12878-xten/mappings/NA12878J_HiSeqX_R1.bam 
+    https://dnanexus-rnd.s3.amazonaws.com/NA12878-xten/mappings/NA12878J_HiSeqX_R1.bam.bai
+    ftp://ftp.ncbi.nlm.nih.gov/1000genomes/ftp/data/NA12878/high_coverage_alignment/NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.bam 
+    ftp://ftp.ncbi.nlm.nih.gov/1000genomes/ftp/data/NA12878/high_coverage_alignment/NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.bam.bai
+    );
+    for my $i(@files)
+    {
+	!system("wget",$i) or die "Failed to download $i: $!\n";
+    }
+}
+if(1)
+{ #preprocess BAM (extract reads from chromosomes shared by BAM header and our reference)
+    my @chr = qw(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y MT);
+    my %chr = map { ($_ => $_) } @chr;
+    my @bam = qw(
+    NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.bam 
+    NA12878_HiSeq/NA12878D_HiSeqX_R1.bam
+    NA12878_HiSeq/NA12878J_HiSeqX_R1.bam
+    );
+    my @out= map {my $i=$_;$i=~s/\.bam$/.extract.bam/;$i} @bam;
+    for my $i(0..$#bam)
+    {
+	#first convert header
+	my $header="/tmp/$$".rand($$).".header.tmp";
+	open IN,"-|","samtools view -H $bam[$i]" or die "Failed to read header:$!\n";
+	open OUT,">",$header or die "failed to write to $header: $!\n";
+	while(<IN>)
+	{
+	    if(/^\@SQ/)
+	    {
+		my ($chr) = /SN:(\S+)/ or die "at line $.\n";
+		next unless defined $chr{$chr};
+	    } 
+	    print OUT;
+	}
+	close IN;
+	close OUT;
+	#then extract reads
+	open OUT,"|-","samtools view -S -b -@ 12 -o $out[$i] -" or die "failed to write to $out[$i]: $!\n";
+	open HEADER,"<",$header or die "failed to read $header: $!\n";
+	while(<HEADER>)
+	{
+	    print OUT;
+	}
+	close HEADER;
+	open READS,"-|","samtools view $bam[$i] @chr" or die "failed to extract reads: $!\n";
+	while(<READS>)
+	{
+	    print OUT;
+	}
+	close READS;
+	close OUT;
+	warn "$out[$i] done\n";
+    }
+}
+if(1)
+{
+#analysis from BAM
+#seqmule pipeline -bam NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.bam -prefix onekg-NA12878-hi-cov-pcr-free -advanced gatk_sam_varscan.txt -q -t 12 -wgs 
+}
