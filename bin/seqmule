@@ -26,6 +26,7 @@ run		execute seqmule-generated scripts
 stats     	produce statistics and plots
 \n" if (!defined $subprogram or $subprogram !~ /download|pipeline|stats|run/i);
 
+warn "Current version: $version\n";
 system(File::Spec->catfile($RealBin,"secondary","checkupgrade"));
 
 if ($subprogram =~ /download/i)
