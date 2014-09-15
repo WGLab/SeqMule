@@ -2491,7 +2491,7 @@ sub checkForSplit
     #warn user if region to be split is too small
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $bed=$capture || &SeqMule::Utils::fa2BED($local_ref);
-    &SeqMule::Utils::splitRegion({bed=>$bed,threads=>$threads});
+    &SeqMule::Utils::splitRegion({bed=>$bed,threads=>$threads,rm=>1});
 }
 sub genScript
 {
@@ -2508,6 +2508,8 @@ sub genScript
 	    my $bed=$capture || &SeqMule::Utils::fa2BED($local_ref);
 	    @small_bed=&SeqMule::Utils::splitRegion({bed=>$bed,threads=>$threads});
 	}
+	#remove temp BED files after analysis is done
+	push @script_unlink_list,@small_bed;
     }
     if (!$fq_toggle)
     {

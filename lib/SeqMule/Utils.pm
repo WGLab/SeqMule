@@ -1347,7 +1347,8 @@ sub splitRegion
     my $bam=$opt{bam};
     my $prefix=$opt{prefix};
     my $samtools=$opt{samtools};
-    my @small_bed=map { ($prefix?$prefix:"/tmp/$$".rand($$)).".$_.bed" } (1..$n);
+    my $rm=$opt{rm};
+    my @small_bed=map { ($prefix?$prefix:"$$".rand($$)).".$_.tmp.bed" } (1..$n);
     my @intervals;
 
     unless (defined $bed)
@@ -1406,7 +1407,13 @@ sub splitRegion
 	print OUT $intervals[$i];
 	close OUT;
     }
-    return @small_bed;
+    if($rm)
+    {
+	!system("rm -rf @small_bed") or croak "Failed to remove @small_bed: $!\n";
+    } else
+    {
+	return @small_bed;
+    }
 }
 
 sub fa2BED
