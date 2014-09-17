@@ -165,7 +165,7 @@ if(1)
 
     for my $i(0..$#bam)
     {
-	!system("echo 'seqmule pipeline -bam $bam[$i] -prefix $prefix[$i] -advanced gatk_sam_varscan.txt -q -t $threads -wgs' | 
+	!system("echo 'seqmule pipeline -bam $bam[$i] -prefix $prefix[$i] -advanced gatk_sam_varscan.txt -q -t $threads -e -capture default' | 
 	    qsub -V -cwd -pe smp 12 -N $prefix[$i] -m ea -M guoyunfei1989\@gmail.com") or die "Failed to analyze $bam[$i]\n"; 
     }
 }
