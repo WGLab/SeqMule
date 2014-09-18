@@ -16,6 +16,7 @@ my ($advanced,$n,$help,
     $ref,
     $vcf_filter,    $bed,);
 my @bam;
+my $BUFFER_SIZE = 1_000_000; #used for gettting input from samtools mpileup
 
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
@@ -40,22 +41,40 @@ my %options=%{ $steps[$n-1][2] };
 
 my @cmd;
 my $cmd='';
+my $samtools_cmd="$samtools mpileup ";
+$samtools_cmd.=" -l $bed " if $bed;
+$samtools_cmd.=" $options{SAMadditional} " if $options{SAMadditional} ne '';
+$samtools_cmd.=" -B -f $ref @bam | ";
 
-open IN,"$samtools mpileup ".($bed?" -l $bed ":"")." -B -f $ref @bam |" or die "Failed to open samtools pipe: $!\n";
+open IN,$samtools_cmd or die "Failed to open samtools pipe: $!\n";
 
 if (<IN>)
 {
-    $cmd="$samtools mpileup ";
-    $cmd.=" -l $bed " if $bed;
-    $cmd.=" $options{SAMadditional} " if $options{SAMadditional} ne '';
-    $cmd.=" -B -f $ref @bam | ";
-    $cmd.="$java -Xmx$java_mem -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
-    $cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
-    $cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
-    $cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
-    $cmd.=" --p-value $options{P}" if $options{P};
-    $cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
-    $cmd.=" > $vcf_filter";
+    #$cmd.=$samtools_cmd;
+    #$cmd.="$java -Xmx$java_mem -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
+    #$cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
+    #$cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
+    #$cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
+    #$cmd.=" --p-value $options{P}" if $options{P};
+    #$cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
+    #$cmd.=" > $vcf_filter";
+    my $varscan_cmd.="$java -Xmx$java_mem -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
+    $varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
+    $varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
+    $varscan_cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
+    $varscan_cmd.=" --p-value $options{P}" if $options{P};
+    $varscan_cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
+    $varscan_cmd.=" > $vcf_filter";
+    $cmd.="perl -e 'open IN,\"$samtools_cmd\" or die \"Failed to open samtools pipe: $!\\n\";
+    		    my \$buf;
+    		    if(read IN,\$buf,64_000){
+		    open OUT,\"|-\",\"$varscan_cmd\" or die \"Failed to open varscan pipe: $!\\n\";
+		    print OUT \$buf;
+		    while(read IN,\$buf,$BUFFER_SIZE)
+		      {
+		        print OUT \$buf;
+		      }
+		    }'";
 } 
 
 close IN;
