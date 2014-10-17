@@ -9,38 +9,43 @@ use SeqMule::Utils;
 
 warn "Check for upgrade ...\n";
 my $server="http://seqmule.usc.edu";
-my $localVersionFile="version";
+my $localVersionFile=File::Spec->catfile($RealBin,"../../version");
 my $webVersionFile="/tmp/$$".rand($$).".seqmuleversion.tmp";
-&SeqMule::Utils::getstore("$server/$localVersionFile",$webVersionFile,["-q","-s"]);
-if (-s $webVersionFile && -s File::Spec->catfile($RealBin,"../../$localVersionFile"))
+&SeqMule::Utils::getstore("$server/version",$webVersionFile,["-q","-s"]);
+if (-s $webVersionFile && -s $localVersionFile)
 {
-    my $localVersion=&readVersion(File::Spec->catfile($RealBin,"../../$localVersionFile"));
+    my $localVersion=&readVersion($localVersionFile);
     my $webVersion=&readVersion($webVersionFile);
 
     if ($localVersion < $webVersion)
     {
 	warn "-----------------------------UPDATE AVAILABLE---------------------------------\n";
 	warn "------------------------------------------------------------------------------\n";
-	warn "Please download from http://seqmule.usc.edu\n";
+	warn "RECOMMEND: run 'seqmule update'\n";
+	warn "ALTERNATIVE: download from '$server' and unzip it to \n";
+	warn "$RealBin\n";
+	warn "to overwrite old stuff\n";
 	warn "------------------------------------------------------------------------------\n";
 	warn "------------------------------------------------------------------------------\n";
-	sleep 2;
     } else
     {
 	warn "NOTICE: This is the latest version!\n";
     }
+    #cleanup
+    unlink $webVersionFile;
 } else
 {
     warn "Downloading \'$localVersionFile\' from $server failed\n";
-    warn "Please check your Internet connection.\n";
-    warn "NOTICE: Upgrade unknown\n";
+    warn "Bad Internet connection??\n";
+    warn "NOTICE: version unknown\n";
 }
 
 #################SUBROUTINES#########################
 sub readVersion
 {
     my $file=shift;
-    my $version=`cat $file`;
+    #first line is version, 2nd line is Git commit hash
+    my $version=`head -n1 $file`;
 
     $version=~s/\D//g;
 

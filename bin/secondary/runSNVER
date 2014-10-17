@@ -15,7 +15,7 @@ my ($advanced,$n,$help,
     $ref,
     $snver,  $stats,
     $prefix,
-    $bed,$bam,);
+    $bed,$bam,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
 
 GetOptions(
@@ -31,18 +31,20 @@ GetOptions(
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
 my $cmd;
 my @cmd;
 
-$cmd.="$java -Xmx$java_mem -jar $snver -i $bam -r $ref -o $prefix ";
+$cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $snver -i $bam -r $ref -o $prefix ";
 $cmd.=" -l $bed " if $bed;
 $cmd.=" -mq $options{minMapQual} " if $options{minMapQual};
 $cmd.=" -bq $options{minBaseQual} " if $options{minBaseQual};
@@ -69,7 +71,7 @@ for my $i($filter,$filter_indel)
     $cmd='';
 }
 
-push @cmd,"$stats -jmem $java_mem --ref $ref --u-vcf $filter,$filter_indel -p $prefix";
+push @cmd,"$stats -jmem $java_mem --ref $ref --u-vcf $filter,$filter_indel -p $prefix -tmpdir $tmpdir ";
 push @cmd,"rm -rf $raw $raw_indel $filter $filter_indel"; #raw output is too large
 push @cmd,"mv -f ${prefix}_union.vcf $filter";
 
@@ -99,6 +101,7 @@ Options:
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 

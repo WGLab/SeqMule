@@ -20,24 +20,22 @@ use Cwd qw/abs_path/;
 use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
-#CONSTANT
+####################CONSTANT#######################
 my $ARGCOUNT=100000; #number of regions to extract using command line, max number if restricted by kernel config
-
+my $TMPDIR = $ENV{TMPDIR} || "/tmp";
+##################################################
 my ($prefix,
     $bam,$vcf,
     $buildver,$capture,
     $venn,$aln,
     $ref,$minN,$consensus_vcf,$union_vcf,$consensus_files,$union_files,
     $sample,$nofilter,
-    $jmem,$nt,
+    $jmem,$nt,$tmpdir,
     $help,$noclean,
 );
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
 my @gunlink;
 my %loc; #exe locations, used for speeding exe search
-my $rev='$Revision: 153 $';
-my $lastchangeddate='$LastChangedDate: 2013-10-02 17:23:20 -0700 (Wed, 02 Oct 2013) $';
-warn "$lastchangeddate\n$rev\n";
 
 
 @ARGV or pod2usage ({-exitval=>2});
@@ -59,6 +57,7 @@ GetOptions(
     'u-vcf=s'		=>	\$union_vcf,
     'jmem=s'		=>	\$jmem,
     't=i'		=>	\$nt,
+    'tmpdir=s'		=>	\$tmpdir,
 
     'venn=s'		=>	\$venn,
 
@@ -81,6 +80,7 @@ die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf)
 #set default
 $jmem=$jmem||'1750m';
 $nt=$nt || 1;
+$tmpdir = $tmpdir || $TMPDIR;
 
 if ($union_vcf)
 {
@@ -272,7 +272,7 @@ sub extractVar
 sub aln_stat
 {
     my $bam=shift;
-    my $tmp="seqmule.$$".rand($$).".primaryonly.bam";
+    my $tmp=File::Spec->catfile($tmpdir,"seqmule.$$".rand($$).".primaryonly.bam");
     my $samtool=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_prefix=&getPrefix($bam);
     my $outfile="${local_prefix}_aln_stat.txt";
@@ -332,7 +332,7 @@ sub var_stat
     unless ($nofilter)
     {
 	#only consider variants with 'PASS' or '.' in FILTER
-	my $tmp="/tmp/$$.filtered.vcf";
+	my $tmp=File::Spec->catfile($tmpdir,"$$.filtered.vcf");
 	!system("perl -ne '\@f=split /\\t/; print if /^#/ or \$f[6] eq \"PASS\" or \$f[6] eq \".\";' $local_vcf > $tmp")
 	    or die "Failed to output filtered variants: $!\n";
 	$local_vcf=$tmp;
@@ -446,8 +446,8 @@ sub var_stat
     $dump.="print 'Homozygotes='.(\$nhom).\"\\n\" if defined \$nhom;\n";
     $dump.="}\n";
 
-    my $tmp_script="/tmp/$$.seqmule.varstat";
-    open SCRIPT,'>',$tmp_script or die "Failed to write to $tmp_script\n";
+    my $tmp_script=File::Spec->catfile($tmpdir,"$$.seqmule.varstat");
+    open SCRIPT,'>',$tmp_script or die "Failed to write to $tmp_script: $!\n";
     print SCRIPT $dump;
     close SCRIPT;
 
@@ -459,14 +459,14 @@ sub var_stat
     }
     close IN;
     &SeqMule::Utils::write2outfile($output,$outfile);
-    warn "Output written to $outfile\n";
+    warn "NOTICE: Output written to $outfile\n";
 }
 
 
 
 sub clean_up 
 {
-    warn "Cleaning...\n" and unlink @gunlink if (@gunlink && !$noclean);
+    warn "NOTICE: Cleaning...\n" and unlink @gunlink if (@gunlink && !$noclean);
 }
 
 sub coverage_plot
@@ -488,7 +488,7 @@ sub coverage_plot
 	return undef;
     }
 
-    my $source="/tmp/$$".rand($$).".coverage_plot.script";
+    my $source=File::Spec->catfile($tmpdir,"$$".rand($$).".coverage_plot.script");
     my $local_prefix=&getPrefix($bam);
     my $pdf="${local_prefix}_cov.pdf";
     my $jpg="${local_prefix}_cov.jpg";
@@ -530,7 +530,7 @@ sub coverage_stat
     my $exe=&getExe("cal_genome_enrichment.pl");
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 
-    warn "Calculating coverage for $file. This takes a while\n";
+    warn "NOTICE: Calculating coverage for $file. This takes a while\n";
     ! system ("$^X $exe $exe_samtools $file $cap_region > $cap_out_detail") or die "Failed to caculate coverage stat for $file\n";
 
     open IN,'<',$cap_out_detail or die "Can't open $cap_out_detail: $!\n";
@@ -609,7 +609,7 @@ sub venn
 	$max=@{$index_matrix[$count]} if @{$index_matrix[$count]} > $max;
     }
 
-    $variant_index_pool=$$."_index_pool.tmp";
+    $variant_index_pool=File::Spec->catfile($tmpdir,$$."_index_pool.tmp");
     open OUT,">",$variant_index_pool or die "Cannot create $variant_index_pool for Venn Diagram: $!\n";
     for my $j(1..$max)
     {
@@ -628,7 +628,7 @@ sub genPlot
     return unless $variant_index_pool && $count;
     #generate plot
 
-    warn "Generating Venn diagram...\n"; 
+    warn "NOTICE: Generating Venn diagram...\n"; 
     my $local_prefix=&getPrefix(split /,/,$venn);
     my $tiff="${local_prefix}_venn.tiff";
     my $jpg="${local_prefix}_venn.jpg";
@@ -699,10 +699,10 @@ sub genPlot
 
     &SeqMule::Utils::write2outfile($rscript,$rfile);
     chmod 0755,$rfile;
-    die "Execution failed, please run $rfile manually\n" if system("$exe --vanilla $rfile 1>&2");
+    die "ERROR: Execution failed, please run $rfile manually\n" if system("$exe --vanilla $rfile 1>&2");
     push @gunlink,$rfile;
     push @gunlink,$variant_index_pool;
-    warn "Venn Digram plotted to $tiff and $jpg\n";
+    warn "NOTICE: Venn Digram plotted to $tiff and $jpg\n";
 }
 
 #convert files to annovar input format for easy handling
@@ -716,14 +716,14 @@ sub conv2anno
 	if (/^(.*)\.vcf(\.gz)?$/i)
 	{
 	    my $local_prefix=$1;
-	    my $newout=$local_prefix.(defined $sample?".$sample":"").".avinput.tmp";
+	    my $newout=File::Spec->catfile($tmpdir,(basename $local_prefix).(defined $sample?".$sample.":".").rand($$).".avinputready.tmp");
 	    my $vcf_to_proc=$_;
 
 	    unless($nofilter)
 	    {
 		#extract variants with PASS or . in FILTER field before conversion
-		warn "NOTICE: Converting input file to ANNOVAR format, variants that failed to pass filtering will be ignored.\n" unless $nofilter;
-		my $vcf_no_filtered_record="/tmp/$$".rand($$)."_nofiltered.vcf";
+		warn "NOTICE: Converting input file to ANNOVAR format, variants that failed to pass filtering will be ignored.\n";
+		my $vcf_no_filtered_record=File::Spec->catfile($tmpdir,"$$".rand($$)."_nofiltered.vcf");
 		!system("$^X -ne 'print if /^#|^[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t(PASS|\\.)\\t/' $vcf_to_proc > $vcf_no_filtered_record") or die "ERROR: Failed to extract variants that passed filtering or have no filter.\n";
 		warn "NOTICE: ",
 		(&SeqMule::Utils::countline($vcf_to_proc)-&SeqMule::Utils::countline($vcf_no_filtered_record)),
@@ -733,17 +733,19 @@ sub conv2anno
 
 	    if (defined $sample)
 	    {
-		my $tmp_prefix="/tmp/$$".rand($$)."_annovar"; #each sample will be saved at $tmp_prefix.<sample>.avinput
+		my $tmp_prefix=File::Spec->catfile($tmpdir,"$$".rand($$)."_annovar_raw"); #each sample will be saved at $tmp_prefix.<sample>.avinput
 		!system("$^X $exe_conver -includeinfo -format vcf4 -allsample -outfile $tmp_prefix $vcf_to_proc")
 		    and !system("mv $tmp_prefix.$sample.avinput $newout") or die "ERROR:$!\n";
 	    } else
-	    { system("$^X $exe_conver -includeinfo -format vcf4 $vcf_to_proc > $local_prefix.avinput.tmp") or die;}
+	    { 
+		!system("$^X $exe_conver -includeinfo -format vcf4 $vcf_to_proc > $newout") or die "Failed to convert VCF to AVINPUT when no sample is given: $!\n";
+	    }
 	    push @return_files,$newout;
 	} elsif (/^(.*)\.consensus$/) 
 	{
-	    system("$^X $exe_conver -includeinfo -format soap $_ > $1.avinput.tmp");
-	    s/\.consensus$/.avinput.tmp/i;
-	    push @return_files,$_;
+	    my $tmp_soapsnp_avinput = File::Spec->catfile($tmpdir,$1.rand($$).".avinputready.tmp");
+	    !system("$^X $exe_conver -includeinfo -format soap $_ > $tmp_soapsnp_avinput") or die "Failed to convert $_ from SOAPsnp format to AVINPUT format: $!\n";
+	    push @return_files,$tmp_soapsnp_avinput;
 	} elsif (/\.avinput$/i) 
 	{
 	    push @return_files,$_;
@@ -766,7 +768,7 @@ sub var_consensus
     my $local_prefix=&getPrefix(@to_be_extract);
     my $outfile="${local_prefix}_consensus.avinput";
 
-    warn "Extracting consensus variants from @to_be_extract..\n";
+    warn "NOTICE: Extracting consensus variants from @to_be_extract..\n";
     push @gunlink, (grep {/\.tmp$/i } @to_be_extract);
 
     no strict "vars"; #suppress undef warnings
@@ -793,7 +795,7 @@ sub var_consensus
     close IN;
 
     &SeqMule::Utils::write2outfile($output,$outfile);
-    warn "$consensus_var_count variants written to $outfile ...\n";
+    warn "NOTICE: $consensus_var_count variants written to $outfile ...\n";
 }
 
 #extract union calls from candidate files	
@@ -805,7 +807,7 @@ sub var_union
     my %union_lines;
     my $output;
 
-    warn "Extracting union variants from @to_be_extract...\n";
+    warn "NOTICE: Extracting union variants from @to_be_extract...\n";
     push @gunlink, (grep {/\.tmp$/i} @to_be_extract);
 
     no strict "vars";
@@ -826,7 +828,7 @@ sub var_union
     #output
     $output.= $union_lines{$_} for (keys %union_lines);
     &SeqMule::Utils::write2outfile($output,$outfile);
-    warn scalar (keys %union_lines)," variants written to $outfile.\n";
+    warn "NOTICE: ",scalar (keys %union_lines)," variants written to $outfile.\n";
 }
 
 sub getPrefix
@@ -838,7 +840,7 @@ sub getPrefix
 	return $prefix;
     } else
     {
-	die "Empty list" unless @_;
+	die "ERROR: Empty list for getPrefix()" unless @_;
 	return join("-",map { my $basename=basename $_; return $1 if defined && $basename=~/(.*)\.[^\.]*$/ or $basename=~/(.*)/ } @files); 
     }
 }
@@ -920,6 +922,7 @@ Options:
 	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
 	-jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
 	-t <INT>		  number of threads. Only effective for --aln, --c-vcf and --u-vcf. Default: 1
+	--tmpdir <DIR>		  use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
 	--nofilter	          If specified, consider all variants, otherwise, only unfiltered variants.
 	-h,--help                 help
 	--noclean                 do not clean temporary files

@@ -32,8 +32,8 @@ for (@vcf)
 	    if ($1>0)
 	    {
 		#variant exists
-		my $seqmule=File::Spec->catfile($RealBin,"../seqmule");
-		exec("$seqmule stats -vcf $_ -p $prefix ".(defined $sample? "-s $sample":""));
+		my $stats_exe=File::Spec->catfile($RealBin,"stats");
+		exec("$stats_exe -vcf $_ -p $prefix ".(defined $sample? "-s $sample":""));
 	    }
 	}
     }

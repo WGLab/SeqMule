@@ -12,6 +12,7 @@ use File::Find qw/find/;
 use File::Spec;
 use vars qw($bin);
 use Cwd qw/cwd/;
+use Carp qw/carp croak/;
 use SeqMule::Utils;
 
 my @unlink;
@@ -105,15 +106,24 @@ sub installexes
 sub parse_locations 
 {
     my $install_dir=shift;
-    my $locfile="exe_locations";
-    warn "Fetching program URLs from server\n";
-    &SeqMule::Utils::getstore("seqmule.usc.edu/$locfile",$locfile);
-    warn "Downloading $locfile from seqmule.usc.edu failed\nTry local $locfile...\n" unless (-s $locfile);
-    my $nonempty_locfile=-s $locfile ? $locfile: "$install_dir/misc/$locfile";
-    push @unlink,$locfile;
+    my $locfile=shift;
+    my $nonempty_locfile;
+    if ($locfile)
+    {
+	croak "ERROR: empty exe location file $locfile\n" unless -s $locfile;
+	$nonempty_locfile = $locfile;
+    } else
+    {
+	$locfile = "exe_locations";
+	carp "Fetching program URLs from server\n";
+	&SeqMule::Utils::getstore("seqmule.usc.edu/$locfile",$locfile);
+	carp "Downloading $locfile from seqmule.usc.edu failed\nTry local $locfile...\n" unless (-s $locfile);
+	$nonempty_locfile=-s $locfile ? $locfile: "$install_dir/misc/$locfile";
+	push @unlink,$locfile;
+    }
     my %exe_locations;
-    open IN,"<",$nonempty_locfile or die "Cannot open $nonempty_locfile\n";
-    warn "Reading program URLs...\n";
+    open IN,"<",$nonempty_locfile or croak "Cannot open $nonempty_locfile\n";
+    carp "NOTICE: Reading program URLs...\n";
     while (<IN>)
     {
 	#assuming program\tURL format
@@ -244,13 +254,15 @@ sub java
     die "Error: java NOT found.\n$INSTALLATION_GUIDELINE\n" unless &sys_which("java");
 }
 
+#########################START OF INDIVIDUAL PROGRAMS##############################
 sub fastqc
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='fastqc';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.zip"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/fastqc";
@@ -278,10 +290,11 @@ sub bowtie
 {
 
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='bowtie';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.zip"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/bowtie";
@@ -311,10 +324,11 @@ sub bwa
 {
 
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='bwa';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.bz2"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/bwa";
@@ -347,10 +361,11 @@ sub samtools
     #die "ERROR: curses.h NOT found. It is required by samtools tview.\nPlease use 'yum install ncurses-devel ncurses'\n" if $check_curses !~ /curses\.h$/;
 
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='samtools';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.bz2"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/samtools";
@@ -379,6 +394,7 @@ sub samtools
 sub gatk
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='gatk';
@@ -392,10 +408,11 @@ sub gatk
 sub gatklite
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='gatklite';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.bz2"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/GenomeAnalysisTKLite.jar";
@@ -419,10 +436,11 @@ sub gatklite
 sub snver
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='snver';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/SNVerIndividual.jar";
@@ -446,10 +464,11 @@ sub snver
 sub picard
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='picard';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.zip"; #file to save to
     my $url = $exe_locations{$exe};
     my $cwd=cwd();
@@ -473,10 +492,11 @@ sub picard
 sub soap
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='soap';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/soap";
@@ -501,10 +521,11 @@ sub soap
 sub varscan
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='varscan';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.jar"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/varscan.jar";
@@ -526,10 +547,11 @@ sub varscan
 sub soapsnp
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='soapsnp';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/soapsnp";
@@ -553,19 +575,20 @@ sub soapsnp
 	!system("make") and -f $executable or return &makefail($exe);
     }
     warn "Installing accessory program: msort\n";
-    &msort($install_dir);
+    &msort($install_dir,$exe_loc);
     warn "Installing accessory program: soap2sam\n";
-    &soap2sam($install_dir);
+    &soap2sam($install_dir,$exe_loc);
     warn "Finished installing $exe\n";
     chdir($cwd);
 }
 sub msort 
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='msort';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/msort";
@@ -589,10 +612,11 @@ sub msort
 sub soap2sam 
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='soap2sam';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/soap2sam.pl";
@@ -616,10 +640,11 @@ sub bowtie2
 {
 
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='bowtie2';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.zip"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/bowtie2";
@@ -647,10 +672,11 @@ sub bowtie2
 sub freebayes
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='freebayes';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/bin/freebayes";
@@ -673,10 +699,11 @@ sub freebayes
 sub tabix
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='tabix';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.bz2"; #file to save to
     my $url = $exe_locations{$exe};
     my $executable="$exe_base/$exe/tabix";
@@ -705,10 +732,11 @@ sub tabix
 sub vcftools
 {
     my $install_dir=shift;
+    my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
     my $exe='vcftools';
-    my %exe_locations=&parse_locations($install_dir) or die "Cannot get URLs\n";
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
     my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
     my $url = $exe_locations{$exe} or die "No URL for $exe\n";
     my $executable="$exe_base/$exe/bin/vcftools";
@@ -733,6 +761,8 @@ sub vcftools
     warn "Finished installing $exe\n";
     chdir($cwd);
 }
+
+#########################END OF INDIVIDUAL PROGRAMS##############################
 
 
 

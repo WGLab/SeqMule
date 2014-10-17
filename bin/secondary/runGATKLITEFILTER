@@ -23,7 +23,7 @@ my (
     $recal_file,
     $plots,
     $indel_tranches,    $indel_recal_file,    $indel_plots,
-    $help,$advanced,    $n,);
+    $help,$advanced,    $n,$tmpdir,);
 my @bam;
 my @vcf;
 @ARGV or pod2usage ({-exitval=>2});
@@ -59,21 +59,24 @@ GetOptions(
     'indel-plots=s'	=>	\$indel_plots,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
 my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
 my @cmd;
+my $java_opt = "$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $gatk";
 
 if (@vcf && @vcf>1)
 {
     #if multiple input VCF, combine them first
-    my $cmd="$java -Xmx$java_mem -jar $gatk -T CombineVariants -R $ref ";
+    my $cmd="$java_opt -T CombineVariants -R $ref ";
     map {$cmd.="--variant $_ " } @vcf;
     $cmd.=" -o $vcf ".($capture? " -L $capture":"");
     push @cmd,$cmd;
@@ -82,16 +85,16 @@ if (@vcf && @vcf>1)
 if ($options{filter}==1)
 {
 #split SNP and INDEL
-    push @cmd, "$java -Xmx$java_mem -jar $gatk -T SelectVariants -R $ref --variant $vcf -o $indel -selectType INDEL ".($capture? "-L $capture":"");
+    push @cmd, "$java_opt -T SelectVariants -R $ref --variant $vcf -o $indel -selectType INDEL ".($capture? "-L $capture":"");
 
-    push @cmd,"$java -Xmx$java_mem -jar $gatk -T SelectVariants -R $ref --variant $vcf -o $snp -selectType SNP ".($capture? "-L $capture":"");
+    push @cmd,"$java_opt -T SelectVariants -R $ref --variant $vcf -o $snp -selectType SNP ".($capture? "-L $capture":"");
 #recalibration and filtering
 
     if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR})
     {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
-	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantRecalibrator -R $ref -input $snp";
+	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $snp";
 	$cmd.=" --maxGaussians $options{maxGaussians}" if $options{maxGaussians};
 	$cmd.=" --percentBadVariants $options{percentBadVariants}" if $options{percentBadVariants};
 	$cmd.=" -minNumBad $options{numBadVariants} " if $options{numBadVariants};
@@ -107,7 +110,7 @@ if ($options{filter}==1)
         $cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
 
-	$cmd.="$java -Xmx$java_mem -jar $gatk -T ApplyRecalibration -R $ref -input $snp -tranchesFile $tranches -recalFile $recal_file";
+	$cmd.="$java_opt -T ApplyRecalibration -R $ref -input $snp -tranchesFile $tranches -recalFile $recal_file";
 	$cmd.=" --ts_filter_level $options{snptsfilter}" if $options{snptsfilter};
 	$cmd.=" -o $snp_filter";
         $cmd.=" -L $capture" if $capture;
@@ -116,7 +119,7 @@ if ($options{filter}==1)
     {
 	warn "NOTICE:BAM input for GATKLite VQSR is too small, use hard filtering for SNPs instead.\n";
 	my $cmd;
-	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantFiltration -R $ref --variant $snp";
+	$cmd.="$java_opt -T VariantFiltration -R $ref --variant $snp";
 	if ($options{snpfilters})
 	{
 	    for my $filter(split ';',$options{snpfilters})
@@ -140,7 +143,7 @@ if ($options{filter}==1)
     {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
-	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantRecalibrator -R $ref -input $indel";
+	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $indel";
 	$cmd.=" --maxGaussians $options{indelMaxGaussians}" if $options{indelMaxGaussians};
 	$cmd.=" --percentBadVariants $options{indelPercentBadVariants}" if $options{indelPercentBadVariants};
 	$cmd.=" -minNumBad $options{indelNumBadVariants} " if $options{indelNumBadVariants};
@@ -155,7 +158,7 @@ if ($options{filter}==1)
 	$cmd.=" -rscriptFile $indel_plots";
 	push @cmd,$cmd;$cmd="";
 
-	$cmd.="$java -Xmx$java_mem -jar $gatk -T ApplyRecalibration -R $ref -input $indel -tranchesFile $indel_tranches -recalFile $indel_recal_file";
+	$cmd.="$java_opt -T ApplyRecalibration -R $ref -input $indel -tranchesFile $indel_tranches -recalFile $indel_recal_file";
 	$cmd.=" --ts_filter_level $options{indeltsfilter}" if $options{indeltsfilter};
 	$cmd.=" -o $indel_filter";
         $cmd.=" -L $capture" if $capture;
@@ -163,7 +166,7 @@ if ($options{filter}==1)
     } else
     {
 	my $cmd;
-	$cmd.="$java -Xmx$java_mem -jar $gatk -T VariantFiltration -R $ref --variant $indel";
+	$cmd.="$java_opt -T VariantFiltration -R $ref --variant $indel";
 	$cmd.=" --clusterWindowSize $options{clusterWindowSize}" if $options{clusterWindowSize};
 	if ($options{indelfilters})
 	{
@@ -181,7 +184,7 @@ if ($options{filter}==1)
         $cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;
     }
-    push @cmd,"$java -Xmx$java_mem -jar $gatk -T CombineVariants -R $ref --variant $snp_filter --variant $indel_filter -o $vcf_filter ".($capture? " -L $capture":"");
+    push @cmd,"$java_opt -T CombineVariants -R $ref --variant $snp_filter --variant $indel_filter -o $vcf_filter ".($capture? " -L $capture":"");
 }
 
 #make a copy of final_vcf for each sample, with "multi-call" keyword
@@ -245,6 +248,7 @@ Options:
     'indel-plots=s'	=>	\$indel_plots,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 

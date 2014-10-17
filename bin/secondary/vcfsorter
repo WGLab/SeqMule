@@ -11,11 +11,13 @@ use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
 my $contig_bed;
+my $tmpdir;
 my $help;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
     'contig-bed=s'	=>	\$contig_bed,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
@@ -28,7 +30,8 @@ my %contig_dict_reverse=reverse %contig_dict;
 die "ERROR: duplicate contig name: @contig\n" unless scalar @contig == scalar keys %contig_dict;
 
 #change chr to number
-my $tmp="/tmp/$$".rand($$).".tmp.vcf";
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
+my $tmp=File::Spec->catfile($tmpdir,"$$".rand($$).".tmp.vcf");
 open TMP,'>',$tmp or die "ERROR: Failed to write to $tmp: $!\n";
 while(<>)
 {
@@ -53,6 +56,8 @@ while(<SORT>)
     s/^(\d+)/$contig_dict_reverse{$1}/ or die "ERROR: no numerical order for CHROM: $_\n";
     print;
 }
+close SORT;
+unlink $tmp;
 
 
 
@@ -70,6 +75,7 @@ Options:
     vcfsorter -contig-bed <bed> 1.vcf > 1.sort.vcf
     #input and output
     'contig-bed=s'	=>	\$contig_bed,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 

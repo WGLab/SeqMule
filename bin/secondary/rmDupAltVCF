@@ -10,14 +10,16 @@ use SeqMule::Utils;
 use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
-die "Usage: $0 <1.vcf 2.vcf ...>" unless @ARGV>=1;
+die "Usage: $0 <tmpdir> <1.vcf 2.vcf ...>" unless @ARGV>=1;
 #remove duplicate alternative alleles in VCF, change GT accordingly. Do nothing else.
 
+my $tmpdir = shift @ARGV;
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 @ARGV=&SeqMule::Utils::getNonEmptyVCF(@ARGV);
 
 for my $vcf(@ARGV)
 {
-    my $tmp="/tmp/$$".time.".vcfwithdupalt.tmp";
+    my $tmp=File::Spec->catfile($tmpdir,"$$".rand($$).".vcfwithdupalt.tmp");
     open IN,'<',$vcf or die "Failed to read $vcf: $!\n";
     open TMP,'>',$tmp or die "Failed to write to $tmp: $!\n";
 
@@ -107,7 +109,7 @@ for my $vcf(@ARGV)
     close IN;
     close TMP;
 
-    !system("cp $tmp $vcf") or die "Failed to write results back to $vcf: $!\n";
+    !system("mv $tmp $vcf") or die "Failed to write results back to $vcf: $!\n";
 }
 
 ##############SUBROUTINES#########################

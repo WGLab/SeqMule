@@ -13,7 +13,7 @@ use Getopt::Long qw/GetOptions/;
 
 my ($advanced,$n,$help,
     $bed,$freebayes,$samtools,
-    $vcf_sort,$ref,$vcf_filter);
+    $vcf_sort,$ref,$vcf_filter,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
@@ -25,11 +25,13 @@ GetOptions(
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
     'vcf=s'		=>	\$vcf_filter,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @bam=@ARGV;
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
@@ -49,7 +51,7 @@ $cmd.=" --read-indel-limit $options{maxINDEL}" if defined $options{maxINDEL} && 
 $cmd.=" --min-coverage $options{minDepth}" if defined $options{minDepth} && $options{minDepth} ne '';
 $cmd.=" -t $bed" if $bed;
 $cmd.=" $options{additional} " if $options{additional} ne '';
-$cmd.=" | $vcf_sort -contig-bed $contig_bed > $vcf_filter ";
+$cmd.=" | $vcf_sort -tmpdir $tmpdir -contig-bed $contig_bed > $vcf_filter ";
 
 push @cmd,$cmd;$cmd="";
 
@@ -93,6 +95,7 @@ Options:
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
     'vcf=s'		=>	\$vcf_filter,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 

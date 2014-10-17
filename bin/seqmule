@@ -24,6 +24,7 @@ download        download default databases
 pipeline        generate analysis scripts
 run		execute seqmule-generated scripts
 stats     	produce statistics and plots
+update		automatic update SeqMule
 \n" if (!defined $subprogram or $subprogram !~ /download|pipeline|stats|run/i);
 
 warn "Current version: $version\n";
@@ -44,4 +45,8 @@ elsif ($subprogram =~ /stats/i)
 elsif ($subprogram =~ /run/i)
 {
     exec(File::Spec->catfile($RealBin,"secondary","run"),@ARGV);
+}
+elsif ($subprogram =~ /update/i)
+{
+    exec(File::Spec->catfile($RealBin,"secondary","update"),@ARGV);
 }

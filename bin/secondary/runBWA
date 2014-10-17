@@ -13,7 +13,7 @@ use Getopt::Long qw/GetOptions/;
 
 my ($advanced,$n,$help,
     $bwa,$samtools,$java,$jmem,$sortsam,$ref,$bam,$threads,$rg,$sample,$pl,$lb);
-my $picardtmp;
+my $tmpdir;
 my @fq;
 my @sai;
 @ARGV or pod2usage ({-exitval=>2});
@@ -35,7 +35,7 @@ GetOptions(
     'sai=s'		=>	\@sai, #specify it multiple times
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
-    'picardtmp=s'	=>	\$picardtmp,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
@@ -68,11 +68,6 @@ $cmd.=" -F 256 "; #only output primary alignment
 $cmd.=($threads>=2? " -@ $threads":"");
 $cmd .= " - | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix";
 
-if ($picardtmp)
-{
-$cmd.=" TMP_DIR=$picardtmp ";
-mkdir $picardtmp or die "ERROR: Failed to create Picard tool temp folder: $!\n" unless -d $picardtmp;
-}
 push @cmd,$cmd;
 }
 
@@ -108,7 +103,7 @@ Options:
     'sai=s'		=>	\@sai; #specify it multiple times
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
-    'picardtmp=s'	=>	\$picardtmp,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 

@@ -32,6 +32,7 @@ GetOptions(
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my $host=`uname -n`;
 chomp $host;
 
