@@ -28,6 +28,7 @@ my ($prefix,
     $buildver,$capture,
     $venn,$aln,
     $ref,$minN,$consensus_vcf,$union_vcf,$consensus_files,$union_files,
+    $plink,$paternal_id,$maternal_id,
     $sample,$nofilter,
     $jmem,$nt,
     $help,$noclean,
@@ -57,6 +58,9 @@ GetOptions(
     'c-vcf=s'		=>	\$consensus_vcf,
     'N=i'		=>	\$minN,
     'u-vcf=s'		=>	\$union_vcf,
+    'plink'		=>	\$plink,
+    'paternal=s'	=>	\$paternal_id,
+    'maternal=s'	=>	\$maternal_id,
     'jmem=s'		=>	\$jmem,
     't=i'		=>	\$nt,
 
@@ -77,6 +81,8 @@ die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($ven
 die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
 die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
 die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
+die "--vcf and --plink must be used together.\n" unless ($plink && $vcf);
+die "--paternal and --maternal must be used together when --plink is effective.\n" if ($plink && !($paternal_id && $maternal_id));
 
 #set default
 $jmem=$jmem||'1750m';
@@ -140,6 +146,19 @@ if (defined $vcf)
     {
 	&var_stat($vcf);
     }
+
+    my ($ped,$map);
+    if ($plink)
+    {
+	#convert VCF to PLINK format
+	my $result = &vcf2plink({vcf=>$vcf,paternal_id=>$paternal_id,maternal_id=>$maternal_id});
+	$ped = $result->{ped};
+	$map = $result->{map};
+    }
+    #if ($mendelian_stat)
+    #{
+    #    &gen_mendelian_stat({ped=>$ped,map=>$map});
+    #}
 }
 
 
@@ -149,6 +168,75 @@ END { &clean_up()}
 
 $SIG{INT}='clean_up';
 ######################SUBROUTINES############################    
+sub vcf2plink
+{
+    #test case
+    #stats -vcf 1.vcf --plink
+    #stats --plink
+    #stats --vcf 1.vcf --plink -paternal father
+    #stats --vcf 1.vcf --plink -maternal mother
+    #stats --vcf 1.vcf --plink -maternal mother -paternal father
+    my $opt = shift;
+    my $vcf = $opt->{vcf};
+    my $paternal_id = $opt->{paternal_id};
+    my $maternal_id = $opt->{maternal_id};
+    my $local_prefix=&getPrefix($vcf);
+    my $ped = "$local_prefix.ped";
+    my $map = "$local_prefix.map";
+    my $vcftools=&getExe("vcftools");
+    my $tmp = "/tmp/$$".rand($$).".ped.tmp";
+    push @gunlink,$tmp;
+
+    warn "WARNING: no paternal or maternal ID is provided. Continue anyway ...\n" unless ($paternal_id || $maternal_id);
+
+    !system("$vcftools --vcf $vcf --plink ".($nofilter? "":"--remove-filtered-all")." --out $local_prefix") or 
+    die "ERROR: failed to convert $vcf to PLINK format with VCFtools ($!).\n";
+
+    if ($paternal_id && $maternal_id)
+    {
+	my $new_family_id = "Family".($paternal_id?"_$paternal_id":"").($maternal_id?"_$maternal_id":"");
+	#modify paternal ID, maternal ID, family ID, Sex (1=male; 2=female)
+	open IN,'<',$ped or die "ERROR: failed to open $ped ($!)\n";
+	open OUT,'>',$tmp or die "ERROR: failed to write to $tmp ($!)\n";
+	while(<IN>)
+	{
+	    #format
+	    #Family_ID	Individual_ID	Paternal_ID	Maternal_ID	Sex	Phenotype	Genotype...
+	    #father	father	0	0	0	0	G	G	A	A	
+	    #mother	mother	0	0	0	0	G	G	A	C
+	    #son	son	0	0	0	0	G	G	A	A
+	    my ($fam,$individual,$p,$m,$sex);
+	    my @other;
+	    ($fam,$individual,$p,$m,$sex,@other) = split;
+	    $fam = $new_family_id;
+	    if ($individual ne $paternal_id && $individual ne $maternal_id)
+	    {#not father,not mother
+		$p = $paternal_id;
+		$m = $maternal_id;
+	    } elsif($individual eq $paternal_id)
+	    {#not mother, but father
+		$sex = 1;
+		$p = 0;
+		$m = 0;
+	    } elsif ($individual eq $maternal_id)
+	    {#not father, but mother
+		$sex = 2;
+		$p = 0;
+		$m = 0;
+	    } else
+	    {
+		#father, mother???
+		die "ERROR: paternal ID and maternal ID are the same!\n";
+	    }
+	print OUT join(" ",($fam,$individual,$p,$m,$sex,@other)),"\n";
+	}
+    }
+    close IN;
+    close OUT;
+    !system("mv -f $tmp $ped") or die "ERROR: failed to rename $tmp to $ped ($!)\n";
+    warn "NOTICE: PLINK format output written to $ped and $map\n";
+    return {ped=>$ped,map=>$map};
+}
 sub vcf_consensus
 {
     my @in=@_;
@@ -917,6 +1005,9 @@ Options:
 	--u-vcf <LIST>		  comma separated list of SORTED VCF files for extracting union calls. *.vcf or *.vcf.gz suffix required
 	--ref <FASTA>		  reference file in FASTA format. Effective for --c-vcf and --u-vcf.
 	-s,--sample <STRING>	  sample name for VCF file, used for -vcf, -u, -venn, -c options.
+	--plink			  convert VCF to PLINK format (PED,MAP). Only works with --vcf option.
+	--paternal		  sample ID for paternal ID (case-sensitive). Rest are either maternal or descendants. Assume only one family.
+	--maternal		  sample ID for maternal ID (case-sensitive). Rest are either paternal or descendants. Assume only one family.
 	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
 	-jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
 	-t <INT>		  number of threads. Only effective for --aln, --c-vcf and --u-vcf. Default: 1
