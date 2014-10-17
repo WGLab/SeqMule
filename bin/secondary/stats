@@ -28,7 +28,7 @@ my ($prefix,
     $buildver,$capture,
     $venn,$aln,
     $ref,$minN,$consensus_vcf,$union_vcf,$consensus_files,$union_files,
-    $plink,$paternal_id,$maternal_id,
+    $plink,$paternal_id,$maternal_id,$mendelian_stat,
     $sample,$nofilter,
     $jmem,$nt,
     $help,$noclean,
@@ -59,6 +59,7 @@ GetOptions(
     'N=i'		=>	\$minN,
     'u-vcf=s'		=>	\$union_vcf,
     'plink'		=>	\$plink,
+    'mendel-stat'	=>	\$mendelian_stat;
     'paternal=s'	=>	\$paternal_id,
     'maternal=s'	=>	\$maternal_id,
     'jmem=s'		=>	\$jmem,
@@ -82,7 +83,8 @@ die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vc
 die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
 die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
 die "--vcf and --plink must be used together.\n" unless ($plink && $vcf);
-die "--paternal and --maternal must be used together when --plink is effective.\n" if ($plink && !($paternal_id && $maternal_id));
+die "--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
+die "--mendel-stat must be used with --plink" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
 
 #set default
 $jmem=$jmem||'1750m';
@@ -155,10 +157,63 @@ if (defined $vcf)
 	$ped = $result->{ped};
 	$map = $result->{map};
     }
-    #if ($mendelian_stat)
-    #{
-    #    &gen_mendelian_stat({ped=>$ped,map=>$map});
-    #}
+    if ($mendelian_stat)
+    {
+        &gen_mendelian_stat({ped=>$ped,map=>$map});
+	sub gen_mendelian_stat
+	{
+	    my $opt = shift;
+	    my $ped = $opt->{ped};
+	    my $map = $opt->{map};
+	die "ERROR: no PED or MAP input for generating Mendelian error statistics\n" unless $ped && $map;
+    my $local_prefix=&getPrefix($ped);
+    my $outfile="${local_prefix}_mendel_stat.txt";
+    my $mendelfix=&getExe("mendelfix");
+    my $tmp = "/tmp/$$".rand($$).".mendelfix";
+    my $mendelfix_stats = "$tmp.stats";
+    my $mendelfix_pmiss = "$tmp.pmiss";
+    my $mendelfix_ped = "$tmp.ped";
+    my $mendelfix_map = "$tmp.map";
+    my %stat;
+
+    push @gunlink,$mendelian_stats,$mendelfix_pmiss,$mendelfix_ped,$mendelfix_map;
+    !system($mendelian_stat,$ped,$map,$tmp) or die "ERROR: failed to run mendelFix\n";
+    
+    my %explanation = (
+	NCALL1		=> "Total number of observed genotypes (original)",
+	CR1		=> "Ratio ,
+	FOCALL		=>,
+	FOIBS0		=>,
+	FOIBS1		=>,
+	FOIBS2		=>,
+	FOERROR		=>,
+	MOCALL		=>,
+	MOIBS0		=>,
+	MOIBS1		=>,
+	MOIBS2		=>,
+	MOERROR		=>,
+	TRIOCALL	=>,
+	ADI		=>,
+	PADI		=>,
+	ADO		=>,
+	PADO		=>,
+	NERROR		=>,
+	PPCERROR	=>,
+	NFIX		=>,
+	NCALL2		=>,
+	CR2		=>,
+    );
+
+    open OUT,'>',$outfile or die "ERROR: failed to write to $outfile ($!)\n";
+    my %stat = &SeqMule::Utils::parseMendelFix($mendelfix_stats);
+    for my $i(keys %stat)
+    {
+	print OUT "$explanation{$i}=$stat{$i}\n";
+    }
+
+
+	}
+    }
 }
 
 
@@ -187,14 +242,22 @@ sub vcf2plink
     my $tmp = "/tmp/$$".rand($$).".ped.tmp";
     push @gunlink,$tmp;
 
+    if ($paternal_id && $maternal_id)
+    {
+        my @sample_in_vcf=&SeqMule::Utils::getVCFSample($vcf);
+	die "ERROR: at least 3 samples are expected in $vcf\n" unless @sample_in_vcf >= 3;
+    }
+
     warn "WARNING: no paternal or maternal ID is provided. Continue anyway ...\n" unless ($paternal_id || $maternal_id);
 
-    !system("$vcftools --vcf $vcf --plink ".($nofilter? "":"--remove-filtered-all")." --out $local_prefix") or 
+    !system("$vcftools --vcf $vcf --plink ".($nofilter? "":"--remove-filtered-all")." --out $local_prefix 2>/dev/null") or 
     die "ERROR: failed to convert $vcf to PLINK format with VCFtools ($!).\n";
 
     if ($paternal_id && $maternal_id)
     {
 	my $new_family_id = "Family".($paternal_id?"_$paternal_id":"").($maternal_id?"_$maternal_id":"");
+	my $fa_present = 0;
+	my $ma_present = 0;
 	#modify paternal ID, maternal ID, family ID, Sex (1=male; 2=female)
 	open IN,'<',$ped or die "ERROR: failed to open $ped ($!)\n";
 	open OUT,'>',$tmp or die "ERROR: failed to write to $tmp ($!)\n";
@@ -218,11 +281,13 @@ sub vcf2plink
 		$sex = 1;
 		$p = 0;
 		$m = 0;
+		$fa_present = 1;
 	    } elsif ($individual eq $maternal_id)
 	    {#not father, but mother
 		$sex = 2;
 		$p = 0;
 		$m = 0;
+		$ma_present = 1;
 	    } else
 	    {
 		#father, mother???
@@ -230,10 +295,11 @@ sub vcf2plink
 	    }
 	print OUT join(" ",($fam,$individual,$p,$m,$sex,@other)),"\n";
 	}
-    }
+	die "ERROR: $paternal_id or $maternal_id is missing.\n" unless ($fa_present && $ma_present);
     close IN;
     close OUT;
     !system("mv -f $tmp $ped") or die "ERROR: failed to rename $tmp to $ped ($!)\n";
+    }
     warn "NOTICE: PLINK format output written to $ped and $map\n";
     return {ped=>$ped,map=>$map};
 }
@@ -1006,6 +1072,7 @@ Options:
 	--ref <FASTA>		  reference file in FASTA format. Effective for --c-vcf and --u-vcf.
 	-s,--sample <STRING>	  sample name for VCF file, used for -vcf, -u, -venn, -c options.
 	--plink			  convert VCF to PLINK format (PED,MAP). Only works with --vcf option.
+	--mendel-stat		  generate Mendelian error statistics
 	--paternal		  sample ID for paternal ID (case-sensitive). Rest are either maternal or descendants. Assume only one family.
 	--maternal		  sample ID for maternal ID (case-sensitive). Rest are either paternal or descendants. Assume only one family.
 	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
