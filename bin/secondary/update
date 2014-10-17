@@ -48,6 +48,7 @@ $tmpdir = $tmpdir || $TMPDIR;
 if(! need_upgrade($git))
 {
     warn "NOTICE: Already latest version!\n";
+    warn "NOTICE: --git option can be added to get latest(experimental) source.\n";
     exit 0;
 } else
 {
