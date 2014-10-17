@@ -83,7 +83,7 @@ if($install)
 	warn "NOTICE: re-installing ",join(" ",keys %exe_loc)," ...\n";
 	for my $exe (keys %exe_loc)
 	{
-	    eval ("&SeqMule::Install::$exe(\$install_dir,\$new_exe_loc)");
+	    eval ("&SeqMule::Install::$exe(\$install_dir,\$tmp_exe_loc)");
 	}
     } else
     {
