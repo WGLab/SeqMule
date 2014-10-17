@@ -53,7 +53,7 @@ sub getstore
     my $arg_ref =shift;
     my @arg=@$arg_ref if defined $arg_ref;
     
-    croak "ERROR: no URL\n";
+    croak "ERROR: no URL\n" unless defined $url;
     if(&sys_which("wget"))
     {
 	my $command = "wget \'$url\' -nd  --retr-symlinks -r -O $file --no-check-certificate ";
