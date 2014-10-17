@@ -15,3 +15,4 @@ msort	http://seqmule.usc.edu/exe/msort.tar.gz
 tabix	http://downloads.sourceforge.net/project/samtools/tabix/tabix-0.2.6.tar.bz2?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fsamtools%2Ffiles%2Ftabix%2F&ts=1379098152&use_mirror=softlayer-dal
 vcftools	http://downloads.sourceforge.net/project/vcftools/vcftools_0.1.12.tar.gz?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fvcftools%2Ffiles%2F%3Fsource%3Dnavbar&ts=1394831381&use_mirror=softlayer-dal
 snver	http://downloads.sourceforge.net/project/snver/SNVer-0.5.3.tar.gz?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fsnver%2Ffiles%2F%3Fsource%3Dnavbar&ts=1398446857&use_mirror=softlayer-dal
+freebayes	http://seqmule.usc.edu/exe/freebayes_0.9.14.tar.gz
