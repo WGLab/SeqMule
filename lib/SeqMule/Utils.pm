@@ -1643,6 +1643,21 @@ sub getNonEmptyVCF
 
     return @vcf;
 }
+sub parseMendelFix
+{
+    my $in = shift;
+    my %result;
+    open IN,'<',$in or croak "ERROR: failed to read $in ($!)\n";
+    while(<IN>)
+    {
+	if($.==1)
+	{
+	    #header
+	    # "ID\tNCALL1\tCR1\t"; "FATHER\tFOCALL\tFOIBS0\tFOIBS1\tFOIBS2\tFOERROR\t"; "MOTHER\tMOCALL\tMOIBS0\tMOIBS1\tMOIBS2\tMOERROR\t"; "TRIOCALL\tADI\tPADI\tADO\tPADO\tNERROR\tPPCERROR\t"; "NFIX\tNCALL2\tCR2\n";
+	}
+
+    }
+}
 
 
 

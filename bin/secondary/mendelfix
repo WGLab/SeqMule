@@ -3,31 +3,7 @@
 use strict;
 use warnings;
 
-# Copyright (C) 2014  Yunfei Guo
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    any later version.
-
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
-#Welcome header
-#print "\n\n\n\n";
-#print "O---------------------------------------------------O\n";
-#print "|              mendelFix v1.1 (Oct 2014)            |\n";
-#print "|---------------------------------------------------|\n";
-#print "|  Correction of SNP Mendelian errors in trio data  |\n";
-#print "|---------------------------------------------------|\n";
-#print "|      (C) 2014 Yunfei Guo  | GPL v3 	            |\n";
-#print "O---------------------------------------------------O\n\n\n";
+# Modified by Yunfei Guo (guoyunfei1989@gmail.com) in October, 2014
 #
 #mendelFix
 #Version: v1.0
@@ -275,7 +251,7 @@ sub getIDs{
     $_=~s/\n//;
     $_=~s/\r//;
     next if($_ eq "");
-    @line=split(/ /,$_);
+    @line=split(" ",$_);
     if($#line != $ncol-1){
       print "\nFATAL ERROR\n";
       print "Your ped file ".$_[0]." does not seem to have ".$ncol." (2*".$_[1]." SNPs + 6) space-delimited columns at line ".$..":\n";
@@ -311,18 +287,20 @@ sub getGenotypes{
     if($. == $_[1]){
     $_=~s/\n//;
     $_=~s/\r//;
-    @geno=split(/ /,$_);
+    @geno=split(" ",$_);
     @geno = @geno[6..$#geno];
     $a = join("",@geno);
+    !!!!!!not necessarily two characters any more
     @geno=($a=~m/../g);
-    if (grep(!/(11|12|22|00)/,@geno)){
-      print "\nFATAL ERROR\n";
-      print "Your ped file ".$_[0]." seems to have an unsupported allele coding at line ".$..":\n";
-      print "\"".substr($_, 0, 50)."...\"\n";
-      print "Coding should be 0 = missing, 1 = reference (or minor) allele, and 2 = alternative (or major) allele\n";
-      print "Tip: you can easily obtain this type of coding using the --recode12 option in PLINK\n";
-      die "\nmendelFix will now halt!\n\n\n\n";
-    }
+    #allow any character in genotype. 0 stands for missing.
+    #if (grep(!/(11|12|22|00)/,@geno)){
+    #  print "\nFATAL ERROR\n";
+    #  print "Your ped file ".$_[0]." seems to have an unsupported allele coding at line ".$..":\n";
+    #  print "\"".substr($_, 0, 50)."...\"\n";
+    #  print "Coding should be 0 = missing, 1 = reference (or minor) allele, and 2 = alternative (or major) allele\n";
+    #  print "Tip: you can easily obtain this type of coding using the --recode12 option in PLINK\n";
+    #  die "\nmendelFix will now halt!\n\n\n\n";
+    #}
     my @call = grep {$geno[$_] ne "00"}(0..$#geno);
     $nsnps=$#geno+1;
     $ncalls=$#call+1;
