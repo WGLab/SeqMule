@@ -290,8 +290,15 @@ sub getGenotypes{
     @geno=split(" ",$_);
     @geno = @geno[6..$#geno];
     $a = join("",@geno);
-    !!!!!!not necessarily two characters any more
-    @geno=($a=~m/../g);
+    #not necessarily two characters any more
+    die "ERROR: expect even number of genotypes at line $.\n" unless (scalar @geno)%2==0;
+    my @biallele_geno;
+    for my $i(0..((scalar @geno)/2-1))
+    {
+	$biallele_geno[$i] = [@geno[$i*2,$i*2+1]];
+    }
+    @geno = @biallele_geno;
+    #@geno=($a=~m/../g);
     #allow any character in genotype. 0 stands for missing.
     #if (grep(!/(11|12|22|00)/,@geno)){
     #  print "\nFATAL ERROR\n";
@@ -301,7 +308,16 @@ sub getGenotypes{
     #  print "Tip: you can easily obtain this type of coding using the --recode12 option in PLINK\n";
     #  die "\nmendelFix will now halt!\n\n\n\n";
     #}
-    my @call = grep {$geno[$_] ne "00"}(0..$#geno);
+    #if one allele is missing, both should be 0
+    if (grep {$_[0] ne $_[1] && ($_[0] eq '0' or $_[1] eq '0')} @geno){
+      print "\nFATAL ERROR\n";
+      print "Your ped file ".$_[0]." seems to have an unsupported allele coding at line ".$..":\n";
+      print "\"".substr($_, 0, 50)."...\"\n";
+      print "If one allele is missing (0), both should be marked as 0\n";
+      die "\nmendelFix will now halt!\n\n\n\n";
+    }
+    #my @call = grep {$geno[$_]  ne "00"}(0..$#geno);
+    my @call = grep {$geno[$_][0] eq "0" && $geno[$_][1] eq "0"}(0..$#geno);
     $nsnps=$#geno+1;
     $ncalls=$#call+1;
     $callrate=sprintf("%.3f",$ncalls/$nsnps);
@@ -309,7 +325,8 @@ sub getGenotypes{
     }
   }
   close IN;
-  return($genotypes,$callrate,$ncalls);
+  #return($genotypes,$callrate,$ncalls);
+  return(\@geno,$callrate,$ncalls);
 }
 
 
@@ -337,99 +354,190 @@ sub mendelFix{
    my $mibs_one = 0;
    my $mibs_two = 0;
    my $trio_ncalls = 0;
-   @dad = split(/ /,$_[0]);
-   @mom = split(/ /,$_[1]);
-   @son = split(/ /,$_[2]);
+   #@dad = split(/ /,$_[0]);
+   #@mom = split(/ /,$_[1]);
+   #@son = split(/ /,$_[2]);
+   @dad = @{$_[0]};
+   @mom = @{$_[1]};
+   @son = @{$_[2]};
    for (my $c = 0; $c <= $#son; $c++){
      if(@snp_out and $snp_chr[$c] ~~ @snp_out){
        $analyze=0;
      }else{
        $analyze=1;
      }
-     if($analyze == 1){
-      if($son[$c] ne "00"){
-         #Father-Offspring IBS checks
-         $fibs_two++, if ($dad[$c] eq "11" and $son[$c] eq "11");
-         $fibs_one++, if ($dad[$c] eq "11" and $son[$c] eq "12");
-         $fibs_zero++, if ($dad[$c] eq "11" and $son[$c] eq "22");
-         $fibs_two++, if ($dad[$c] eq "22" and $son[$c] eq "22");
-         $fibs_one++, if ($dad[$c] eq "22" and $son[$c] eq "12");
-         $fibs_zero++, if ($dad[$c] eq "22" and $son[$c] eq "11");
-         $fibs_two++, if ($dad[$c] eq "12" and $son[$c] eq "12");
-         $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "11");
-         $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "22");
-         $son[$c] = "00", if($dad[$c] eq "11" and $son[$c] eq "22" and $mom[$c] eq "00");
-         $son[$c] = "00", if($dad[$c] eq "22" and $son[$c] eq "11" and $mom[$c] eq "00");
-         #Monther-Offspring IBS checks      
-         $mibs_two++, if ($mom[$c] eq "11" and $son[$c] eq "11");
-         $mibs_one++, if ($mom[$c] eq "11" and $son[$c] eq "12");
-         $mibs_zero++, if ($mom[$c] eq "11" and $son[$c] eq "22");
-         $mibs_two++, if ($mom[$c] eq "22" and $son[$c] eq "22");
-         $mibs_one++, if ($mom[$c] eq "22" and $son[$c] eq "12");
-         $mibs_zero++, if ($mom[$c] eq "22" and $son[$c] eq "11");
-         $mibs_two++, if ($mom[$c] eq "12" and $son[$c] eq "12");
-         $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "11");
-         $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "22");
-         $son[$c] = "00", if($mom[$c] eq "11" and $son[$c] eq "22" and $dad[$c] eq "00");
-         $son[$c] = "00", if($mom[$c] eq "22" and $son[$c] eq "11" and $dad[$c] eq "00");
-         #Set to missing ADI/ADO occurences
-         $trio_ncalls++, if($dad[$c] ne "00" and $mom[$c] ne "00");
-         if($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "12"){
-           $son[$c] = "00";
-           $adi++;
-         }elsif($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "22"){
-           $son[$c] = "00";
-           $adi++;
-         }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "12"){
-           $son[$c] = "00";
-           $adi++;
-         }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "11"){
-           $son[$c] = "00";
-           $adi++;
-         }elsif($dad[$c] eq "11" and $mom[$c] eq "12" and $son[$c] eq "22"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "22"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "12" and $mom[$c] eq "11" and $son[$c] eq "22"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "22"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "22" and $mom[$c] eq "12" and $son[$c] eq "11"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "11"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "12" and $mom[$c] eq "22" and $son[$c] eq "11"){
-           $son[$c] = "00";
-           $ado++;
-         }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "11"){
-           $son[$c] = "00";
-           $ado++;
-         }
-       }
-       if($son[$c] eq "00"){
-          if($dad[$c] eq "12" or $mom[$c] eq "12"){
-            next;
-          }elsif($dad[$c] eq "11" and $mom[$c] eq "11"){
-            $son[$c]="11";
-            $nfixed++;
-          }elsif($dad[$c] eq "22" and $mom[$c] eq "22"){
-            $son[$c]="22";
-            $nfixed++;
-          }elsif($dad[$c] eq "11" and $mom[$c] eq "22"){
-            $son[$c]="12";
-            $nfixed++;
-          }elsif($dad[$c] eq "22" and $mom[$c] eq "11"){
-            $son[$c]="12";
-            $nfixed++;
+     # if($analyze == 1){
+     #  if($son[$c] ne "00"){
+     #     #Father-Offspring IBS checks
+     #     $fibs_two++, if ($dad[$c] eq "11" and $son[$c] eq "11");
+     #     $fibs_one++, if ($dad[$c] eq "11" and $son[$c] eq "12");
+     #     $fibs_zero++, if ($dad[$c] eq "11" and $son[$c] eq "22");
+     #     $fibs_two++, if ($dad[$c] eq "22" and $son[$c] eq "22");
+     #     $fibs_one++, if ($dad[$c] eq "22" and $son[$c] eq "12");
+     #     $fibs_zero++, if ($dad[$c] eq "22" and $son[$c] eq "11");
+     #     $fibs_two++, if ($dad[$c] eq "12" and $son[$c] eq "12");
+     #     $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "11");
+     #     $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "22");
+     #     $son[$c] = "00", if($dad[$c] eq "11" and $son[$c] eq "22" and $mom[$c] eq "00");
+     #     $son[$c] = "00", if($dad[$c] eq "22" and $son[$c] eq "11" and $mom[$c] eq "00");
+     #     #Monther-Offspring IBS checks      
+     #     $mibs_two++, if ($mom[$c] eq "11" and $son[$c] eq "11");
+     #     $mibs_one++, if ($mom[$c] eq "11" and $son[$c] eq "12");
+     #     $mibs_zero++, if ($mom[$c] eq "11" and $son[$c] eq "22");
+     #     $mibs_two++, if ($mom[$c] eq "22" and $son[$c] eq "22");
+     #     $mibs_one++, if ($mom[$c] eq "22" and $son[$c] eq "12");
+     #     $mibs_zero++, if ($mom[$c] eq "22" and $son[$c] eq "11");
+     #     $mibs_two++, if ($mom[$c] eq "12" and $son[$c] eq "12");
+     #     $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "11");
+     #     $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "22");
+     #     $son[$c] = "00", if($mom[$c] eq "11" and $son[$c] eq "22" and $dad[$c] eq "00");
+     #     $son[$c] = "00", if($mom[$c] eq "22" and $son[$c] eq "11" and $dad[$c] eq "00");
+     #     #Set to missing ADI/ADO occurences
+     #     $trio_ncalls++, if($dad[$c] ne "00" and $mom[$c] ne "00");
+     #     if($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "12"){
+     #       $son[$c] = "00";
+     #       $adi++;
+     #     }elsif($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "22"){
+     #       $son[$c] = "00";
+     #       $adi++;
+     #     }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "12"){
+     #       $son[$c] = "00";
+     #       $adi++;
+     #     }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "11"){
+     #       $son[$c] = "00";
+     #       $adi++;
+     #     }elsif($dad[$c] eq "11" and $mom[$c] eq "12" and $son[$c] eq "22"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "22"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "12" and $mom[$c] eq "11" and $son[$c] eq "22"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "22"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "22" and $mom[$c] eq "12" and $son[$c] eq "11"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "11"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "12" and $mom[$c] eq "22" and $son[$c] eq "11"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "11"){
+     #       $son[$c] = "00";
+     #       $ado++;
+     #     }
+     #   }
+     #   if($son[$c] eq "00"){
+     #      if($dad[$c] eq "12" or $mom[$c] eq "12"){
+     #        next;
+     #      }elsif($dad[$c] eq "11" and $mom[$c] eq "11"){
+     #        $son[$c]="11";
+     #        $nfixed++;
+     #      }elsif($dad[$c] eq "22" and $mom[$c] eq "22"){
+     #        $son[$c]="22";
+     #        $nfixed++;
+     #      }elsif($dad[$c] eq "11" and $mom[$c] eq "22"){
+     #        $son[$c]="12";
+     #        $nfixed++;
+     #      }elsif($dad[$c] eq "22" and $mom[$c] eq "11"){
+     #        $son[$c]="12";
+     #        $nfixed++;
+     #      }
+     #   }
+     #}
+      if($analyze == 1)
+      {
+       if($son[$c][0] ne "0")
+       {
+          #Father-Offspring IBS checks
+          $fibs_two++, if (&allele_compare($dad[$c],"11",$son[$c],"11"));
+          $fibs_one++, if ($dad[$c] eq "11" and $son[$c] eq "12");
+          $fibs_zero++, if ($dad[$c] eq "11" and $son[$c] eq "22");
+          $fibs_two++, if ($dad[$c] eq "22" and $son[$c] eq "22");
+          $fibs_one++, if ($dad[$c] eq "22" and $son[$c] eq "12");
+          $fibs_zero++, if ($dad[$c] eq "22" and $son[$c] eq "11");
+          $fibs_two++, if ($dad[$c] eq "12" and $son[$c] eq "12");
+          $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "11");
+          $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "22");
+          $son[$c] = "00", if($dad[$c] eq "11" and $son[$c] eq "22" and $mom[$c] eq "00");
+          $son[$c] = "00", if($dad[$c] eq "22" and $son[$c] eq "11" and $mom[$c] eq "00");
+          #Monther-Offspring IBS checks      
+          $mibs_two++, if ($mom[$c] eq "11" and $son[$c] eq "11");
+          $mibs_one++, if ($mom[$c] eq "11" and $son[$c] eq "12");
+          $mibs_zero++, if ($mom[$c] eq "11" and $son[$c] eq "22");
+          $mibs_two++, if ($mom[$c] eq "22" and $son[$c] eq "22");
+          $mibs_one++, if ($mom[$c] eq "22" and $son[$c] eq "12");
+          $mibs_zero++, if ($mom[$c] eq "22" and $son[$c] eq "11");
+          $mibs_two++, if ($mom[$c] eq "12" and $son[$c] eq "12");
+          $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "11");
+          $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "22");
+          $son[$c] = "00", if($mom[$c] eq "11" and $son[$c] eq "22" and $dad[$c] eq "00");
+          $son[$c] = "00", if($mom[$c] eq "22" and $son[$c] eq "11" and $dad[$c] eq "00");
+          #Set to missing ADI/ADO occurences
+          $trio_ncalls++, if($dad[$c] ne "00" and $mom[$c] ne "00");
+          if($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "12"){
+            $son[$c] = "00";
+            $adi++;
+          }elsif($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "22"){
+            $son[$c] = "00";
+            $adi++;
+          }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "12"){
+            $son[$c] = "00";
+            $adi++;
+          }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "11"){
+            $son[$c] = "00";
+            $adi++;
+          }elsif($dad[$c] eq "11" and $mom[$c] eq "12" and $son[$c] eq "22"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "22"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "12" and $mom[$c] eq "11" and $son[$c] eq "22"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "22"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "22" and $mom[$c] eq "12" and $son[$c] eq "11"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "11"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "12" and $mom[$c] eq "22" and $son[$c] eq "11"){
+            $son[$c] = "00";
+            $ado++;
+          }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "11"){
+            $son[$c] = "00";
+            $ado++;
           }
-       }
-    }
+        }
+        if($son[$c][0] eq "0"){
+	    die "ERROR: if one allele is missing, both should be marked as 0\n"
+	    unless $son[$c][1] eq '0';
+           if($dad[$c] eq "12" or $mom[$c] eq "12"){
+             next;
+           }elsif($dad[$c] eq "11" and $mom[$c] eq "11"){
+             $son[$c]="11";
+             $nfixed++;
+           }elsif($dad[$c] eq "22" and $mom[$c] eq "22"){
+             $son[$c]="22";
+             $nfixed++;
+           }elsif($dad[$c] eq "11" and $mom[$c] eq "22"){
+             $son[$c]="12";
+             $nfixed++;
+           }elsif($dad[$c] eq "22" and $mom[$c] eq "11"){
+             $son[$c]="12";
+             $nfixed++;
+           }
+        }
+     }
    }
    my @call = grep {$son[$_] ne "00"}(0..$#son);
    $nsnps=$#son+1;
@@ -441,6 +549,51 @@ sub mendelFix{
    $fixed_genotypes = join(" ",@a);
    return($fixed_genotypes,$callrate,$ncalls,$adi,$ado,$nfixed,$nerrors,$fibs_zero,$fibs_one,$fibs_two,$mibs_zero,$mibs_one,$mibs_two,$trio_ncalls);
 }
+	  sub allele_compare
+	  { #if both codes are the same, both alleles should be the same
+	      #if 
+	      my $geno1 = shift;#[A,T]
+	      my $code1 = shift;#11,12,22
+	      my $geno2 = shift;#[G,C]
+	      my $code2 = shift;#11,12,22
+	      if ($code1 eq '11' && $code2 eq '11')
+	      {
+		  return ($geno1[0] eq $geno1[1] && $geno2[0] eq $geno2[1] && $geno1[0] eq $geno2[0]);
+	      } elsif ($code1 eq '22' && $code2 eq '22')
+	      {
+		  return ($geno1[0] eq $geno1[1] && $geno2[0] eq $geno2[1] && $geno1[0] eq $geno2[0]);
+	      } elsif ($code1 eq '12' && $code2 eq '12')
+	      {
+		  #assume the order of ref/alt allels is the same across all variants
+		  return ($geno1[0] eq $geno2[0] && $geno1[1] eq $geno2[1] && $geno1[0] ne $geno1[1]);
+
+              ########################################################################################
+	      } elsif ($code1 eq '11' && $code2 eq '22')
+	      {
+		  return ($geno1[0] eq $geno1[1] && $geno2[0] eq $geno2[1] && $geno1[0] ne $geno2[0]);
+	      } elsif ($code1 eq '11' && $code2 eq '12')
+	      {
+		  #assume the order of ref/alt allels is the same across all variants
+		  return ($geno1[0] eq $geno1[1] && $geno2[0] ne $geno2[1] && $geno1[0] eq $geno2[0]);
+	      } elsif ($code1 eq '22' && $code2 eq '12')
+	      {
+		  return ($geno1[0] eq $geno1[1] && $geno2[0] ne $geno2[1] && $geno1[0] eq $geno2[0]);
+              ########################################################################################
+	      } elsif ($code1 eq '22' && $code2 eq '11')
+	      {
+		  return ($geno1[0] eq $geno1[1] && $geno2[0] eq $geno2[1] && $geno1[0] ne $geno2[0]);
+	      } elsif ($code1 eq '12' && $code2 eq '11')
+	      {
+		  #assume the order of ref/alt allels is the same across all variants
+		  return ($geno1[0] ne $geno1[1] && $geno2[0] eq $geno2[1] && $geno1[0] eq $geno2[0]);
+	      } elsif ($code1 eq '12' && $code2 eq '22')
+	      {
+		  return ($geno1[0] ne $geno1[1] && $geno2[0] eq $geno2[1] && $geno1[1] eq $geno2[0]);
+	      } else
+	      {
+		  die "ERROR: $code1,$code2 cannot be compared\n";
+	      }
+	  }
 
 
 exit;
