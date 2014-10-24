@@ -457,29 +457,59 @@ sub mendelFix{
 	    if($son[$c][0] ne "0" && $son[$c][1] ne "0" )
 	    {
 		#Father-Offspring IBS checks
-		$fibs_two++ if (&allele_compare($dad[$c],"11",$son[$c],"11"));
-		$fibs_one++ if (&allele_compare($dad[$c],"11",$son[$c],"12"));
-		$fibs_zero++ if (&allele_compare($dad[$c],"11",$son[$c],"22"));
-		$fibs_two++ if (&allele_compare($dad[$c],"22",$son[$c],"22"));
-		$fibs_one++ if (&allele_compare($dad[$c],"22",$son[$c],"12"));
-		$fibs_zero++ if (&allele_compare($dad[$c],"22",$son[$c],"11"));
-		$fibs_two++ if (&allele_compare($dad[$c],"12",$son[$c],"12"));
-		$fibs_one++ if (&allele_compare($dad[$c],"12",$son[$c],"11"));
-		$fibs_one++ if (&allele_compare($dad[$c],"12",$son[$c],"22"));
-		print "469:$fibs_zero,$fibs_one,$fibs_two\n";
+		if (&allele_compare($dad[$c],"11",$son[$c],"11"))
+		{
+		    $fibs_two++;
+		} elsif (&allele_compare($dad[$c],"11",$son[$c],"12"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"11",$son[$c],"22"))
+		{
+		    $fibs_zero++;
+		} elsif (&allele_compare($dad[$c],"22",$son[$c],"12"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"12"))
+		{
+		    $fibs_two++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"11"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"22"))
+		{
+		    $fibs_one++;
+		}
+		#print "469:$fibs_zero,$fibs_one,$fibs_two\n";
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($dad[$c],"11",$son[$c],"22") and $mom[$c][0] eq "0");
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($dad[$c],"22",$son[$c],"11") and $mom[$c][0] eq "0");
 		#Monther-Offspring IBS checks      
-		$mibs_two++ if (&allele_compare($mom[$c],"11",$son[$c],"11"));
-		$mibs_one++ if (&allele_compare($mom[$c],"11",$son[$c],"12"));
-		$mibs_zero++ if (&allele_compare($mom[$c],"11",$son[$c],"22"));
-		$mibs_two++ if (&allele_compare($mom[$c],"22",$son[$c],"22"));
-		$mibs_one++ if (&allele_compare($mom[$c],"22",$son[$c],"12"));
-		$mibs_zero++ if (&allele_compare($mom[$c],"22",$son[$c],"11"));
-		$mibs_two++ if (&allele_compare($mom[$c],"12",$son[$c],"12"));
-		$mibs_one++ if (&allele_compare($mom[$c],"12",$son[$c],"11"));
-		$mibs_one++ if (&allele_compare($mom[$c],"12",$son[$c],"22"));
-		print "482:$mibs_zero,$mibs_one,$mibs_two\n";
+		if (&allele_compare($mom[$c],"11",$son[$c],"11"))
+		{
+		    $mibs_two++;
+		} elsif (&allele_compare($mom[$c],"11",$son[$c],"12"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"11",$son[$c],"22"))
+		{
+		    $mibs_zero++;
+		} elsif (&allele_compare($mom[$c],"22",$son[$c],"12"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"12"))
+		{
+		    $mibs_two++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"11"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"22"))
+		{
+		    $mibs_one++;
+		}
+		#$fibs_two++ if (&allele_compare($dad[$c],"22",$son[$c],"22")); #same as 11 vs 11
+		#$fibs_zero++ if (&allele_compare($dad[$c],"22",$son[$c],"11")); #same as "11" vs "22" after we changed the way of comparison
+		#$mibs_zero++ if (&allele_compare($mom[$c],"22",$son[$c],"11")); #same as 11 vs 22
+		#$mibs_two++ if (&allele_compare($mom[$c],"22",$son[$c],"22")); #same as 11 vs 11
+		#print "482:$mibs_zero,$mibs_one,$mibs_two\n";
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"11",$son[$c],"22") and $dad[$c][0] eq "0");
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"22",$son[$c],"11") and $dad[$c][0] eq "0");
 		#Set to missing ADI/ADO occurences
@@ -492,15 +522,14 @@ sub mendelFix{
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
 		    $adi++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $adi++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"11",$mom[$c],"22"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $adi++;
-		    $adi++;
+		    #}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
+		    #{#same as 11 11 12
+		    #    $son[$c][0] = $son[$c][1] = "0" ;
+		    #    $adi++;
+		    #}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"11",$mom[$c],"22"))
+		    #{#same as 11 11 22
+		    #    $son[$c][0] = $son[$c][1] = "0" ;
+		    #    $adi++;
 		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"12") and &allele_compare($son[$c],"22",$mom[$c],"12"))
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
@@ -521,18 +550,18 @@ sub mendelFix{
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
 		    $ado++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"11") and &allele_compare($son[$c],"11",$mom[$c],"11"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
+		    #}elsif(&allele_compare($dad[$c],"22",$mom[$c],"11") and &allele_compare($son[$c],"11",$mom[$c],"11"))
+		    #{#same as 11 22 22
+		    #    $son[$c][0] = $son[$c][1] = "0" ;
+		    #    $ado++;
 		}elsif(&allele_compare($dad[$c],"12",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"12"))
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
 		    $ado++;
-		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"11"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
+		    #}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"11"))
+		    #{#same as 22 11 22
+		    #    $son[$c][0] = $son[$c][1] = "0" ;
+		    #    $ado++;
 		}
 	    }
 	    if($son[$c][0] eq "0"){
@@ -584,39 +613,31 @@ sub allele_compare
     my $code1 = shift;#11,12,22
     my $geno2 = shift;#[G,C]
     my $code2 = shift;#11,12,22
-    print "examining: $geno1->[0],$geno1->[1],$code1,$geno2->[0],$geno2->[1],$code2\n";
     if ($code1 eq '11' && $code2 eq '11')
     {
-	print ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
 	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
     } elsif ($code1 eq '22' && $code2 eq '22')
     {
-	print ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
 	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
     } elsif ($code1 eq '12' && $code2 eq '12')
     {
 	#assume the order of ref/alt allels is the same across all variants
-	print ($geno1->[0] eq $geno2->[0] && $geno1->[1] eq $geno2->[1] && $geno1->[0] ne $geno1->[1]);
 	return ($geno1->[0] eq $geno2->[0] && $geno1->[1] eq $geno2->[1] && $geno1->[0] ne $geno1->[1]);
 
 	########################################################################################
     } elsif ($code1 eq '11' && $code2 eq '22')
     {
-	print ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] ne $geno2->[0]);
 	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] ne $geno2->[0]);
     } elsif ($code1 eq '11' && $code2 eq '12')
     {
 	#assume the order of ref/alt allels is the same across all variants
-	print ($geno1->[0] eq $geno1->[1] && $geno2->[0] ne $geno2->[1] && $geno1->[0] eq $geno2->[0]);
 	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] ne $geno2->[1] && $geno1->[0] eq $geno2->[0]);
     } elsif ($code1 eq '22' && $code2 eq '12')
     {
-	print ($geno1->[0] eq $geno1->[1] && $geno2->[0] ne $geno2->[1] && $geno1->[1] eq $geno2->[1]);
 	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] ne $geno2->[1] && $geno1->[1] eq $geno2->[1]);
 	########################################################################################
     } elsif ($code1 eq '22' && $code2 eq '11')
     {
-	print ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] ne $geno2->[0]);
 	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] ne $geno2->[0]);
     } elsif ($code1 eq '12' && $code2 eq '11')
     {
