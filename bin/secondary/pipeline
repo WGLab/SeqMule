@@ -2668,7 +2668,6 @@ sub genStat
 	    my $genVarStat=File::Spec->catfile($install_dir,"bin/secondary/genVarStat");
 	    push @commands,[$threads,"Generate variant stat","$genVarStat ".($sample_in_bam? " -s $sample_in_bam ":"")." $stat_prefix @vcf"];
 	}
-	generate Mendelian error statistics!!!
     }
 }
 sub mergeVCF
