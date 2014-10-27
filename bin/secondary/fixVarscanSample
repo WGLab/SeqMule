@@ -11,7 +11,7 @@ use SeqMule::Utils;
 use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
-my ($help, $samtools, $vcf,);
+my ($help, $samtools, $vcf,$tmpdir,);
 my @bam;
 
 @ARGV or pod2usage ({-exitval=>2});
@@ -20,12 +20,14 @@ GetOptions(
     'samtools=s'	=>	\$samtools,
     'bam=s'		=>	\@bam,
     'vcf=s'	        =>	\$vcf,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
-my $tmp="/tmp/$$".rand($$).".tmp.vcf";
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
+my $tmp=File::Spec->catfile($tmpdir,"$$".rand($$).".tmp.vcf");
 open OUT,'>',$tmp or die "ERROR: Failed to write to $tmp: $!\n";
 open IN,'<',$vcf or die "ERROR: Failed to read $vcf: $!\n";
 
@@ -62,7 +64,7 @@ Options:
     'samtools=s'	=>	\$samtools,
     'bam=s'		=>	\@bam,
     'vcf=s'	        =>	\$vcf,
-    #other
+    'tmpdir=s'		=>	\$tmpdir,
     'help|h'	        =>	\$help,
 
 =head1 OPTIONS

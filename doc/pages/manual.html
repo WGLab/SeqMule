@@ -144,6 +144,7 @@ $(window).load(function() {
 	-N &ltINT&gt                  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
 	-jmem &ltSTRING&gt            max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
 	-t &ltINT&gt                  number of threads. Only effective for --c-vcf and --u-vcf. Default: 1
+	--tmpdir &ltDIR&gt	      use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
 	-h,--help                     help
 	--noclean                     do not clean temporary files
 
@@ -211,6 +212,7 @@ $(window).load(function() {
 	--jmem &ltSTRING&gt		  max memory used for java virtual machine. Default: 1750m.
 	--gatknt &ltINT&gt		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
 	--advanced [FILE]	  generate or use an advanced configuration file
+	--tmpdir &ltDIR&gt	  use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
 	--norun,-nr		  do NOT run analysis, only generate script
 	--nostat,-ns 		  do NOT generate statistics
 	--norm			  do NOT remove intermediate SAM, BAM and other files

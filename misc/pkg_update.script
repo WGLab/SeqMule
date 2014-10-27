@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+#checkout latest source code, package it, upload it to website
+
+cd /home/yunfeiguo/projects/SeqMule/misc/
+wget https://github.com/WangGenomicsLab/SeqMule/archive/master.zip -O master.zip
+unzip master.zip
+rm master.zip
+echo `git ls-remote git://github.com/WangGenomicsLab/SeqMule.git | grep refs/heads/master | cut -f 1` >> SeqMule-master/version
+scp SeqMule-master/misc/*locations yunfeiguo@bioinform2.usc.edu:/home/yunfeiguo/seqmule
+scp -r SeqMule-master/doc/* yunfeiguo@bioinform2.usc.edu:/home/yunfeiguo/seqmule
+scp SeqMule-master/version yunfeiguo@bioinform2.usc.edu:/home/yunfeiguo/seqmule
+tar czf seqmule.latest.tar.gz SeqMule-master/*
+scp seqmule.latest.tar.gz yunfeiguo@bioinform2.usc.edu:/home/yunfeiguo/seqmule
+rm -rf SeqMule-master seqmule.latest.tar.gz

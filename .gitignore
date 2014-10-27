@@ -8,4 +8,5 @@ exe_backup/*
 test_exome
 rlib/*
 paper/*
-test
+test*
+misc/other_scripts/*

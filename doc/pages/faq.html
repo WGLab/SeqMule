@@ -101,6 +101,9 @@ $(window).load(function() {
 	<h3 id='q7'>Why are the numbers on Venn diagram different from the statistics I got from the consensus VCF file?</h3>
 	<p>ANNOVAR is used to generate the Venn diagram, while GATK is used to extract consensus calls. Therefore, it is largely due to the difference between the way ANNOVAR and GATK handle variants. This is expected for INDELs since there is no unique way to represent them in some cases. This should not affect SNPs which most often account for the majority of all variants.</p>
 	<br>
+	<h3 id='q8'>What if /tmp is too small or I got error message "No space left on device"?</h3>
+	<p>You can specify a larger folder for storing temporary files. There are 2 ways to do this: first, set $TMPDIR in your environment variables; second, use '-tmpdir YOUR_TMP_DIRECTORY' option in 'seqmule pipeline' or 'seqmule stats' program.</p>
+	<br>
 	
     </div> <!-- end of main -->
     

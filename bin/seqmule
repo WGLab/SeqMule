@@ -8,40 +8,27 @@ use File::Spec;
 
 my $versionfile=File::Spec->catfile($RealBin,"..","version");
 die "Version file missing.\n" unless -f $versionfile;
-my $version=`cat $versionfile`;
+my $version=`head -n1 $versionfile`;
 chomp $version;
 
 my $subprogram=shift @ARGV;
+my @all_subprograms = qw/download pipeline stats run update/;
 
-die 
+die
 "Program: seqmule (automated pipeline for whole exome/genome analysis)
 Version: $version
 
 Usage:   seqmule <subprogram> [options]
 
-Command: 
+Command:
 download        download default databases
 pipeline        generate analysis scripts
-run		execute seqmule-generated scripts
-stats     	produce statistics and plots
-\n" if (!defined $subprogram or $subprogram !~ /download|pipeline|stats|run/i);
+run             execute seqmule-generated scripts
+stats           produce statistics and plots
+update          automatic update SeqMule
+\n" if (!defined $subprogram or !(grep{$subprogram eq $_} @all_subprograms));
 
 warn "Current version: $version\n";
 system(File::Spec->catfile($RealBin,"secondary","checkupgrade"));
 
-if ($subprogram =~ /download/i)
-{
-    exec(File::Spec->catfile($RealBin,"secondary","download"),@ARGV);
-}
-elsif ($subprogram =~ /pipeline/i)
-{
-    exec(File::Spec->catfile($RealBin,"secondary","pipeline"),@ARGV);
-}
-elsif ($subprogram =~ /stats/i)
-{
-    exec(File::Spec->catfile($RealBin,"secondary","stats"),@ARGV);
-}
-elsif ($subprogram =~ /run/i)
-{
-    exec(File::Spec->catfile($RealBin,"secondary","run"),@ARGV);
-}
+exec(File::Spec->catfile($RealBin,"secondary",$subprogram),@ARGV);

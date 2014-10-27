@@ -153,15 +153,15 @@ SQ
 if(1)
 {
 #analysis from BAM
-#    my @bam = qw(NA12878D_HiSeqX_R1.extract.bam 
-#                 NA12878J_HiSeqX_R1.extract.bam 
-#		 NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.extract.bam
-#		 );
-    my @bam = qw( NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.extract.bam
+    my @bam = qw(NA12878D_HiSeqX_R1.extract.bam 
+                 NA12878J_HiSeqX_R1.extract.bam 
+		 NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.extract.bam
 		 );
+		 #my @bam = qw( NA12878.mapped.ILLUMINA.bwa.CEU.high_coverage_pcr_free.20130906.extract.bam
+		 #);
     my $threads=8; #not using 12 because jmem is set to be 4000m
-    #my @prefix = qw(hiseq-D hiseq-J onekg);
-    my @prefix = qw(onekg);
+    my @prefix = qw(hiseq-D hiseq-J onekg);
+    #my @prefix = qw(onekg);
 
     for my $i(0..$#bam)
     {

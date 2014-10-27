@@ -23,9 +23,6 @@ use Cwd qw/abs_path/;
 my ($down,$downdir,$verbose,$help,$debug,$noclean);
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
 my @gunlink;
-my $rev='$Revision: 112 $';
-my $lastchangeddate='$LastChangedDate: 2013-08-07 13:26:43 -0700 (Wed, 07 Aug 2013) $';
-warn "$lastchangeddate\n$rev\n";
 
 #default values will be set at parsing advanced_config
 

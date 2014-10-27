@@ -14,7 +14,7 @@ use Getopt::Long qw/GetOptions/;
 my ($advanced,$n,$help,
     $samtools,    $java,    $java_mem,    $varscan,
     $ref,
-    $vcf_filter,    $bed,);
+    $vcf_filter,    $bed,$tmpdir,);
 my @bam;
 my $BUFFER_SIZE = 1_000_000; #used for gettting input from samtools mpileup
 
@@ -31,11 +31,13 @@ GetOptions(
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
@@ -58,7 +60,7 @@ if (<IN>)
     #$cmd.=" --p-value $options{P}" if $options{P};
     #$cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
     #$cmd.=" > $vcf_filter";
-    my $varscan_cmd.="$java -Xmx$java_mem -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
+    my $varscan_cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
     $varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
     $varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
     $varscan_cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
@@ -89,15 +91,15 @@ push @cmd,$cmd;$cmd='';
 
 #remove duplicate ALT allele since GATK will complain
 my $rmDupAltVCF=File::Spec->catfile($RealBin,"rmDupAltVCF");
-push @cmd,"$rmDupAltVCF $vcf_filter";
+push @cmd,"$rmDupAltVCF $tmpdir $vcf_filter";
 
 #add sample name if it's absent
 my $fixVarscanSample=File::Spec->catfile($RealBin,"fixVarscanSample");
-push @cmd,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @bam)." -vcf $vcf_filter";
+push @cmd,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @bam)." -vcf $vcf_filter -tmpdir $tmpdir ";
 
 #make sure number of samples on every line is the same as that specified in header
 my $checkSampleGT=File::Spec->catfile($RealBin,"checkSampleGT");
-push @cmd,"$checkSampleGT -vcf $vcf_filter";
+push @cmd,"$checkSampleGT -vcf $vcf_filter -tmpdir $tmpdir ";
 
 if (@bam>1)
 {
@@ -140,6 +142,7 @@ Options:
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 

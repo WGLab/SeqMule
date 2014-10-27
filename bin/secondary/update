@@ -1,0 +1,183 @@
+#!/usr/bin/env perl
+
+#Copyright (C) <2012>  <Yunfei Guo>
+
+#This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+#This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+use warnings;
+use strict;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Install;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+use File::Basename qw/basename/;
+
+
+my $seqmule_url = "http://seqmule.usc.edu";
+my $seqmule_git_url = "git://github.com/WangGenomicsLab/SeqMule.git";
+my $seqmule_source_url = "http://seqmule.usc.edu/seqmule.latest.tar.gz";
+my $seqmule_github_url = "https://github.com/WangGenomicsLab/SeqMule/archive/master.zip";
+my $install_dir=File::Spec->catdir($RealBin,"..","..");
+my $TMPDIR = $ENV{TMPDIR} || "/tmp";
+my @unlink;
+
+my (
+    $help,$git,$install,$tmpdir,
+);
+#------------------------------------------------------------------------------------------------
+
+GetOptions(
+    'git'		=>	\$git,
+    'install'		=>	\$install,
+    'tmpdir'		=>	\$tmpdir,
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+$tmpdir = $tmpdir || $TMPDIR;
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
+#check if current version is the latest version either on github or on seqmule website
+if(! need_upgrade($git))
+{
+    warn "NOTICE: Already latest version!\n";
+    warn "NOTICE: --git option can be added to get latest(experimental) source.\n";
+    exit 0;
+} else
+{
+    warn "NOTICE: Update needed!\n";
+}
+
+#download latest source to a tmp folder
+my $target_url = $git? $seqmule_github_url : $seqmule_source_url;
+my $tmpfile = File::Spec->catfile($tmpdir,time.(basename($target_url)));
+my $unzip_dir = File::Spec->catdir($tmpdir,time."seqmule_tmpdir");
+my $content_dir = File::Spec->catdir($unzip_dir,"SeqMule-master");
+push @unlink,$tmpfile,$unzip_dir;
+warn "NOTICE: downloading new version ...\n";
+&SeqMule::Utils::getstore($target_url,$tmpfile) or die "ERROR: failed to download from $target_url ($!)\n"; 
+&SeqMule::Utils::extract_archive($tmpfile,$unzip_dir) or die "ERROR: failed unzip $tmpfile ($!)\n";
+
+#check if it's necessary to reinstall certain 3rd party programs
+if($install)
+{
+    warn "NOTICE: check if any third party program needs to be re-installed.\n";
+    my $current_exe_loc = File::Spec->catfile($install_dir,"misc","exe_locations");
+    my $new_exe_loc = File::Spec->catfile($content_dir,"misc","exe_locations");
+    my $diff = `sort $current_exe_loc $new_exe_loc | uniq -u`;
+#FORMAT:program\tURL
+    if ($diff)
+    {
+	my $tmp_exe_loc = File::Spec->catfile($tmpdir,time."exe_locations.tmp");
+	push @unlink,$tmp_exe_loc;
+	&SeqMule::Utils::write2outfile($diff,$tmp_exe_loc);
+	my %exe_loc = &SeqMule::Install::parse_locations($install_dir,$tmp_exe_loc); 
+	&update_source;
+	warn "NOTICE: re-installing ",join(" ",keys %exe_loc)," ...\n";
+	for my $exe (keys %exe_loc)
+	{
+	    eval ("&SeqMule::Install::$exe(\$install_dir,\$tmp_exe_loc)");
+	}
+    } else
+    {
+	warn "NOTICE: NO 3rd party program needs to be re-installed.\n";
+    }
+}
+#update source
+&update_source;
+
+$SIG{INT} = \&SeqMule::Utils::cleanup(@unlink);
+&SeqMule::Utils::cleanup(@unlink);
+
+warn "NOTICE: all done.\n";
+
+################SUBROUTINES###############################
+sub need_upgrade
+{
+    my $git = shift;
+    if ($git)
+    {
+	#check github to decide whether to update
+	my $new_hash = `git ls-remote $seqmule_git_url | grep refs/heads/master | cut -f 1`;
+	my $version_file = File::Spec->catfile($install_dir,"version");
+	my $current_hash = `tail -n1 $version_file`;
+	chomp ($current_hash,$new_hash);
+	warn "$current_hash  $new_hash\n";
+	return 0 if $new_hash eq $current_hash;
+    } else
+    {
+	#check SeqMule website
+	my $upgrade_reporter = File::Spec->catfile($install_dir,"bin","secondary","checkupgrade");
+	my $upgrade_report = `$upgrade_reporter 2>&1`;
+	if ($upgrade_report !~ /UPDATE AVAILABLE/)
+	{
+	    return 0;
+	}
+    }
+    return 1;
+}
+#update SeqMule source
+sub update_source
+{
+    warn "NOTICE: updating source ...\n";
+    !system("cp -rf ".File::Spec->catfile($content_dir,"*")." $install_dir") or die "ERROR: Failed to overwrite current source ($!)\n";
+}
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+seqmule update [options]
+
+For details about each option, please use 'seqmule update -h':
+
+Options:
+
+      --git			update from GitHub
+      --install			automatically upgrade 3rd party tools
+      --tmpdir <DIR>		temporary folder for storing copy of downloaded stuff. Default is $TMPDIR
+      or /tmp
+      -h,--help			help
+
+Examples:
+
+      #update SeqMule to the latest version hosted on SeqMule website
+      seqmule update
+
+      #update SeqMule to the latest version on GitHub
+      seqmule update --git
+
+      #update 3rd party tools if newer version are introduced into SeqMule
+      seqmule update --install
+
+      #it's okay to combine --git and --install options
+      seqmule update --install --git
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--git>
+
+update SeqMule to the latest version available on GitHub. Use this version when you got bugs using the version hosted on SeqMule website or want to try out pre-release new features.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

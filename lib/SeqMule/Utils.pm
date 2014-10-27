@@ -8,7 +8,7 @@ use File::Path;
 use File::Find qw/find/;
 use File::Basename qw/basename/;
 use Cwd qw/cwd abs_path/;
-use Carp qw/croak/;
+use Carp qw/carp croak/;
 no warnings 'File::Find';
 
 
@@ -53,6 +53,7 @@ sub getstore
     my $arg_ref =shift;
     my @arg=@$arg_ref if defined $arg_ref;
     
+    croak "ERROR: no URL\n" unless defined $url;
     if(&sys_which("wget"))
     {
 	my $command = "wget \'$url\' -nd  --retr-symlinks -r -O $file --no-check-certificate ";
@@ -67,7 +68,7 @@ sub getstore
     }
     else
     {
-	die "Cannot find wget or curl, please download $file manually\n";
+	croak "Cannot find wget or curl, please download $file manually\n";
     }
 }
 
@@ -105,6 +106,7 @@ sub extract_archive
     my $dir=shift;
     
     return 0 unless ($file && $dir);
+    &checkOrCreateTmpdir($dir);
     
     my $cwd=cwd;
     chdir($dir);
@@ -157,7 +159,7 @@ sub extract_archive
     }
     else
     {
-	die "Incorrect filename suffix or failed to find gunzip, or tar or unzip, please unpack $file manually\n";
+	croak "Incorrect filename suffix or failed to find gunzip, or tar or unzip, please unpack $file manually\n";
     }
 
 }
@@ -1264,6 +1266,18 @@ sub addOrRmChrInBAM
     close SAM;
     !system("$samtools reheader $tmpsam $bam>$out") or die "ERROR: Failed to reheader $bam: $!\n";
 }
+sub checkOrCreateTmpdir
+{
+    my $tmpdir=shift;
+    if($tmpdir)
+    {
+	mkdir $tmpdir or croak "Failed to create $tmpdir: $!\n" unless -d $tmpdir;
+    	return 1;
+    } else
+    {
+	croak "ERROR: No tmpdir specified\n";
+    }
+}
 
 sub chrNamingConsistencyCheck
 {
@@ -1348,7 +1362,7 @@ sub splitRegion
     my $prefix=$opt{prefix};
     my $samtools=$opt{samtools};
     my $rm=$opt{rm};
-    my @small_bed=map { ($prefix?$prefix:"$$".rand($$)).".$_.tmp.bed" } (1..$n);
+    my @small_bed=map { ($prefix?$prefix:"temp_split$$".rand($$)).".$_.tmp.bed" } (1..$n);
     my @intervals;
 
     unless (defined $bed)
@@ -1691,6 +1705,11 @@ sub parseMendelFix
     close IN;
     return \%result;
 }
+sub cleanup
+{ 
+    warn "NOTICE: Cleaning up ...\n";
+    !system("rm -rf @_") or warn "WARNING: failed to clean up temporary files\n";
+};
 
 
 

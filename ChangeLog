@@ -1,3 +1,9 @@
+v1.1.1
+2014-10-17 Yunfei Guo <yunfeigu@usc.edu>
+
+* Add '-tmpdir' option in 'seqmule stats' and 'seqmule pipeline'
+* Add 'seqmule update' to make allow automatic update.
+
 v1.1.0
 2014-05-29 Yunfei Guo <yunfeigu@usc.edu>
 

@@ -30,12 +30,13 @@ my $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files sma
 my $GATK_HARD_FILTER_BAM_SIZE=1_000_000_000; #in bytes, BAM files smaller than it will be subject to SNP hard filtering instead of VQSR
 my $GATK_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files smaller than it will be subject to indel hard filtering instead of VQSR
 my $RMDUP_MIN_LEN=10_000_000; #remove minimum 
+my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 
 #cmd opt
 my (
     $prefix,$fq1,$fq2,$bam,$merge,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
-    $threads, $quick, $java_mem, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
+    $threads, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
     $no_resolve_conflict,
     $capture,$ref, $index_prefix, $bowtie_index_prefix, $bowtie2_index_prefix, 
     $soap_index_prefix, $hapmap, $dbsnp,  $dbsnpver,  $kg, $indel,
@@ -87,13 +88,8 @@ my $date=`date +%m%d%Y`; chomp $date;
 my @removable; #unimportant intermediate files, remove at user's choice
 my @script_unlink_list; #list consiting of temporarily generated file, should be removed at the end of generated script
 
-#version
-my $rev='$Revision: 153 $';
-my $lastchangeddate='$LastChangedDate: 2013-10-02 17:23:20 -0700 (Wed, 02 Oct 2013) $';
 #------------------------------------------------------------------------------------------------
 
-
-warn "$lastchangeddate\n$rev\n";
 
 #default values will be set at parsing advanced_config
 @ARGV or pod2usage ({-exitval=>2});
@@ -120,6 +116,7 @@ GetOptions(
     'threads|t=i'	=>	\$threads,
     'quick|q'		=>	\$quick,
     'jmem=s'		=>	\$java_mem,
+    'tmpdir=s'		=>	\$tmpdir,
     'gatknt=i'		=>	\$gatk_nt,
     'advanced:s'	=>	\$advanced,
     'norun|nr'	        =>	\$norun,
@@ -340,6 +337,7 @@ sub bwa
 	push @script_unlink_list,@sai;
 
 	$cmd="$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
+	$cmd .= " -tmpdir $TMPDIR";
 	map {$cmd.=" -fq $_ ";} @local_fq;
 	map {$cmd.=" -sai $_ ";} @sai;
 
@@ -392,6 +390,7 @@ sub bwa_mem
 
 
 	$cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
+	$cmd .= " -tmpdir $TMPDIR";
 	$cmd.=" @local_fq";
 
 	push @commands,[$threads,"BWA alignment",$cmd];$cmd="";
@@ -450,6 +449,7 @@ sub bowtie
 	my $local_bam="${local_prefix}_bowtie.sort.bam"; push @removable,$local_bam;
 
 	my $cmd="$runBowtieCMD -advanced $advanced -n $n -bowtie $bowtie -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_real_index -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
+	$cmd .= " -tmpdir $TMPDIR";
 	if ($paired)
 	{   
 	    $cmd.=" $fq1_list[$no] $fq2_list[$no]";
@@ -513,6 +513,7 @@ sub bowtie2
 
 
 	my $cmd="$runBowtie2CMD -advanced $advanced -n $n -bowtie2 $bowtie2 -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_real_index -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
+	$cmd .= " -tmpdir $TMPDIR";
 	if ($paired==1) 
 	{
 	    $cmd.=" $fq1_list[$no] $fq2_list[$no]";
@@ -876,7 +877,7 @@ sub freebayes_variant
     my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    my $cmd_common="$run_freebayes -advanced $advanced -n $n -freebayes $freebayes -vcf-sort $vcf_sort -ref $local_ref -samtools $samtools ";
+    my $cmd_common="$run_freebayes -advanced $advanced -n $n -freebayes $freebayes -vcf-sort $vcf_sort -ref $local_ref -samtools $samtools -tmpdir $TMPDIR ";
 
     if ($mode eq 'single')
     {
@@ -983,7 +984,7 @@ sub snver
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
     my $faidx="$local_ref.fai";
     my @target_bam_files;
-    my $cmd_common="$runSnverCMD -advanced $advanced -n $n -java $java -jmem $java_mem -snver $snver -stats $stats -ref $local_ref -samtools $samtools ";
+    my $cmd_common="$runSnverCMD -advanced $advanced -n $n -java $java -jmem $java_mem -snver $snver -stats $stats -ref $local_ref -samtools $samtools -tmpdir $TMPDIR ";
 
     if ($options{'originalBAM'})
     {
@@ -1133,8 +1134,8 @@ sub gatk_variant
 	    die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
 	}
     }
-    my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt ";
-    my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt ";
+    my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+    my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
 
     if ($mode ne 'multi' and $mode ne 'single')
     {
@@ -1271,7 +1272,9 @@ sub gatk_recal
 	my @cov=split ',',$options{covariates};
 	my $cmd;
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref -knownSites $local_dbsnp --disable_indel_quals "; #rf BadCigar to skip bad reads
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref -knownSites $local_dbsnp --disable_indel_quals "; #rf BadCigar to skip bad reads
 	map {$cmd.=" -cov $_" } @cov;
 
 	$cmd.=" -I $local_bam -o $grp";
@@ -1283,7 +1286,9 @@ sub gatk_recal
 	$cmd="";
 
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
 	$cmd.=" -L $capture" if $wes;
 	push @commands,[$threads,"Apply base quality recalibration",$cmd];$cmd="";
 	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
@@ -1310,11 +1315,15 @@ sub gatk_realign
 	my $newbam="${local_prefix}.realn.bam";
 	my $cmd;
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
 	$cmd.=" -L $capture" if $wes;
 	push @commands,[$threads,"GATKLite realignment",$cmd];$cmd="";
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
 	$cmd.=" -maxInMemory $options{maxInMemory}" if $options{maxInMemory};
 	$cmd.=" -L $capture" if $wes;
 	$cmd.=" $options{additional} " if $options{additional} ne '';
@@ -1440,8 +1449,8 @@ sub gatk_full_variant
 	    die "Missing filter name or expression for GATK indel/SNP filtering.\n" unless ($filtername && $filterexp);
 	}
     }
-    my $cmd_common_call="$runGATKCMDCALL -internal-caller $internal_caller -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt ";
-    my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $internal_caller -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt ";
+    my $cmd_common_call="$runGATKCMDCALL -internal-caller $internal_caller -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+    my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $internal_caller -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
 
 
     if ($mode ne 'multi' and $mode ne 'single')
@@ -1591,7 +1600,9 @@ sub gatk_full_recal
 	my @cov=split ',',$options{covariates};
 	my $cmd;
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref";
 	$cmd.=" -knownSites $local_dbsnp";
 	$cmd.=" -knownSites $local_indel";
 	$cmd.=" -nct $threads" if $threads>=2;
@@ -1604,7 +1615,9 @@ sub gatk_full_recal
 
 	$cmd="";
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
 	$cmd.=" -L $capture" if $wes;
 	push @commands,[$threads,"Apply base quality recalibration",$cmd];$cmd="";
 	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
@@ -1629,13 +1642,17 @@ sub gatk_full_realign
 	my $newbam="${local_prefix}.realn.bam";
 	my $cmd;
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
 	$cmd.=" -known $local_indel" if $local_indel;
 	$cmd.=" -nt $threads" if $threads>=2;
 	$cmd.=" -L $capture" if $wes;
 	push @commands,[$threads,"GATK realignment",$cmd];$cmd="";
 
-	$cmd.="$exe_java -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
+	$cmd.="$exe_java ";
+	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	$cmd.=" -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
 	$cmd.=" -maxInMemory $options{maxInMemory}" if $options{maxInMemory};
 	$cmd.=" -rf NotPrimaryAlignment"; #remove secondary alignments
 	$cmd.=" -known $local_indel" if $local_indel;
@@ -1668,7 +1685,9 @@ sub picard
 	    my $newbam="$local_prefix.rmdup.bam";
 	    my $metrics="${local_prefix}.rmdup.metrics";
 	    #only mark duplicates, do not really remove them from BAM
-	    $cmd.="$exe_java -Xmx$java_mem -jar $exe INPUT=$local_bam OUTPUT=$newbam METRICS_FILE=$metrics REMOVE_DUPLICATES=false VALIDATION_STRINGENCY=SILENT";
+	    $cmd.="$exe_java ";
+	    $cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
+	    $cmd.=" -Xmx$java_mem -jar $exe INPUT=$local_bam OUTPUT=$newbam METRICS_FILE=$metrics REMOVE_DUPLICATES=false VALIDATION_STRINGENCY=SILENT";
 	    push @commands,[$threads,"Remove duplicates",$cmd];$cmd="";
 	    $local_bam=$newbam; push @removable,$newbam;
 	}
@@ -1736,7 +1755,7 @@ sub varscan_variant
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -java $java -jmem $java_mem -varscan $varscan -ref $local_ref ";
+    my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -java $java -jmem $java_mem -varscan $varscan -ref $local_ref -tmpdir $TMPDIR ";
 
     if ($mode eq 'single')
     {
@@ -1811,7 +1830,8 @@ sub varscan_variant
 	    my $vcf_filter="${local_prefix}_varscan.filter.vcf";
 	    my $cmd;
 
-	    $cmd.="$exe -advanced $advanced -n $n -samtools $samtools -java $java -jmem $java_mem -varscan $varscan -ref $local_ref -vcf-filter $vcf_filter ";
+	    $cmd.=$cmd_common;
+	    $cmd.=" -vcf-filter $vcf_filter ";
 	    map {   $cmd.=" -bam $_ "} @bam;
 	    $cmd.=" -bed $bed " if $bed;
 
@@ -1995,6 +2015,8 @@ sub optCheck
     warn "CAUTION: You used your own variant database, there is no guarantee that it will work with all programs.\n" if ($dbsnp || $kg || $hapmap);
     warn "Entering verbose mode...\n" if $verbose;
 
+    #set temporary folder
+    $TMPDIR = $tmpdir || $TMPDIR;
 }
 
 sub advanceConfFileCheck
@@ -2057,6 +2079,7 @@ sub reportParam
     }
     warn "NOTICE: Variant calling will be run in parallel mode [EXPERIMENTAL].\n" if $quick;
     warn "NOTICE: Multi-sample variant calling ENABLED.\n" if $multi_sample_calling;
+    warn "NOTICE: $TMPDIR will be used for storing temporary files\n";
 
 }
 
@@ -2112,6 +2135,7 @@ sub writeLog
 	print LOG join "\n", grep {/$result_folder/} @vcf_files;
 	print LOG "\n";
     }
+    print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
 
     close LOG;
     warn "NOTICE: log written to $log\n";
@@ -2302,12 +2326,12 @@ sub procBAM
 	if ($force_one_rg)
 	{
 	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
-	    push @commands, [$threads,"Merge BAM into one readgroup","$exe $samtools $threads $rg $onebam @bam_list"];
+	    push @commands, [$threads,"Merge BAM into one readgroup","$exe $samtools $threads $rg $onebam $TMPDIR @bam_list"];
 	} elsif ($union_rg)
 	{
 	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
 	    #check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-	    push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam @bam_list"];
+	    push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam $TMPDIR @bam_list"];
 	} else
 	{
 	    #check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
@@ -2317,7 +2341,7 @@ sub procBAM
 	    } else
 	    {
 		my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
-		push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam @bam_list"];
+		push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam $TMPDIR @bam_list"];
 	    }
 	}
 	$original_input{$onebam}=join(",",map {basename $_} @bam_list);
@@ -2649,7 +2673,7 @@ sub genStat
 	{
 	    if (@venn_files <= 5 && @venn_files >= 2)
 	    {
-		push @commands,[$threads,"Generate Venn digram","$seqmule stats -venn ".join(',',@venn_files)." -prefix $stat_prefix ".($sample_in_bam?" -s $sample_in_bam ":"")];
+		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix ".($sample_in_bam?" -s $sample_in_bam ":"")];
 	    } else
 	    {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
@@ -2659,7 +2683,7 @@ sub genStat
 	if (my ($bam)=grep { /$result_folder/ } (@bam_for_aln_stat)) #only report one BAM
 	{
 	    warn "NOTICE: SeqMule only reports statistics from ONE BAM file.\n";
-	    push @commands,[$threads,"Generate alignment and coverage stat","$seqmule stats -bam $bam -aln -prefix $stat_prefix -capture ".($wes?" $capture":"")];
+	    push @commands,[$threads,"Generate alignment and coverage stat","$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix -capture ".($wes?" $capture":"")];
 	}
 
 	#output variant statistics
@@ -2763,7 +2787,7 @@ sub getConsensusCall
 	if $minN && @one_sample_var<$minN;
 
 	$cmd=
-	"$exe stats -ref $local_ref".
+	"$exe stats -tmpdir $TMPDIR -ref $local_ref".
 	" -jmem $java_mem".
 	" -t ".($threads>$gatk_nt? $gatk_nt:$threads). #use smaller one
 	" -c-vcf ".join(",",@one_sample_var).
@@ -2787,7 +2811,7 @@ sub extractVar
 	{
 	    my $out="$1.extract.vcf";
 	    my $local_prefix=$1;
-	    my $cmd="$exe stats -capture $capture -vcf $vcf -p $local_prefix";
+	    my $cmd="$exe stats -tmpdir $TMPDIR -capture $capture -vcf $vcf -p $local_prefix";
 	    push @commands,[$threads,"Extract variants in custom regions",$cmd];
 	    $vcf=$out;
 	} else
@@ -2807,7 +2831,7 @@ sub vcf_merge_cmd_gen
     my $cmd;
 
     $cmd=
-    "$exe stats -ref $local_ref".
+    "$exe stats -tmpdir $TMPDIR -ref $local_ref".
     " -jmem $java_mem".
     " -t ".($threads>$gatk_nt? $gatk_nt:$threads). #use smaller one
     " -u-vcf ".join(",",@vcf).
@@ -2981,6 +3005,7 @@ Options:
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
 	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
 	--advanced [FILE]	  generate or use an advanced configuration file
+	--tmpdir <DIR>		  use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
 	--norun,-nr		  do NOT run analysis, only generate script
 	--nostat,-ns 		  do NOT generate statistics
 	--norm			  do NOT remove intermediate SAM, BAM and other files

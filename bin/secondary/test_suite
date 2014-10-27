@@ -6,12 +6,13 @@ use File::Basename qw/basename/;
 use File::Spec;
 
 my $ncpu=4;
-my $mem="4.5g";
+#my $mem="4.5g";
+my $mem="6g"; #request larger mem for GATK
 my $jmem="2500m";
 my $gatknt=4;
-my $exe="/home/yunfeiguo/projects/seqmule_parallel/bin/seqmule";
+my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/data/test";
-my $config_folder="/home/yunfeiguo/projects/seqmule_parallel/misc/predefined_config";
+my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
 #for no merge, no ms
 my $first_fq="part.1.fastq";
 my $second_fq="part.2.fastq";
@@ -30,10 +31,6 @@ my @config_files=glob "$config_folder/*.config";
 $basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
 $basic_merge="$exe pipeline -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
 $basic_ms="$exe pipeline -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
-
-#push @basic,"seqmule pipeline -bam chr1.bam,chr2.bam -e ";
-#push @basic,"seqmule pipeline -bam chr1.bam,chr2.bam -e -ms ";
-#push @basic,"seqmule pipeline -bam chr1.bam,chr2.bam -e -merge -p chr1-chr2-merge ";
 
 chdir $test_folder or die "Can't enter $test_folder: $!\n";
 my $count=0;
@@ -79,11 +76,14 @@ for my $q("","-quick")
 		    my $target=File::Spec->catfile($test_folder,$_);
 		    push @cmd,"ln -sf $target .";
 		}
-		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
-		push @cmd, "$starting_point $q --advanced $j";
+		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
+		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+		#push @cmd, "$starting_point $q --advanced $j";
+		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count>=1 && $count<=1;
+		&exec(@cmd) if grep{$count==$_} (84,86,88,90,92,96,98);
+		#&exec(@cmd) if $count>=101 && $count<=120;
 		$count++;
 	}
     }

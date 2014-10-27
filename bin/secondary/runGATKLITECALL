@@ -15,7 +15,7 @@ my (
     $capture,   $java,    $java_mem,    $gatk,
     $ref,    $local_threads,    $gatk_nt, 
     $vcf, 
-    $help,$advanced,    $n,);
+    $help,$advanced,    $n,$tmpdir,);
 my @bam;
 @ARGV or pod2usage ({-exitval=>2});
 
@@ -32,20 +32,23 @@ GetOptions(
     'vcf=s'		=>	\$vcf,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
 my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
 my @cmd;
+my $java_opt = "$java -Xmx$java_mem  -Djava.io.tmpdir=$tmpdir -jar $gatk ";
 
 {
     my $cmd;
-    $cmd.="$java -Xmx$java_mem -jar $gatk -T UnifiedGenotyper -R $ref -I ".join(' -I ',@bam)." ";
+    $cmd.="$java_opt -T UnifiedGenotyper -R $ref -I ".join(' -I ',@bam)." ";
 
     $cmd.=" -nt $nt" if $nt > 1;
 
@@ -85,6 +88,7 @@ Options:
     'vcf=s'		=>	\$vcf,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 
