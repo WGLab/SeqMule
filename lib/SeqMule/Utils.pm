@@ -1650,13 +1650,46 @@ sub parseMendelFix
     open IN,'<',$in or croak "ERROR: failed to read $in ($!)\n";
     while(<IN>)
     {
+	    #example
+#ID	NCALL1	CR1	FATHER	FOCALL	FOIBS0	FOIBS1	FOIBS2	FOERROR	MOTHER	MOCALL	MOIBS0	MOIBS1	MOIBS2	MOERROR	TRIOCALL	ADI	PADI	ADO	PADO	NERROR	PPCERROR	NFIX	NCALL2	CR2
+#son	45285	0.999	father	45242	533	19804	24905	1.178109e-02	mother	44994	509	20122	24363	1.131262e-02	44559	215	4.825063e-03	853	1.914316e-02	1068	2.396822e-02	899	44759	0.988
 	if($.==1)
+	{#skip header
+	    1;
+	} else
 	{
-	    #header
-	    # "ID\tNCALL1\tCR1\t"; "FATHER\tFOCALL\tFOIBS0\tFOIBS1\tFOIBS2\tFOERROR\t"; "MOTHER\tMOCALL\tMOIBS0\tMOIBS1\tMOIBS2\tMOERROR\t"; "TRIOCALL\tADI\tPADI\tADO\tPADO\tNERROR\tPPCERROR\t"; "NFIX\tNCALL2\tCR2\n";
+	    my @f = split;
+	    $result{$f[0]} = {
+		ID		=>	$f[0],
+		NCALL1		=>	$f[1],
+		CR1		=>	$f[2],
+		FATHER		=>	$f[3],
+		FOCALL		=>	$f[4],
+		FOIBS0		=>	$f[5],
+		FOIBS1		=>	$f[6],
+		FOIBS2		=>	$f[7],
+		FOERROR		=>	$f[8],
+		MOTHER		=>	$f[9],
+		MOCALL		=>	$f[10],
+		MOIBS0		=>	$f[11],
+		MOIBS1		=>	$f[12],
+		MOIBS2		=>	$f[13],
+		MOERROR		=>	$f[14],
+		TRIOCALL	=>	$f[15],
+		ADI		=>	$f[16],
+		PADI		=>	$f[17],
+		ADO		=>	$f[18],
+		PADO		=>	$f[19],
+		NERROR		=>	$f[20],
+		PPCERROR	=>	$f[21],
+		NFIX		=>	$f[22],
+		NCALL2		=>	$f[23],
+		CR2		=>	$f[24],
+	    };
 	}
-
     }
+    close IN;
+    return \%result;
 }
 
 

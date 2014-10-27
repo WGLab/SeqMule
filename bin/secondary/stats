@@ -59,7 +59,7 @@ GetOptions(
     'N=i'		=>	\$minN,
     'u-vcf=s'		=>	\$union_vcf,
     'plink'		=>	\$plink,
-    'mendel-stat'	=>	\$mendelian_stat;
+    'mendel-stat'	=>	\$mendelian_stat,
     'paternal=s'	=>	\$paternal_id,
     'maternal=s'	=>	\$maternal_id,
     'jmem=s'		=>	\$jmem,
@@ -82,9 +82,9 @@ die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($ven
 die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
 die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
 die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
-die "--vcf and --plink must be used together.\n" unless ($plink && $vcf);
+die "--vcf and --plink must be used together.\n" if ($plink && !$vcf or !$plink && $vcf);
 die "--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
-die "--mendel-stat must be used with --plink" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
+die "--mendel-stat must be used with --plink\n" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
 
 #set default
 $jmem=$jmem||'1750m';
@@ -159,6 +159,10 @@ if (defined $vcf)
     }
     if ($mendelian_stat)
     {
+	warn "\n\n";
+	warn "WARNING: no paternal or maternal ID is specified, not all Mendelian statistics will generated.\n"
+	if (!$paternal_id or !$maternal_id);
+	warn "\n\n";
 	&gen_mendelian_stat({ped=>$ped,map=>$map});
     }
 }
@@ -184,19 +188,21 @@ sub gen_mendelian_stat
     my $mendelfix_pmiss = "$tmp.pmiss";
     my $mendelfix_ped = "$tmp.ped";
     my $mendelfix_map = "$tmp.map";
-    my %stat;
 
-    push @gunlink,$mendelian_stats,$mendelfix_pmiss,$mendelfix_ped,$mendelfix_map;
-    !system($mendelian_stat,$ped,$map,$tmp) or die "ERROR: failed to run mendelFix\n";
+    push @gunlink,$mendelfix_stats,$mendelfix_pmiss,$mendelfix_ped,$mendelfix_map;
+    !system("$mendelfix $ped $map $tmp 1>/dev/null") or die "ERROR: failed to run mendelFix\n";
 
     my %explanation = (
+	ID		=> "Offspring ID",
 	NCALL1		=> "Total number of loci in input",
 	CR1		=> "Proportion of non-missing genotypes in all loci",
+	FATHER		=> "Father ID",
 	FOCALL		=> "Number of calls in both father and offspring",
 	FOIBS0		=> "Number of variants with 0 IBS allele between father and offspring",
 	FOIBS1		=> "Number of variants with 1 IBS allele between father and offspring",
 	FOIBS2		=> "Number of variants with 2 IBS alleles between father and offspring",
 	FOERROR		=> "Proportion of variants with 0 IBS allele in calls shared by father and offspring (Mendelian error)",
+	MOTHER		=> "Mother ID",
 	MOCALL		=> "Number of calls in both mother and offspring",
 	MOIBS0		=> "Number of variants with 0 IBS allele between mother and offspring",
 	MOIBS1		=> "Number of variants with 1 IBS allele between mother and offspring",
@@ -209,17 +215,26 @@ sub gen_mendelian_stat
 	PADO		=> "Proportion of allele drop out among all calls shared by this family",
 	NERROR		=> "Number of Mendelian errors (sum of allele drop in and out)",
 	PPCERROR	=> "Proportion of Mendelian errors in all calls shared by this family",
-	NFIX		=> "Number of genotypes that can be inferred using parents information",
-	NCALL2		=> "Number of loci after fixing genotypes",
-	CR2		=> "Proportion of non-missing genotypes in all loci after fixing genotypes",
+	#NFIX		=> "Number of genotypes that can be inferred using parents information",
+	#NCALL2		=> "Number of loci after fixing genotypes",
+	#CR2		=> "Proportion of non-missing genotypes in all loci after fixing genotypes",
     );
 
     open OUT,'>',$outfile or die "ERROR: failed to write to $outfile ($!)\n";
-    my %stat = &SeqMule::Utils::parseMendelFix($mendelfix_stats);
-    for my $i(sort keys %stat)
+    my %stat = %{&SeqMule::Utils::parseMendelFix($mendelfix_stats)};
+    print OUT "$outfile=Mendelian error stats\n";
+    for my $id(sort keys %stat)
     {
-	print OUT "$explanation{$i}=$stat{$i}\n";
+	for my $j(
+	    qw(ID NCALL1 CR1 FATHER FOCALL FOIBS0 FOIBS1 FOIBS2 FOERROR MOTHER MOCALL MOIBS0 MOIBS1 MOIBS2 MOERROR TRIOCALL ADI PADI ADO PADO NERROR PPCERROR
+	))
+	{
+	    print OUT "$explanation{$j}=$stat{$id}{$j}\n" if $explanation{$j} && $stat{$id}{$j};
+	}
+	print OUT "\n" if defined $stat{$id};
     }
+    close OUT;
+    warn "NOTICE: Mendelian error statistics written to $outfile\n";
 }
 sub vcf2plink
 {
@@ -1071,8 +1086,8 @@ Options:
 	-s,--sample <STRING>	  sample name for VCF file, used for -vcf, -u, -venn, -c options.
 	--plink			  convert VCF to PLINK format (PED,MAP). Only works with --vcf option.
 	--mendel-stat		  generate Mendelian error statistics
-	--paternal		  sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Assume only one family.
-	--maternal		  sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Assume only one family.
+	--paternal		  sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Only one family allowed.
+	--maternal		  sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Only one family allowed.
 	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
 	-jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
 	-t <INT>		  number of threads. Only effective for --aln, --c-vcf and --u-vcf. Default: 1

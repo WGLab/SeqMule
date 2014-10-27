@@ -457,58 +457,72 @@ sub mendelFix{
 	    if($son[$c][0] ne "0" && $son[$c][1] ne "0" )
 	    {
 		#Father-Offspring IBS checks
-		if (&allele_compare($dad[$c],"11",$son[$c],"11"))
+		if (&allele_compare($dad[$c],"11",$son[$c],"22"))
 		{
-		    $fibs_two++;
+		    $fibs_zero++;
 		} elsif (&allele_compare($dad[$c],"11",$son[$c],"12"))
 		{
 		    $fibs_one++;
-		} elsif (&allele_compare($dad[$c],"11",$son[$c],"22"))
-		{
-		    $fibs_zero++;
 		} elsif (&allele_compare($dad[$c],"22",$son[$c],"12"))
 		{
 		    $fibs_one++;
-		} elsif (&allele_compare($dad[$c],"12",$son[$c],"12"))
-		{
-		    $fibs_two++;
 		} elsif (&allele_compare($dad[$c],"12",$son[$c],"11"))
 		{
 		    $fibs_one++;
 		} elsif (&allele_compare($dad[$c],"12",$son[$c],"22"))
 		{
 		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"12"))
+		{
+		    $fibs_two++;
+		} elsif (&allele_compare($dad[$c],"11",$son[$c],"11"))
+		{
+		    $fibs_two++;
+		} elsif ($dad[$c][0] eq '0' && $dad[$c][1] eq '0')
+		{
+		    #dad genotype is missing
+		    #nothing to do
+		    1;
+		} else
+		{
+		    die "ERROR: unknown genotype for dad ",$dad[$c][0]," ",$dad[$c][1],
+		    	" and son ",$son[$c][0]," ",$son[$c][1],"\n";
 		}
 		#print "469:$fibs_zero,$fibs_one,$fibs_two\n";
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($dad[$c],"11",$son[$c],"22") and $mom[$c][0] eq "0");
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($dad[$c],"22",$son[$c],"11") and $mom[$c][0] eq "0");
 		#Monther-Offspring IBS checks      
-		if (&allele_compare($mom[$c],"11",$son[$c],"11"))
+		if (&allele_compare($mom[$c],"11",$son[$c],"22"))
 		{
-		    $mibs_two++;
+		    $mibs_zero++;
 		} elsif (&allele_compare($mom[$c],"11",$son[$c],"12"))
 		{
 		    $mibs_one++;
-		} elsif (&allele_compare($mom[$c],"11",$son[$c],"22"))
-		{
-		    $mibs_zero++;
 		} elsif (&allele_compare($mom[$c],"22",$son[$c],"12"))
 		{
 		    $mibs_one++;
-		} elsif (&allele_compare($mom[$c],"12",$son[$c],"12"))
-		{
-		    $mibs_two++;
 		} elsif (&allele_compare($mom[$c],"12",$son[$c],"11"))
 		{
 		    $mibs_one++;
 		} elsif (&allele_compare($mom[$c],"12",$son[$c],"22"))
 		{
 		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"12"))
+		{
+		    $mibs_two++;
+		} elsif (&allele_compare($mom[$c],"11",$son[$c],"11"))
+		{
+		    $mibs_two++;
+		} elsif ($mom[$c][0] eq '0' && $mom[$c][1] eq '0')
+		{
+		    #dad genotype is missing
+		    #nothing to do
+		    1;
+		} else
+		{
+		    die "ERROR: unknown genotype for mom ",$mom[$c][0]," ",$mom[$c][1],
+		    	" and son ",$son[$c][0]," ",$son[$c][1],"\n";
 		}
-		#$fibs_two++ if (&allele_compare($dad[$c],"22",$son[$c],"22")); #same as 11 vs 11
-		#$fibs_zero++ if (&allele_compare($dad[$c],"22",$son[$c],"11")); #same as "11" vs "22" after we changed the way of comparison
-		#$mibs_zero++ if (&allele_compare($mom[$c],"22",$son[$c],"11")); #same as 11 vs 22
-		#$mibs_two++ if (&allele_compare($mom[$c],"22",$son[$c],"22")); #same as 11 vs 11
 		#print "482:$mibs_zero,$mibs_one,$mibs_two\n";
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"11",$son[$c],"22") and $dad[$c][0] eq "0");
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"22",$son[$c],"11") and $dad[$c][0] eq "0");
@@ -522,14 +536,10 @@ sub mendelFix{
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
 		    $adi++;
-		    #}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
-		    #{#same as 11 11 12
-		    #    $son[$c][0] = $son[$c][1] = "0" ;
-		    #    $adi++;
-		    #}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"11",$mom[$c],"22"))
-		    #{#same as 11 11 22
-		    #    $son[$c][0] = $son[$c][1] = "0" ;
-		    #    $adi++;
+		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $adi++;
 		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"12") and &allele_compare($son[$c],"22",$mom[$c],"12"))
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
@@ -550,46 +560,35 @@ sub mendelFix{
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
 		    $ado++;
-		    #}elsif(&allele_compare($dad[$c],"22",$mom[$c],"11") and &allele_compare($son[$c],"11",$mom[$c],"11"))
-		    #{#same as 11 22 22
-		    #    $son[$c][0] = $son[$c][1] = "0" ;
-		    #    $ado++;
 		}elsif(&allele_compare($dad[$c],"12",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"12"))
 		{
 		    $son[$c][0] = $son[$c][1] = "0" ;
 		    $ado++;
-		    #}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"11"))
-		    #{#same as 22 11 22
-		    #    $son[$c][0] = $son[$c][1] = "0" ;
-		    #    $ado++;
+		} else
+		{
+		    #can not decide whether ADI or ADO occurs
+		    1;
 		}
 	    }
 	    if($son[$c][0] eq "0"){
 		die "ERROR: if one allele is missing, both should be marked as 0\n"
 		unless $son[$c][1] eq '0';
-		if(&allele_compare($dad[$c],"12",$mom[$c],"12"))
-		{
-		    next;
-		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"11"))
-		{
-		    @{$son[$c]}=@{$dad[$c]};
-		    $nfixed++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22"))
-		{
+		if(&allele_compare($dad[$c],"11",$mom[$c],"11"))
+		{#22 22 is the same
 		    @{$son[$c]}=@{$dad[$c]};
 		    $nfixed++;
 		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22"))
 		{
-		    #assume 1 (ref allele) is ahead of 2(alt)
+		    #here's a bug
+		    #we assume the order of ref/alt is the same for all variants
+		    #however, we cannot know which is ref and which is alt here
 		    $son[$c][0]=$dad[$c][0];
 		    $son[$c][1]=$mom[$c][0];
 		    $nfixed++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"11"))
+		} else
 		{
-		    #assume 1 (ref allele) is ahead of 2(alt)
-		    $son[$c][1]=$dad[$c][0];
-		    $son[$c][0]=$mom[$c][0];
-		    $nfixed++;
+		    #we can not make any guess about offspring genotype
+		    1;
 		}
 	    }
 	}
