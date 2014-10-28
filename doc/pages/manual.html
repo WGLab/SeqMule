@@ -141,6 +141,10 @@ $(window).load(function() {
 	--u-vcf &ltLIST&gt            comma separated list of SORTED VCF files for extracting union calls. *.vcf or *.vcf.gz suffix required
 	--ref &ltFASTA&gt             reference file in FASTA format. Effective for --c-vcf and --u-vcf.
 	-s,--sample &ltSTRING&gt      sample name for VCF file, used for -vcf, -u, -venn, -c options.
+	--plink			      convert VCF to PLINK format (PED,MAP). Only works with --vcf option.
+	--mendel-stat		      generate Mendelian error statistics
+	--paternal &ltSTRING&gt	      sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Only one family allowed.
+	--maternal &ltSTRING&gt       sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Only one family allowed.
 	-N &ltINT&gt                  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
 	-jmem &ltSTRING&gt            max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
 	-t &ltINT&gt                  number of threads. Only effective for --c-vcf and --u-vcf. Default: 1
@@ -177,6 +181,9 @@ $(window).load(function() {
 	#extract variants in specified region generate variant statistics
 	seqmule stats -vcf sample.vcf -capture region.bed
 
+	#generate Mendelian error statistics
+	#NOTE, sample.vcf contains 3 samples!
+	seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother
 	    </code></pre>
 
 	    <h3 id="q3">seqmule pipeline</h3>

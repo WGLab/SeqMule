@@ -1088,8 +1088,8 @@ Options:
 	-s,--sample <STRING>	  sample name for VCF file, used for -vcf, -u, -venn, -c options.
 	--plink			  convert VCF to PLINK format (PED,MAP). Only works with --vcf option.
 	--mendel-stat		  generate Mendelian error statistics
-	--paternal		  sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Only one family allowed.
-	--maternal		  sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Only one family allowed.
+	--paternal <STRING>	  sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Only one family allowed.
+	--maternal <STRING>	  sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Only one family allowed.
 	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
 	-jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
 	-t <INT>		  number of threads. Only effective for --aln, --c-vcf and --u-vcf. Default: 1
@@ -1127,6 +1127,10 @@ Options:
 
 	#extract variants in specified region generate variant statistics
 	seqmule stats -vcf sample.vcf -capture region.bed
+
+	#generate Mendelian error statistics
+	#NOTE, sample.vcf contains 3 samples!
+	seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother
 
 =head1 OPTIONS
 
