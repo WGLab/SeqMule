@@ -60,7 +60,8 @@ sub stat_gen_for_summary
     my $aln_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_aln_stat.txt");
     my $var_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_var_stat.txt");
     my $cov_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_cov_stat.txt");
-    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file);
+    my $mendel_stat_file = File::Spec->catfile("..",$result_folder,"${sample}_mendel_stat.txt");
+    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file,$mendel_stat_file);
 
     for my $item(@action)
     {
@@ -104,6 +105,14 @@ sub stat_gen_for_summary
 		{
 		    $result.=$$_[1]." indels are found.</br>";
 		}
+		if ($$_[0]=~/Number of Mendelian errors/i)
+		{
+		    $result.="Number of Mendelian errors is ".$$_[1]."</br>";
+		}
+		if ($$_[0]=~/Proportion of Mendelian errors/i)
+		{
+		    $result.="Proportion of Mendelian errors in all calls shared by this family: ".$$_[1]."</br>";
+		}
 	    }
 	}
     }
@@ -119,7 +128,8 @@ sub stat_table_gen
     my $var_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_var_stat.txt");
     my $qc_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_qc_stat.txt");
     my $cov_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_cov_stat.txt");
-    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file);
+    my $mendel_stat_file = File::Spec->catfile("..",$result_folder,"${sample}_mendel_stat.txt");
+    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file,$mendel_stat_file);
 
     for my $item(@action)
     {
@@ -139,7 +149,7 @@ sub stat_table_gen
 
 	    for (@lines[0..$#lines])
 	    {
-		if ($$_[1]=~/QC stats|Alignment stats|Variant stats|Coverage stats/)#for paired end sequencing data
+		if ($$_[1]=~/QC stats|Alignment stats|Variant stats|Coverage stats|Mendelian error stats/)#for paired end sequencing data
 		{
 		    $result.="<table><caption>".$$_[1]."</caption>\n";
 		    $result.="<tr><td colspan=2>source: ".$$_[0]."</td></tr>\n";
