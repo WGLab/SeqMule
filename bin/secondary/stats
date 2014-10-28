@@ -159,10 +159,11 @@ if (defined $vcf)
     }
     if ($mendelian_stat)
     {
-	warn "\n\n";
-	warn "WARNING: no paternal or maternal ID is specified, not all Mendelian statistics will generated.\n"
+	warn "\n\n" and 
+	warn "WARNING: no paternal or maternal ID is specified, 
+	not all Mendelian statistics will generated.\n" and
+	warn "\n\n"
 	if (!$paternal_id or !$maternal_id);
-	warn "\n\n";
 	&gen_mendelian_stat({ped=>$ped,map=>$map});
     }
 }

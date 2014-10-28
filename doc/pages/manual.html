@@ -299,6 +299,33 @@ $(window).load(function() {
 	</code></pre>
 	<p>Go to <a href="tutorial.html#q9">here</a> for details about the script file.</p>
 
+	<h3 id="q5">seqmule update</h3>
+	<pre><code>
+	<strong>Synopsis</strong>:
+
+        seqmule update &ltoptions&gt
+
+	<strong>Options</strong>:
+
+        --git			update from GitHub
+        --install			automatically upgrade 3rd party tools
+        --tmpdir &ltDIR&gt	temporary folder for storing copy of downloaded stuff. Default is $TMPDIR
+        or /tmp
+        -h,--help			help
+
+	<strong>Examples</strong>:
+        #update SeqMule to the latest version hosted on SeqMule website
+        seqmule update
+
+        #update SeqMule to the latest version on GitHub
+        seqmule update --git
+
+        #update 3rd party tools if newer version are introduced into SeqMule
+        seqmule update --install
+
+        #it's okay to combine --git and --install options
+        seqmule update --install --git
+	</code></pre>
 	    </div> <!-- end of main -->
 	    
 	    <div id="templatemo_footer">

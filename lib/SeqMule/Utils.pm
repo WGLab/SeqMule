@@ -357,7 +357,7 @@ sub search
 	#if multiple targets are found, only the last one will be output
 	return $path_to_target if $path_to_target;
     }
-    warn "ERROR: Failed to find $target\nPlease use \'cd $install_dir\' and then \'./Build installexes\' or add path to $target to PATH environmental variable\n" and sleep 2 and return 0;
+    croak "ERROR: Failed to find $target\nPlease use \'cd $install_dir\' and then \'./Build installexes\' or add path to $target to PATH environmental variable\n";
 }
 
 
