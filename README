@@ -1,6 +1,5 @@
 SeqMule Manual
 Author: Yunfei Guo
-v1.1.0
 
 INTRODUCTION
 SeqMule takes single-end or paird-end FASTQ or BAM files, generates a script consisting of more than 10 popular alignment, analysis tools and runs the script line by line. Users can change the pipeline or fine-tune the parameters by modifying its configuration file. SeqMule also has some built-in functions, such as pooling consensus calls from various callers, plotting a Venn diagram showing intersection among different callers, and downloading databases.
@@ -75,6 +74,10 @@ seqmule stats
     	--u-vcf <LIST>            comma separated list of SORTED VCF files for extracting union calls. *.vcf or *.vcf.gz suffix required
     	--ref <FASTA>             reference file in FASTA format. Effective for --c-vcf and --u-vcf.
     	-s,--sample <STRING>      sample name for VCF file, used for variant stats calculation
+	--plink			  convert VCF to PLINK format (PED,MAP). Only works with --vcf option.
+	--mendel-stat		  generate Mendelian error statistics
+	--paternal <STRING>	  sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Only one family allowed.
+	--maternal <STRING>	  sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Only one family allowed.
     	-N <INT>                  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
     	-jmem <STRING>            max java memory. Only effective for --c-vcf and --u-vcf. Default: 3g
     	--tmpdir <DIR>	      use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
@@ -111,6 +114,9 @@ seqmule stats
     	#extract variants in specified region generate variant statistics
     	seqmule stats -vcf sample.vcf -capture region.bed
 
+	#generate Mendelian error statistics
+	#NOTE, sample.vcf contains 3 samples!
+	seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother
 
 seqmule pipeline
 
@@ -201,3 +207,30 @@ seqmule pipeline
 	#analyze gzipped FASTQ files (.fq.gz) and unzipped files (.fq). Gzipped files will be unpacked temporarily and be removed after analysis.
 	seqmule pipeline -a sample1.1.fq.gz,sample2.1.fq -b sample1.2.fq.gz,sample2.2.fq -e -prefix sample1,sample2 -capture default
 
+seqmule update
+
+    Synopsis:
+
+    seqmule update <options>
+
+    Options:
+
+      --git			update from GitHub
+      --install			automatically upgrade 3rd party tools
+      --tmpdir <DIR>		temporary folder for storing copy of downloaded stuff. Default is $TMPDIR
+      or /tmp
+      -h,--help			help
+
+    Examples:
+
+      #update SeqMule to the latest version hosted on SeqMule website
+      seqmule update
+
+      #update SeqMule to the latest version on GitHub
+      seqmule update --git
+
+      #update 3rd party tools if newer version are introduced into SeqMule
+      seqmule update --install
+
+      #it's okay to combine --git and --install options
+      seqmule update --install --git

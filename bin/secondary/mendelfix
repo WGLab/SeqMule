@@ -1,0 +1,656 @@
+#!/usr/bin/env perl
+#
+use strict;
+use warnings;
+
+# Modified by Yunfei Guo (guoyunfei1989@gmail.com) in October, 2014
+#
+#mendelFix
+#Version: v1.0
+#Date: 10 May 2013
+#Description: script to correct Mendelian errors in trio designs
+#Written by: Yuri Tani Utsunomiya - ytutsunomiya@gmail.com
+#Input: 12-recoded PLINK PED and MAP files
+#Usage: perl mendelfix.pl pedfile mapfile outfile
+
+# Copyright (C) 2013  Yuri Tani Utsunomiya
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    any later version.
+
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#Welcome header
+#print "\n\n\n\n";
+#print "O---------------------------------------------------O\n";
+#print "|              mendelFix v1.0 (May 2013)            |\n";
+#print "|---------------------------------------------------|\n";
+#print "|  Correction of SNP Mendelian errors in trio data  |\n";
+#print "|---------------------------------------------------|\n";
+#print "|      (C) 2013 Yuri Tani Utsunomiya | GPL v3       |\n";
+#print "O---------------------------------------------------O\n\n\n";
+#
+#print "Hello there! Thanks for using mendelFix!\n\n";
+#print "It is easy to cite us:\n";
+#print "Utsunomiya YT, Alonso RV, Carmo AS, Campagnari F, Visintin J, Garcia JF (2013).\n";
+#print "mendelFix: a Perl script for checking Mendelian errors in high density SNP data of trio designs.\n";
+#print "arXiv:1306.2243.\n";
+#print "Questions or bugs? Contact Yuri: ytutsunomiya\@gmail.com\n\n\n";
+#print "Analysis started: ".(localtime)."\n\n\n";
+
+#Check options
+die "FATAL ERROR\nYour command line seems to have an incorrect number of provided arguments...\nUsage: perl mendelfix.pl pedfile mapfile outfile [chromosomes to ignore]\n\n\n\n", if (@ARGV < 3);
+my $ped = $ARGV[0];
+my $map = $ARGV[1];
+my $pmiss = $ARGV[2].".pmiss";
+my $stats = $ARGV[2].".stats";
+my $outped = $ARGV[2].".ped";
+my $outmap = $ARGV[2].".map";
+
+
+#Subroutine prototypes
+sub getMap;
+sub getIDs;
+sub getGenotypes;
+sub mendelFix;
+
+
+#Open outfiles
+open (PMISS,">$pmiss");
+open (STATS,">$stats");
+print STATS "ID\tNCALL1\tCR1\t";
+print STATS "FATHER\tFOCALL\tFOIBS0\tFOIBS1\tFOIBS2\tFOERROR\t";
+print STATS "MOTHER\tMOCALL\tMOIBS0\tMOIBS1\tMOIBS2\tMOERROR\t";
+print STATS "TRIOCALL\tADI\tPADI\tADO\tPADO\tNERROR\tPPCERROR\t";
+print STATS "NFIX\tNCALL2\tCR2\n";
+open (OUTPED,">$outped");
+open (OUTMAP,">$outmap");
+
+
+#Main script
+my ($chr, $snp, $cM, $bp) = getMap($map);
+my @chr = @$chr;
+my @snp = @$snp;
+my @cM = @$cM;
+my @bp = @$bp;
+my %seen=();
+my @chr_out;
+my @uniq = grep { ! $seen{$_}++ } @chr;
+print "Read SNP map information from ".$map.". Found ".($#snp+1)." SNPs in ".($#uniq+1)." chromosomes.\n";
+if($#ARGV == 3){
+    print "Chromosome ".$ARGV[3]." will not be checked for Mendelian errors.\n";
+}elsif($#ARGV > 3){
+    @chr_out=@ARGV[3..$#ARGV];
+    print "The following chromosomes will not be checked for Mendelian errors:\n".join(", ",@chr_out[0..($#chr_out-1)])." and ";
+    print $chr_out[$#chr_out]."\n";
+}else{
+    print "All chromosomes will be analyzed.\n";
+}
+my ($fam, $id, $sire, $dam, $sex, $phen) = getIDs($ped,$#snp+1);
+my @fam = @$fam;
+my @id = @$id;
+my @sire = @$sire;
+my @dam = @$dam;
+my @sex = @$sex;
+my @phen = @$phen;
+print "Read pedigree data from ".$ped.". Found ".($#id+1)." individuals.\n";
+print "Individuals with missing parent will be reported in ".$pmiss.", and will not be fixed.\n";
+print "Excuting the main algorithm...\n";
+print "1st step: offspring genotypes with Mendelian errors will be set to missing.\n";
+print "2nd step: parent information will be used to infer missing genotypes in the offspring (following Mendel's 1st law).\n";
+print "Summary statistics will be reported in ".$stats.".\n";
+for (my $count = 0; $count <= $#id; $count++){
+    my $sire_index = "";
+    my $dam_index = "";
+    if($sire[$count] eq "0" or $dam[$count] eq "0"){
+	print PMISS $id[$count]."\n";
+	my ($id_geno,$id_cr,$id_ncalls) = getGenotypes($ped,$count+1);
+	#$id_geno=~s/ //g;
+	#my @a=($id_geno=~m/./g);
+	#$id_geno = join(" ",@a);
+	print OUTPED $fam[$count]." ".$id[$count]." ".$sire[$count]." ".$dam[$count]." ".$sex[$count]." ".$phen[$count]." ".(join " ",map {($_->[0],$_->[1])} @$id_geno)."\n";
+    }else{
+	my ($sire_index) = grep {$id[$_] eq $sire[$count]}(0..$#id);
+	my ($dam_index) = grep {$id[$_] eq $dam[$count]}(0..$#id);
+	if(defined $sire_index and defined $dam_index and $sire_index ne "" and $dam_index ne ""){
+	    my ($id_geno,$id_cr,$id_ncalls) = getGenotypes($ped,$count+1);
+	    my ($sire_geno,$sire_cr, $sire_ncalls) = getGenotypes($ped,$sire_index+1);
+	    my ($dam_geno,$dam_cr, $dam_ncalls) = getGenotypes($ped,$dam_index+1);
+	    my ($id_geno_fixed,$id_cr_fixed,$id_ncalls_fixed,$id_adi,$id_ado,$id_nfixed,$id_nerrors,$fibs_zero,$fibs_one,$fibs_two,$mibs_zero,$mibs_one,$mibs_two,$trio_ncalls) = mendelFix($sire_geno,$dam_geno,$id_geno,\@chr,\@chr_out);
+	    my ($id_errorrate,$fo_ncalls,$mo_ncalls,$foerror,$moerror,$id_p_adi,$id_p_ado);
+	    if($id_ncalls >= 1){
+		$fo_ncalls=$fibs_zero+$fibs_one+$fibs_two;
+		if($fo_ncalls < 1){
+		    $fibs_zero="NA";
+		    $fibs_one="NA";
+		    $fibs_two="NA";
+		}
+		$mo_ncalls=$mibs_zero+$mibs_one+$mibs_two;
+		if($mo_ncalls < 1){
+		    $mibs_zero="NA";
+		    $mibs_one="NA";
+		    $mibs_two="NA";
+		}
+		if($fibs_zero ne "NA"){
+		    $foerror=sprintf("%e",$fibs_zero/$fo_ncalls);
+		}else{
+		    $foerror="NA";
+		}
+		if($mibs_zero ne "NA"){
+		    $moerror=sprintf("%e",$mibs_zero/$mo_ncalls);
+		}else{
+		    $moerror="NA"
+		}
+		if($trio_ncalls >= 1){
+		    $id_p_adi=sprintf("%e",$id_adi/$trio_ncalls);
+		    $id_p_ado=sprintf("%e",$id_ado/$trio_ncalls);
+		    $id_errorrate=sprintf("%e",$id_nerrors/$trio_ncalls);
+		}else{
+		    $id_adi="NA";
+		    $id_p_adi="NA";
+		    $id_ado="NA";
+		    $id_p_ado="NA";
+		    $id_errorrate="NA";
+		    $id_nerrors="NA";
+		}
+	    }else{
+		$fo_ncalls=0;
+		$fibs_zero="NA";
+		$fibs_one="NA";
+		$fibs_two="NA";
+		$foerror="NA";
+		$mo_ncalls=0;
+		$mibs_zero="NA";
+		$mibs_one="NA";
+		$mibs_two="NA";
+		$moerror="NA";
+		$id_adi="NA";
+		$id_p_adi="NA";
+		$id_ado="NA";
+		$id_p_ado="NA";
+		$id_nerrors="NA";
+		$id_errorrate="NA";
+	    }
+	    print STATS $id[$count]."\t".$id_ncalls."\t".$id_cr."\t";
+	    print STATS $sire[$count]."\t".$fo_ncalls."\t".$fibs_zero."\t".$fibs_one."\t".$fibs_two."\t".$foerror."\t";
+	    print STATS $dam[$count]."\t".$mo_ncalls."\t".$mibs_zero."\t".$mibs_one."\t".$mibs_two."\t".$moerror."\t";
+	    print STATS $trio_ncalls."\t".$id_adi."\t".$id_p_adi."\t".$id_ado."\t".$id_p_ado."\t".$id_nerrors."\t".$id_errorrate."\t";
+	    print STATS $id_nfixed."\t".$id_ncalls_fixed."\t".$id_cr_fixed."\n";
+	    print OUTPED $fam[$count]." ".$id[$count]." ".$sire[$count]." ".$dam[$count]." ".$sex[$count]." ".$phen[$count]." ".$id_geno_fixed."\n";
+	}
+    }
+}
+print "Wrote fixed genotypes to ".$outped.".\n";
+for (my $count = 0; $count <= $#snp; $count++){
+    print OUTMAP $chr[$count]."\t".$snp[$count]."\t".$cM[$count]."\t".$bp[$count]."\n";
+}
+print "Wrote new mapfile to ".$outmap.".\n";
+
+#Close outfiles
+close PMISS;
+close STATS;
+close OUTPED;
+close OUTMAP;
+
+#Goodbye message
+print "\n\nAnalysis done: ".(localtime)."\nSee you!!!!\n\n\n\n";
+
+
+#Subroutines used
+sub getMap{
+    my @line="";
+    my @chr="";
+    my @snp="";
+    my @cM="";
+    my @bp="";
+    open (IN, $_[0]);
+    while(<IN>){
+	$_=~s/\n//;
+	$_=~s/\r//;
+	next if($_ eq "");
+	@line=split(/\t/,$_);
+	if ($#line != 3){
+	    print "\nFATAL ERROR\n";
+	    print "Your map file ".$_[0]." does not seem to have 4 tab-delimited columns at line ".$..":\n";
+	    print "\"".substr($_, 0, 50)."...\"\n";
+	    die "\nmendelFix will now halt!\n\n\n\n";
+	}
+	push(@chr,$line[0]);
+	push(@snp,$line[1]);
+	push(@cM,$line[2]);
+	push(@bp,$line[3]);
+    }
+    @chr = @chr[1..$#chr];
+    @snp = @snp[1..$#snp];
+    @cM = @cM[1..$#cM];
+    @bp = @bp[1..$#bp];
+    close IN; 
+    return(\@chr,\@snp,\@cM,\@bp);
+}
+
+sub getIDs{
+    my $nsnp = $_[1];
+    my $ncol = ((2*$nsnp)+6);
+    my @line="";
+    my @fam="";
+    my @id="";
+    my @sire="";
+    my @dam="";
+    my @sex="";
+    my @phen="";
+    my $ped = $_[0];
+    open (IN, $ped);
+    while(<IN>){
+	$_=~s/\n//;
+	$_=~s/\r//;
+	next if($_ eq "");
+	@line=split(" ",$_);
+	if($#line != $ncol-1){
+	    print "\nFATAL ERROR\n";
+	    print "Your ped file ".$ped." does not seem to have ".$ncol." (2*".$nsnp." SNPs + 6) space-delimited columns at line ".$..":\n";
+	    print "\"".substr($_, 0, 50)."...\"\n";
+	    die "\nmendelFix will now halt!\n\n\n\n";
+	}
+	push(@fam,$line[0]);
+	push(@id,$line[1]);
+	push(@sire,$line[2]);
+	push(@dam,$line[3]);
+	push(@sex,$line[4]);
+	push(@phen,$line[5]);
+    }
+    @fam = @fam[1..$#fam];
+    @id = @id[1..$#id];
+    @sire = @sire[1..$#sire];
+    @dam = @dam[1..$#dam];
+    @sex = @sex[1..$#sex];
+    @phen = @phen[1..$#phen];
+    close IN; 
+    return(\@fam,\@id,\@sire,\@dam,\@sex,\@phen);
+}
+
+sub getGenotypes{
+    my @geno="";
+    my $a="";
+    my $nsnps="";
+    my $ncalls="";
+    my $genotypes="";
+    my $callrate="";
+    my $ped = $_[0];
+    my $id = $_[1];
+    open (IN, $_[0]);
+    while(<IN>){
+	if($. == $id){
+	    $_=~s/\n//;
+	    $_=~s/\r//;
+	    @geno=split(" ",$_);
+	    @geno = @geno[6..$#geno];
+	    $a = join("",@geno);
+	    #not necessarily two characters any more
+	    die "ERROR: expect even number of genotypes at line $.\n" unless (scalar @geno)%2==0;
+	    my @biallele_geno;
+	    for my $i(0..((scalar @geno)/2-1))
+	    {
+		$biallele_geno[$i] = [@geno[$i*2,$i*2+1]];
+	    }
+	    @geno = @biallele_geno;
+	    #@geno=($a=~m/../g);
+	    #allow any character in genotype. 0 stands for missing.
+	    #if (grep(!/(11|12|22|00)/,@geno)){
+	    #  print "\nFATAL ERROR\n";
+	    #  print "Your ped file ".$_[0]." seems to have an unsupported allele coding at line ".$..":\n";
+	    #  print "\"".substr($_, 0, 50)."...\"\n";
+	    #  print "Coding should be 0 = missing, 1 = reference (or minor) allele, and 2 = alternative (or major) allele\n";
+	    #  print "Tip: you can easily obtain this type of coding using the --recode12 option in PLINK\n";
+	    #  die "\nmendelFix will now halt!\n\n\n\n";
+	    #}
+	    #if one allele is missing, both should be 0
+	    if (grep {$_->[0] ne $_->[1] && ($_->[0] eq '0' or $_->[1] eq '0')} @geno){
+		print "\nFATAL ERROR\n";
+		print "Your ped file $ped seems to have an unsupported allele coding at line ".$..":\n";
+		print "If one allele is missing (0), both should be marked as 0\n";
+		die "\nmendelFix will now halt!\n\n\n\n";
+	    }
+	    #my @call = grep {$geno[$_]  ne "00"}(0..$#geno);
+	    my @call = grep {$geno[$_][0] ne "0" && $geno[$_][1] ne "0"}(0..$#geno);
+	    $nsnps=$#geno+1;
+	    $ncalls=$#call+1;
+	    $callrate=sprintf("%.3f",$ncalls/$nsnps);
+	}
+    }
+    close IN;
+    #return($genotypes,$callrate,$ncalls);
+    return(\@geno,$callrate,$ncalls);
+}
+
+
+sub mendelFix{
+    my @snp_chr=@{$_[3]};
+    my @snp_out=@{$_[4]};
+    my @dad="";
+    my @mom="";
+    my @son="";
+    my $a="";
+    my $nsnps="";
+    my $ncalls="";
+    my $fixed_genotypes="";
+    my $callrate="";
+    my $nerrors=0;
+    my $adi=0;
+    my $ado=0;
+    my $nfixed=0;
+    my $p_fixed=0;
+    my $analyze = 1;
+    my $fibs_zero = 0;
+    my $fibs_one = 0;
+    my $fibs_two = 0;
+    my $mibs_zero = 0;
+    my $mibs_one = 0;
+    my $mibs_two = 0;
+    my $trio_ncalls = 0;
+    #@dad = split(/ /,$_[0]);
+    #@mom = split(/ /,$_[1]);
+    #@son = split(/ /,$_[2]);
+    @dad = @{$_[0]};
+    @mom = @{$_[1]};
+    @son = @{$_[2]};
+    for (my $c = 0; $c <= $#son; $c++){
+	if(@snp_out and $snp_chr[$c] ~~ @snp_out){
+	    $analyze=0;
+	}else{
+	    $analyze=1;
+	}
+	# if($analyze == 1){
+	#  if($son[$c] ne "00"){
+	#     #Father-Offspring IBS checks
+	#     $fibs_two++, if ($dad[$c] eq "11" and $son[$c] eq "11");
+	#     $fibs_one++, if ($dad[$c] eq "11" and $son[$c] eq "12");
+	#     $fibs_zero++, if ($dad[$c] eq "11" and $son[$c] eq "22");
+	#     $fibs_two++, if ($dad[$c] eq "22" and $son[$c] eq "22");
+	#     $fibs_one++, if ($dad[$c] eq "22" and $son[$c] eq "12");
+	#     $fibs_zero++, if ($dad[$c] eq "22" and $son[$c] eq "11");
+	#     $fibs_two++, if ($dad[$c] eq "12" and $son[$c] eq "12");
+	#     $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "11");
+	#     $fibs_one++, if ($dad[$c] eq "12" and $son[$c] eq "22");
+	#     $son[$c] = "00", if($dad[$c] eq "11" and $son[$c] eq "22" and $mom[$c] eq "00");
+	#     $son[$c] = "00", if($dad[$c] eq "22" and $son[$c] eq "11" and $mom[$c] eq "00");
+	#     #Monther-Offspring IBS checks      
+	#     $mibs_two++, if ($mom[$c] eq "11" and $son[$c] eq "11");
+	#     $mibs_one++, if ($mom[$c] eq "11" and $son[$c] eq "12");
+	#     $mibs_zero++, if ($mom[$c] eq "11" and $son[$c] eq "22");
+	#     $mibs_two++, if ($mom[$c] eq "22" and $son[$c] eq "22");
+	#     $mibs_one++, if ($mom[$c] eq "22" and $son[$c] eq "12");
+	#     $mibs_zero++, if ($mom[$c] eq "22" and $son[$c] eq "11");
+	#     $mibs_two++, if ($mom[$c] eq "12" and $son[$c] eq "12");
+	#     $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "11");
+	#     $mibs_one++, if ($mom[$c] eq "12" and $son[$c] eq "22");
+	#     $son[$c] = "00", if($mom[$c] eq "11" and $son[$c] eq "22" and $dad[$c] eq "00");
+	#     $son[$c] = "00", if($mom[$c] eq "22" and $son[$c] eq "11" and $dad[$c] eq "00");
+	#     #Set to missing ADI/ADO occurences
+	#     $trio_ncalls++, if($dad[$c] ne "00" and $mom[$c] ne "00");
+	#     if($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "12"){
+	#       $son[$c] = "00";
+	#       $adi++;
+	#     }elsif($dad[$c] eq "11" and $mom[$c] eq "11" and $son[$c] eq "22"){
+	#       $son[$c] = "00";
+	#       $adi++;
+	#     }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "12"){
+	#       $son[$c] = "00";
+	#       $adi++;
+	#     }elsif($dad[$c] eq "22" and $mom[$c] eq "22" and $son[$c] eq "11"){
+	#       $son[$c] = "00";
+	#       $adi++;
+	#     }elsif($dad[$c] eq "11" and $mom[$c] eq "12" and $son[$c] eq "22"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "22"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "12" and $mom[$c] eq "11" and $son[$c] eq "22"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "22"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "22" and $mom[$c] eq "12" and $son[$c] eq "11"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "22" and $mom[$c] eq "11" and $son[$c] eq "11"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "12" and $mom[$c] eq "22" and $son[$c] eq "11"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }elsif($dad[$c] eq "11" and $mom[$c] eq "22" and $son[$c] eq "11"){
+	#       $son[$c] = "00";
+	#       $ado++;
+	#     }
+	#   }
+	#   if($son[$c] eq "00"){
+	#      if($dad[$c] eq "12" or $mom[$c] eq "12"){
+	#        next;
+	#      }elsif($dad[$c] eq "11" and $mom[$c] eq "11"){
+	#        $son[$c]="11";
+	#        $nfixed++;
+	#      }elsif($dad[$c] eq "22" and $mom[$c] eq "22"){
+	#        $son[$c]="22";
+	#        $nfixed++;
+	#      }elsif($dad[$c] eq "11" and $mom[$c] eq "22"){
+	#        $son[$c]="12";
+	#        $nfixed++;
+	#      }elsif($dad[$c] eq "22" and $mom[$c] eq "11"){
+	#        $son[$c]="12";
+	#        $nfixed++;
+	#      }
+	#   }
+	#}
+	if($analyze == 1)
+	{
+	    if($son[$c][0] ne "0" && $son[$c][1] ne "0" )
+	    {
+		#Father-Offspring IBS checks
+		if (&allele_compare($dad[$c],"11",$son[$c],"22"))
+		{
+		    $fibs_zero++;
+		} elsif (&allele_compare($dad[$c],"11",$son[$c],"12"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"22",$son[$c],"12"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"11"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"22"))
+		{
+		    $fibs_one++;
+		} elsif (&allele_compare($dad[$c],"12",$son[$c],"12"))
+		{
+		    $fibs_two++;
+		} elsif (&allele_compare($dad[$c],"11",$son[$c],"11"))
+		{
+		    $fibs_two++;
+		} elsif ($dad[$c][0] eq '0' && $dad[$c][1] eq '0')
+		{
+		    #dad genotype is missing
+		    #nothing to do
+		    1;
+		} else
+		{
+		    die "ERROR: unknown genotype for dad ",$dad[$c][0]," ",$dad[$c][1],
+		    	" and son ",$son[$c][0]," ",$son[$c][1],"\n";
+		}
+		#print "469:$fibs_zero,$fibs_one,$fibs_two\n";
+		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($dad[$c],"11",$son[$c],"22") and $mom[$c][0] eq "0");
+		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($dad[$c],"22",$son[$c],"11") and $mom[$c][0] eq "0");
+		#Monther-Offspring IBS checks      
+		if (&allele_compare($mom[$c],"11",$son[$c],"22"))
+		{
+		    $mibs_zero++;
+		} elsif (&allele_compare($mom[$c],"11",$son[$c],"12"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"22",$son[$c],"12"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"11"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"22"))
+		{
+		    $mibs_one++;
+		} elsif (&allele_compare($mom[$c],"12",$son[$c],"12"))
+		{
+		    $mibs_two++;
+		} elsif (&allele_compare($mom[$c],"11",$son[$c],"11"))
+		{
+		    $mibs_two++;
+		} elsif ($mom[$c][0] eq '0' && $mom[$c][1] eq '0')
+		{
+		    #dad genotype is missing
+		    #nothing to do
+		    1;
+		} else
+		{
+		    die "ERROR: unknown genotype for mom ",$mom[$c][0]," ",$mom[$c][1],
+		    	" and son ",$son[$c][0]," ",$son[$c][1],"\n";
+		}
+		#print "482:$mibs_zero,$mibs_one,$mibs_two\n";
+		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"11",$son[$c],"22") and $dad[$c][0] eq "0");
+		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"22",$son[$c],"11") and $dad[$c][0] eq "0");
+		#Set to missing ADI/ADO occurences
+		$trio_ncalls++, if($dad[$c][0] ne "0" and $dad[$c][1] ne "0" and $mom[$c][0] ne "0" and $mom[$c][1] ne "0");
+		if(&allele_compare($dad[$c],"11",$mom[$c],"11") and &allele_compare($son[$c],"12",$mom[$c],"11"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $adi++;
+		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"11") and &allele_compare($son[$c],"22",$mom[$c],"11"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $adi++;
+		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $adi++;
+		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"12") and &allele_compare($son[$c],"22",$mom[$c],"12"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $ado++;
+		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22") and &allele_compare($son[$c],"22",$mom[$c],"22"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $ado++;
+		}elsif(&allele_compare($dad[$c],"12",$mom[$c],"11") and &allele_compare($son[$c],"22",$dad[$c],"12"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $ado++;
+		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"11") and &allele_compare($son[$c],"22",$dad[$c],"22"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $ado++;
+		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"12") and &allele_compare($son[$c],"11",$mom[$c],"12"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $ado++;
+		}elsif(&allele_compare($dad[$c],"12",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"12"))
+		{
+		    $son[$c][0] = $son[$c][1] = "0" ;
+		    $ado++;
+		} else
+		{
+		    #can not decide whether ADI or ADO occurs
+		    1;
+		}
+	    }
+	    if($son[$c][0] eq "0"){
+		die "ERROR: if one allele is missing, both should be marked as 0\n"
+		unless $son[$c][1] eq '0';
+		if(&allele_compare($dad[$c],"11",$mom[$c],"11"))
+		{#22 22 is the same
+		    @{$son[$c]}=@{$dad[$c]};
+		    $nfixed++;
+		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22"))
+		{
+		    #here's a bug
+		    #we assume the order of ref/alt is the same for all variants
+		    #however, we cannot know which is ref and which is alt here
+		    $son[$c][0]=$dad[$c][0];
+		    $son[$c][1]=$mom[$c][0];
+		    $nfixed++;
+		} else
+		{
+		    #we can not make any guess about offspring genotype
+		    1;
+		}
+	    }
+	}
+    }
+    #my @call = grep {$son[$_] ne "00"}(0..$#son);
+    my @call = grep {$son[$_][0] ne "0" && $son[$_][1] ne "0"}(0..$#son);
+    $nsnps=$#son+1;
+    $ncalls=$#call+1;
+    $nerrors=$adi+$ado;
+    $callrate=sprintf("%.3f",$ncalls/$nsnps);
+    #$a=join("",@son);
+    #my @a=($a=~m/./g);
+    #$fixed_genotypes = join(" ",@a);
+    $fixed_genotypes = join(" ",map{($_->[0],$_->[1])} @son);
+    return($fixed_genotypes,$callrate,$ncalls,$adi,$ado,$nfixed,$nerrors,$fibs_zero,$fibs_one,$fibs_two,$mibs_zero,$mibs_one,$mibs_two,$trio_ncalls);
+}
+sub allele_compare
+{ #if both codes are the same, both alleles should be the same
+    #if 
+    my $geno1 = shift;#[A,T]
+    my $code1 = shift;#11,12,22
+    my $geno2 = shift;#[G,C]
+    my $code2 = shift;#11,12,22
+    if ($code1 eq '11' && $code2 eq '11')
+    {
+	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
+    } elsif ($code1 eq '22' && $code2 eq '22')
+    {
+	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
+    } elsif ($code1 eq '12' && $code2 eq '12')
+    {
+	#assume the order of ref/alt allels is the same across all variants
+	return ($geno1->[0] eq $geno2->[0] && $geno1->[1] eq $geno2->[1] && $geno1->[0] ne $geno1->[1]);
+
+	########################################################################################
+    } elsif ($code1 eq '11' && $code2 eq '22')
+    {
+	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] ne $geno2->[0]);
+    } elsif ($code1 eq '11' && $code2 eq '12')
+    {
+	#assume the order of ref/alt allels is the same across all variants
+	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] ne $geno2->[1] && $geno1->[0] eq $geno2->[0]);
+    } elsif ($code1 eq '22' && $code2 eq '12')
+    {
+	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] ne $geno2->[1] && $geno1->[1] eq $geno2->[1]);
+	########################################################################################
+    } elsif ($code1 eq '22' && $code2 eq '11')
+    {
+	return ($geno1->[0] eq $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] ne $geno2->[0]);
+    } elsif ($code1 eq '12' && $code2 eq '11')
+    {
+	#assume the order of ref/alt allels is the same across all variants
+	return ($geno1->[0] ne $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[0] eq $geno2->[0]);
+    } elsif ($code1 eq '12' && $code2 eq '22')
+    {
+	return ($geno1->[0] ne $geno1->[1] && $geno2->[0] eq $geno2->[1] && $geno1->[1] eq $geno2->[1]);
+    } else
+    {
+	die "ERROR: $code1,$code2 cannot be compared\n";
+    }
+}
+
+
+exit;
+
