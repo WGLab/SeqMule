@@ -527,47 +527,51 @@ sub mendelFix{
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"11",$son[$c],"22") and $dad[$c][0] eq "0");
 		$son[$c][0] = $son[$c][1] = "0" if (&allele_compare($mom[$c],"22",$son[$c],"11") and $dad[$c][0] eq "0");
 		#Set to missing ADI/ADO occurences
-		$trio_ncalls++, if($dad[$c][0] ne "0" and $dad[$c][1] ne "0" and $mom[$c][0] ne "0" and $mom[$c][1] ne "0");
-		if(&allele_compare($dad[$c],"11",$mom[$c],"11") and &allele_compare($son[$c],"12",$mom[$c],"11"))
+		if($dad[$c][0] ne "0" and $dad[$c][1] ne "0" and $mom[$c][0] ne "0" and $mom[$c][1] ne "0")
 		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $adi++;
-		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"11") and &allele_compare($son[$c],"22",$mom[$c],"11"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $adi++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $adi++;
-		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"12") and &allele_compare($son[$c],"22",$mom[$c],"12"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
-		}elsif(&allele_compare($dad[$c],"11",$mom[$c],"22") and &allele_compare($son[$c],"22",$mom[$c],"22"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
-		}elsif(&allele_compare($dad[$c],"12",$mom[$c],"11") and &allele_compare($son[$c],"22",$dad[$c],"12"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"11") and &allele_compare($son[$c],"22",$dad[$c],"22"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
-		}elsif(&allele_compare($dad[$c],"22",$mom[$c],"12") and &allele_compare($son[$c],"11",$mom[$c],"12"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
-		}elsif(&allele_compare($dad[$c],"12",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"12"))
-		{
-		    $son[$c][0] = $son[$c][1] = "0" ;
-		    $ado++;
-		} else
-		{
-		    #can not decide whether ADI or ADO occurs
-		    1;
+		    #only count ADI and ADO for calls shared by the family
+		    $trio_ncalls++; 
+		    if(&allele_compare($dad[$c],"11",$mom[$c],"11") and &allele_compare($son[$c],"12",$mom[$c],"11"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$adi++;
+		    }elsif(&allele_compare($dad[$c],"11",$mom[$c],"11") and &allele_compare($son[$c],"22",$mom[$c],"11"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$adi++;
+		    }elsif(&allele_compare($dad[$c],"22",$mom[$c],"22") and &allele_compare($son[$c],"12",$mom[$c],"22"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$adi++;
+		    }elsif(&allele_compare($dad[$c],"11",$mom[$c],"12") and &allele_compare($son[$c],"22",$mom[$c],"12"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$ado++;
+		    }elsif(&allele_compare($dad[$c],"11",$mom[$c],"22") and &allele_compare($son[$c],"22",$mom[$c],"22"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$ado++;
+		    }elsif(&allele_compare($dad[$c],"12",$mom[$c],"11") and &allele_compare($son[$c],"22",$dad[$c],"12"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$ado++;
+		    }elsif(&allele_compare($dad[$c],"22",$mom[$c],"11") and &allele_compare($son[$c],"22",$dad[$c],"22"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$ado++;
+		    }elsif(&allele_compare($dad[$c],"22",$mom[$c],"12") and &allele_compare($son[$c],"11",$mom[$c],"12"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$ado++;
+		    }elsif(&allele_compare($dad[$c],"12",$mom[$c],"22") and &allele_compare($son[$c],"11",$dad[$c],"12"))
+		    {
+			$son[$c][0] = $son[$c][1] = "0" ;
+			$ado++;
+		    } else
+		    {
+			#can not decide whether ADI or ADO occurs
+			1;
+		    }
 		}
 	    }
 	    if($son[$c][0] eq "0"){

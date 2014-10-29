@@ -321,67 +321,91 @@ sub vcf_consensus
 {
     my @in=@_;
     die "At least 2 VCF files for extracting consensus calls\n" unless @in>1;
-    my $java=&getExe(&SeqMule::Utils::getProgramExe("java"));
-    my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatklite"),&SeqMule::Utils::getProgramExe("gatk"));
-    my $out=&getPrefix(@in)."_consensus.vcf";
+    my $out=&getPrefix(@in)."_consensus.".(defined $sample?"$sample.":"")."vcf";
+    my @local_sample;
     my $local_minN=$minN || scalar @in;
 
     my ($unzipped,$unlink)=&SeqMule::Utils::gunzip(@in);
     @in=@$unzipped;
     push @gunlink,@$unlink;
 
-    !!!!!!!!!!!!!
-    getVCFSample
-    my $vcf=shift;
-    !!!!!!!!!!!!!
+    @local_sample = &figure_out_vcf_sample(@in);
 
-    if (defined $sample)
-    {
-	for my $local_vcf(@in)
-	{
-	    my $local_out= File::Spec->catfile((dirname $local_vcf),$sample.".".(basename $local_vcf));
-	    !system("$java -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l ERROR ") or die "ERROR: Failed to split VCF by sample\n";
-	    $local_vcf=$local_out;
-	    push @gunlink,$local_out;
-	}
-	my $cmd=
-	"$java -Xmx$jmem -jar $gatk -T CombineVariants".
-	" -R $ref".
-	" -nt $nt".
-	" -l ERROR".
-	" -U LENIENT_VCF_PROCESSING".
-	" -o $out";
-	if ($nofilter)
-	{
-	    $cmd.=" -filteredRecordsMergeType KEEP_UNCONDITIONAL";
-	    warn "NOTICE: keep all variants regardless whether they are filtered or not.\n";
-	} else
-	{
-	    $cmd.=" -filteredRecordsMergeType KEEP_IF_ANY_UNFILTERED";
-	    warn "NOTICE: keep variants if they are unfiltered in any one of the input files.\n";
-	}
-
-	$cmd.=" -minN $local_minN" and 
-	warn "NOTICE: extracting variants shared by at least $local_minN input files.\n" if $local_minN;
-	map {$cmd.=" -V:".(basename $_).",VCF $_ "} @in;
-
-	!system($cmd) or die "Failed to merge VCF files\n";
-    } else
-    {
-
-    }
-
+    &run_gatk_combine_var({
+	    vcf=>[@in],
+	    sample=>[@local_sample],
+	    minN=>$local_minN,
+	    out=>$out,
+	});
     my $var_num=`grep -v '#' $out|wc -l`;
     chomp $var_num;
     warn "NOTICE: $var_num variants written to $out.\n";
 }
+sub vcf_union
+{
+    my @in=@_;
+    die "At least 2 VCF files for extracting union calls\n" unless @in>1;
+    my $out=&getPrefix(@in)."_union.".(defined $sample?"$sample.":"")."vcf";
+    my @local_sample;
+
+    my ($unzipped,$unlink)=&SeqMule::Utils::gunzip(@in);
+    @in=@$unzipped;
+    push @gunlink,@$unlink;
+
+
+    @local_sample = &figure_out_vcf_sample(@in);
+    &run_gatk_combine_var({
+	    vcf=>[@in],
+	    sample=>[@local_sample],
+	    minN=>1,
+	    out=>$out,
+	});
+    my $var_num=`grep -v '#' $out|wc -l`;
+    chomp $var_num;
+    warn "NOTICE: $var_num variants written to $out.\n";
+}
+sub figure_out_vcf_sample
+{
+    my @in = @_;
+    my @local_sample;
+    if(defined $sample)
+    {
+	push @local_sample,$sample;
+    } else
+    {
+	#samples in each VCF must be the same 
+	for my $i(@in)
+	{
+	    if(@local_sample)
+	    {
+		my %seen;
+		my @current_sample_list = &SeqMule::Utils::getVCFSample($i);
+		die "ERROR: not all VCFs have the same number of samples!\n"
+		if @local_sample != @current_sample_list;
+		for my $j(@local_sample)
+		{
+		    $seen{$j}=1;
+		}
+		for my $j(@current_sample_list)
+		{
+		    die "ERROR: not all VCFs have the same set of samples (case-sensitive)!\n"
+		    unless $seen{$j};
+		}
+	    } else
+	    {
+		@local_sample = &SeqMule::Utils::getVCFSample($i);
+	    }
+	}
+    }
+    return @local_sample;
+}
 sub run_gatk_combine_var
 {
-    my $ref = shift;
-    my @vcf = @{$ref{vcf}};
-    my @sample = @{$ref{sample}};
-    my $minN = $ref{minN};
-    my $out = $ref{out};
+    my $arg = shift;
+    my @vcf = @{$arg->{vcf}};
+    my @sample = @{$arg->{sample}};
+    my $minN = $arg->{minN};
+    my $out = $arg->{out};
     my @per_sample_combo_vcf_list;
     my $java=&getExe(&SeqMule::Utils::getProgramExe("java"));
     my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatklite"),&SeqMule::Utils::getProgramExe("gatk"));
@@ -391,10 +415,13 @@ sub run_gatk_combine_var
 	my @per_sample_vcf = @vcf;
 	for my $local_vcf(@per_sample_vcf)
 	{
-	    my $local_out = File::Spec->catfile($tmpdir,$sample.".".(basename $local_vcf));
+	    my $local_out = File::Spec->catfile($tmpdir,$sample.$$.rand($$).".".(basename $local_vcf));
 	    !system("$java -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l ERROR ") or die "ERROR: Failed to split VCF by sample\n";
-	    $local_vcf=$local_out;
-	    push @gunlink,$local_out;
+	    my $local_out_nomissing = File::Spec->catfile($tmpdir,$sample.$$.rand($$).".".(basename $local_vcf));
+	    #records with missing genotype cannot be handled correctly
+	    !system("grep -v '\\.\\/\\.' $local_out > $local_out_nomissing") or die "ERROR: failed to generate single-sample VCF that doesn't missing genotypes ($!).\n";
+	    $local_vcf=$local_out_nomissing;
+	    push @gunlink,$local_out,$local_out_nomissing;
 	}
 	my $per_sample_combo_vcf = File::Spec->catfile($tmpdir,$$.rand($$)."per_sample_combo.vcf");
 	my $cmd =
@@ -410,11 +437,12 @@ sub run_gatk_combine_var
 	    warn "NOTICE: keep all variants regardless whether they are filtered or not.\n";
 	} else
 	{
-	    $cmd.=" -filteredRecordsMergeType KEEP_IF_ANY_UNFILTERED";
+	    $cmd.=" -filteredRecordsMergeType KEEP_IF_ALL_UNFILTERED";
+	    #$cmd.=" -filteredRecordsMergeType KEEP_IF_ANY_UNFILTERED";
 	    warn "NOTICE: keep variants if they are unfiltered in any one of the input files.\n";
 	}
 
-	$cmd.=" -minN $local_minN" if defined $minN; 
+	$cmd.=" -minN $minN" and
 	warn "NOTICE: extracting variants shared by at least $minN input files.\n" if defined $minN && $minN > 1;
 	map {$cmd.=" -V:".(basename $_).",VCF $_ "} @per_sample_vcf;
 
@@ -432,55 +460,6 @@ sub run_gatk_combine_var
 
     !system($cmd) or die "Failed to merge per-sample VCF files\n";
     return $out;
-}
-sub vcf_union
-{
-    my @in=@_;
-    die "At least 2 VCF files for extracting union calls\n" unless @in>1;
-    my $java=&getExe(&SeqMule::Utils::getProgramExe("java"));
-    my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatklite"),&SeqMule::Utils::getProgramExe("gatk"));
-    my $out=&getPrefix(@in)."_union.vcf";
-
-    my ($unzipped,$unlink)=&SeqMule::Utils::gunzip(@in);
-    @in=@$unzipped;
-    push @gunlink,@$unlink;
-
-    if (defined $sample)
-    {
-	for my $local_vcf(@in)
-	{
-	    my $local_out= File::Spec->catfile((dirname $local_vcf),$sample.".".(basename $local_vcf));
-	    !system("$java -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l ERROR ") or die "ERROR: Failed to split VCF by sample\n";
-	    $local_vcf=$local_out;
-	    push @gunlink,$local_out;
-	}
-    }
-
-    my $cmd=
-    "$java -Xmx$jmem -jar $gatk -T CombineVariants".
-    " -R $ref".
-    " -nt $nt".
-    " -o $out".
-    " -l ERROR".
-    " -U LENIENT_VCF_PROCESSING";
-
-    if ($nofilter)
-    {
-	$cmd.=" -filteredRecordsMergeType KEEP_UNCONDITIONAL";
-	warn "NOTICE: keep all variants regardless whether they are filtered or not.\n";
-    } else
-    {
-	$cmd.=" -filteredRecordsMergeType KEEP_IF_ANY_UNFILTERED";
-	warn "NOTICE: keep variants if they are unfiltered in any one of the input files.\n";
-    }
-
-    map {$cmd.=" -V:".(basename $_).",VCF $_"} @in;
-
-    !system($cmd) or die "Failed to merge VCF files: $!\n";
-
-    my $var_num=`grep -v '#' $out|wc -l`;
-    chomp $var_num;
-    warn "NOTICE: $var_num variants written to $out.\n";
 }
 sub extractVar
 {
