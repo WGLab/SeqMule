@@ -117,9 +117,7 @@ if ($venn)
 {
     my @files=split /,/,$venn;
     @files=&SeqMule::Utils::getNonEmptyVCF(@files);
-    &genPlot(
-	&venn( &conv2anno(@files) ),scalar(@files) 
-    ); 
+    &venn( &conv2anno(@files) );
 }
 
 if (defined $capture) 
@@ -769,8 +767,8 @@ sub coverage_stat
 #generate Venn Diagram
 sub venn 
 {
-    warn "Do not support more than 5 files right now\n" and return undef unless (@_<=5);
-    warn "No need to plot for single file\n" and return undef if (@_==1);
+    warn "NOTICE: Do not support more than 5 files right now\n" and return undef unless (@_<=5);
+    warn "NOTICE: No need to plot for single file\n" and return undef if (@_==1);
 
     my $exe=&getExe("Rscript");
     #first check if Venn.diagram available
@@ -779,59 +777,84 @@ sub venn
     my $installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
     unless ( $installed_packages=~/venndiagram/i)
     {
-	warn "VennDiagram not installed, now try to install it.\n";
+	warn "NOTICE: VennDiagram not installed, now try to install it.\n";
 	&SeqMule::Utils::install_R_package($exe,"$install_dir/lib/VennDiagram_1.6.5.tar.gz",$rlibpath)
-	    or die "Cannot install...\nPlease do it manually\n";
+	    or die "ERROR: Cannot install...\nPlease do it manually\n";
 	$installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
     }
 
     #generate index
-    die "No VennDiagram package in R, please install it manually and try again.\n" unless $installed_packages=~/venndiagram/i;
+    die "ERROR: No VennDiagram package in R, please install it manually and try again.\n" unless $installed_packages=~/venndiagram/i;
     my @avinput_pool=@_;
-    my @index_matrix;
+    my @snp_index_matrix;
+    my @non_snp_index_matrix;
     my $max=0;
-    my $variant_index_pool;
-
-    map {push @gunlink,$_ if /\.tmp$/i} @avinput_pool;
+    my $snp_index_pool;
+    my $non_snp_index_pool;
 
     #remove empty file
     for (@avinput_pool)
     {
-	$_=undef unless -s $_ >0;
+	$_=undef unless (-s $_ >0);
     }
     @avinput_pool=grep {defined $_} @avinput_pool;
-    warn "WARNING: failed to plot Venn diagram, number of nonzero files is more than 5 or smaller than 2.\n" and return unless @avinput_pool<=5 && @avinput_pool>=2;
+    warn "WARNING: failed to plot Venn diagram, number of nonempty files is more than 5 or smaller than 2.\n" and return unless @avinput_pool<=5 && @avinput_pool>=2;
 
     #generate index matrix
     for my $count(0..$#avinput_pool)
     {
-	my ($name_prefix)=$avinput_pool[$count]=~/^(.*)(\.avinput|\.tmp)$/;
-	my %appear; #force uniqueness
+	#*_index_matrix is array of array
+	#first layer is array of file index
+	#2nd layer is array of file name plus variants
+	my $input = $avinput_pool[$count];
+	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp)$/;
+	my %snp_appear; #force uniqueness
+	my %non_snp_appear; #force uniqueness
 
-	open IN,"<",$avinput_pool[$count] or die "Cannot open $avinput_pool[$count]:$!\n";
-	$index_matrix[$count]=[];
-	push @{$index_matrix[$count]},$name_prefix;
+	open IN,"<",$input or die "Cannot open $input:$!\n";
+	$snp_index_matrix[$count]=[];
+	$non_snp_index_matrix[$count]=[];
+	push @{$snp_index_matrix[$count]},$name_prefix;
+	push @{$non_snp_index_matrix[$count]},$name_prefix;
 	while (<IN>) 
 	{
+	    #chr	start	end	ref	obs	...
 	    /^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t.*$/ or next;
 
-	    my $key="$1+$2+$3+$4+$5";
-	    push @{$index_matrix[$count]},$key and $appear{$key}=1 unless $appear{$key};
+	    if ($2 == $3) #start == end means this is a SNP
+	    {
+		my $key="$1+$2+$3+$4+$5";
+		push @{$snp_index_matrix[$count]},$key and $snp_appear{$key}=1 unless $snp_appear{$key};
+	    } else
+	    {
+		!!!!!!!!!!!!
+		my $key="$1+$2+$3+$4+$5";
+		push @{$snp_index_matrix[$count]},$key and $snp_appear{$key}=1 unless $snp_appear{$key};
+	    }
 	}
 	close IN;
-	$max=@{$index_matrix[$count]} if @{$index_matrix[$count]} > $max;
+	$max=@{$snp_index_matrix[$count]} if @{$snp_index_matrix[$count]} > $max;
     }
 
-    $variant_index_pool=File::Spec->catfile($tmpdir,$$."_index_pool.tmp");
+    $snp_index_pool=File::Spec->catfile($tmpdir,$$.rand($$)."_snp_index_pool.tmp");
+    $non_snp_index_pool=File::Spec->catfile($tmpdir,$$.rand($$)."_non_snp_index_pool.tmp");
+    push @gunlink,$snp_index_pool;
+    push @gunlink,$non_snp_index_pool;
+
     open OUT,">",$variant_index_pool or die "Cannot create $variant_index_pool for Venn Diagram: $!\n";
     for my $j(1..$max)
     {
 	my @line;
-	push @line,($index_matrix[$_-1][$j-1] || "NA") for (1..@avinput_pool);
+	push @line,($snp_index_matrix[$_-1][$j-1] || "NA") for (1..@avinput_pool);
 	print OUT join("\t",@line),"\n";
     }
     close OUT;
     return $variant_index_pool;
+
+    #make plot for SNP
+    #make plot for non-SNP
+    &genPlot($snp_index_pool,scalar @avinput_pool);
+    &genPlot($non_snp_index_pool,scalar @avinput_pool);
 }
 sub genPlot
 {
@@ -914,7 +937,6 @@ sub genPlot
     chmod 0755,$rfile;
     die "ERROR: Execution failed, please run $rfile manually\n" if system("$exe --vanilla $rfile 1>&2");
     push @gunlink,$rfile;
-    push @gunlink,$variant_index_pool;
     warn "NOTICE: Venn Digram plotted to $tiff and $jpg\n";
 }
 
@@ -953,11 +975,13 @@ sub conv2anno
 	    { 
 		!system("$^X $exe_conver -includeinfo -format vcf4 $vcf_to_proc > $newout") or die "Failed to convert VCF to AVINPUT when no sample is given: $!\n";
 	    }
+	    push @gunlink,$newout;
 	    push @return_files,$newout;
 	} elsif (/^(.*)\.consensus$/) 
 	{
 	    my $tmp_soapsnp_avinput = File::Spec->catfile($tmpdir,$1.rand($$).".avinputready.tmp");
 	    !system("$^X $exe_conver -includeinfo -format soap $_ > $tmp_soapsnp_avinput") or die "Failed to convert $_ from SOAPsnp format to AVINPUT format: $!\n";
+	    push @gunlink,$tmp_soapsnp_avinput;
 	    push @return_files,$tmp_soapsnp_avinput;
 	} elsif (/\.avinput$/i) 
 	{
