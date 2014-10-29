@@ -996,9 +996,9 @@ sub callers2names
 {
     my @return;
     my %nametable=(
-	gatk => 'GATKLite_UnifiedGenotyper',
+	gatklite => 'GATKLite_UnifiedGenotyper',
 	gatk_ug => 'GATK_UnifiedGenotyper',
-	gatk_hc => 'GATK_HaploTyperCaller',
+	gatk_hc => 'GATK_HaploTypeCaller',
 	samtools => 'SAMtools',
 	snver => 'SNVer',
 	freebayes => 'FreeBayes',
