@@ -806,15 +806,12 @@ sub venn
 	#first layer is array of file index
 	#2nd layer is array of file name plus variants
 	my $input = $avinput_pool[$count];
-	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp)$/;
 	my %snp_appear; #force uniqueness
 	my %non_snp_appear; #force uniqueness
 
 	open IN,"<",$input or die "Cannot open $input:$!\n";
 	$snp_index_matrix[$count]=[];
 	$non_snp_index_matrix[$count]=[];
-	push @{$snp_index_matrix[$count]},$name_prefix;
-	push @{$non_snp_index_matrix[$count]},$name_prefix;
 	while (<IN>) 
 	{
 	    #chr	start	end	ref	obs	...
@@ -843,10 +840,58 @@ sub venn
     sub gen_index_for_interval
     {
 	my $ref = shift;
-	retrieve all intervals, merge overlapping intervals into super-intervals
+	my %merge; #hash of array, key is chr, value is [begin,end]
+	my @new; #the original index_matrix with proper index
+	#retrieve all intervals, merge overlapping intervals into super-intervals
+	#sort all intervals, rank by chr, ref, obs
+	for my $i(@$ref)
+	{
+	    @$i = sort {$a->[0] cmp $b->[0] 
+		or $a->[1] <=> $b->[1] 
+		or $a->[2] <=> $b->[2] } @$i;
+	}
+	#combine neighbour intervals
+	for my $i(@$ref)
+	{
+	    my ($prev_end,$prev_start);
+	    for my $j(@$i)
+	    {
+		if (defined $merge{$j->[0]})
+		{
+		    if ($j->[1] <= $prev_end && $j->[2] >= $prev_start)
+		    {
+
+		    }
+		} else
+		{
+		   push $merge{$j->[0]} = [$j->[1],$j[2]];
+		}
+
+	    }
+	}
 	assign IDs to super-intervals
 	assign original records IDs of super-intervals (an ID will only appear once in a file)
 
+	for my $i(@$ref)
+	{
+	    #$i is ref to array of variants in a file
+	    my %seen;
+	    for my $j(@$i)
+	    {
+		push @{$non_snp_index_matrix[$count]},[$1,$2-$INDEL_EXTENSION,$3+$INDEL_EXTENSION] and $seen{$key}=1 unless $seen{$key};
+	    }
+	}
+
+	@$ref = @new;
+    }
+    for my $count(0..$#avinput_pool)
+    {
+	#add file name to head of array
+	my $input = $avinput_pool[$count];
+	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp)$/;
+
+	unshift @{$snp_index_matrix[$count]},$name_prefix;
+	unshift @{$non_snp_index_matrix[$count]},$name_prefix;
     }
 
     $snp_index_pool=File::Spec->catfile($tmpdir,$$.rand($$)."_snp_index_pool.tmp");
