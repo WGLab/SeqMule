@@ -836,79 +836,108 @@ sub venn
 	close IN;
     }
 
-    &gen_index_for_interval(\@non_snp_index_matrix);
+    @non_snp_index_matrix = &gen_index_for_interval(\@non_snp_index_matrix);
     sub gen_index_for_interval
     {
+	#be careful here
+	#we are dealing with references
+	#so any change to the content may have unexpected side effects
 	my $ref = shift;
-	my %merge; #hash of array, key is chr, value is [begin,end]
-	my @new; #the original index_matrix with proper index
-	#retrieve all intervals, merge overlapping intervals into super-intervals
-	#sort all intervals, rank by chr, ref, obs
-	for my $i(@$ref)
+	#group all indels on the same chromosome
+	#this is not memory-efficient, however, there are
+	#only 344K indels on average for each genome
+	#not too much memory even if we have 10 or 20 whole genomes here
+	my %per_chr_interval;
+	my @new; #the original index_matrix with updated index
+
+	#put indels on the same chromosome together
+	for my $file_idx(0..$#{$ref})
+	{
+	    my $i = $ref->[$file_idx];
+	    for my $j(@$i)
+	    {
+		my $current_chr = $j->[0];
+		if (defined $per_chr_interval{$current_chr})
+		{
+		    push @{$per_chr_interval{$current_chr}},[$j->[1],$j->[2],$file_idx];
+		} else
+		{
+		    #assume chromosome name is unique
+		    #well, I haven't really seen a genome with duplicate
+		    #chromosome names inside it.
+		    $per_chr_interval{$current_chr} = [];
+		}
+	    }
+	    #initialize @new
+	    $new[$file_idx] = [];
+	}
+	
+	#sort intervals on the same chromosome
+	for my $i(keys %per_chr_interval)
 	{
 	    @$i = sort {
-	        $a->[0] cmp $b->[0] 
-		or $a->[1] <=> $b->[1] 
-		or $a->[2] <=> $b->[2] } @$i;
+		$a->[0] <=> $b->[0] 
+		or $a->[1] <=> $b->[1] } @$i;
 	}
 	#combine neighbour intervals
-	for my $i(@$ref)
+	for my $i(keys %per_chr_interval)
 	{
-	    my ($prev_end,$prev_start)=(0,0);
-	    my $prev_chr;
-	    for my $j(@$i)
+	    my $prev_pos = [0,0];
+	    my $prev_file_idx;
+
+	    for my $j(@{$per_chr_interval{$i}})
 	    {
-		my $cur_chr = $j->[0];
-		if(defined $prev_chr)
+		#j is ref to array of size 4, the last element is filename
+		#prev_pos is ref to array of size 2
+		if ($j->[0] <= $prev_pos->[2] && $j->[1] >= $prev_pos->[1])
 		{
-		    if( $prev_chr ne $cur_chr)
-		    {
-			#here we enter another chromosome
-			#reset prev_end prev_start to first (start,end) pair on that chromosome
-			if (defined $merge{$cur_chr})
-			{
-			    ($prev_start,$prev_end) = @{$merge{$cur_chr}->[0]};
-			}
-		    } else
-		    {
-
+		    #we encouter an overlapping interval
+		    #extend current interval
+		    if ($prev_pos->[1] > $j->[0])
+		    { #for start, store whichever smaller
+			$prev_pos->[1] = $j->[0];
 		    }
-		} else
-		{
-		    $prev_chr = $cur_chr;
-		}
-
-		if (defined $merge{$cur_chr})
-		{
-		    if ($j->[1] <= $prev_end && $j->[2] >= $prev_start)
-		    {
-			#we encouter an overlapping interval
-			#extend current interval
-
+		    if ($prev_pos->[2] < $j->[1])
+		    { #for end, store whichever bigger
+			$prev_pos->[2] = $j->[1];
 		    }
-		} else
-		{
-		    #this is a new chromosome
-		   $merge{$cur_chr} = [[$j->[1],$j[2]]];
-		($prev_start,$prev_end) = ($j->[1],$j->[2]);
+		    if($prev_file_idx != $j->[3])
+		    {
+		#do I have push every time???
+		#duplicate push into same file
+		#does not help
+		    push @{new[$j->[3]]},$prev_pos;
+		    $prev_file_idx = $j->[3];
+		    }
 		}
-		#reset prev_start prev_end when we enter a new chromosome
+		else
+		{
+		    #we encounter a non-overlapping interval
+		    #here we cannot use reference, because
+		    #the content may change
+		    $prev_pos = [$i,$j->[1],$j->[2]];
+		    #because here we got a new interval
+		    #we always push it
+		    push @{new[$j->[3]]},$prev_pos;
+		    $prev_file_idx = $j->[3];
+		}
 	    }
 	}
-	assign IDs to super-intervals
-	assign original records IDs of super-intervals (an ID will only appear once in a file)
-
-	for my $i(@$ref)
+	#IDs for super-intervals will be chr+start+end
+	#assign original records the IDs of super-intervals (an ID will only appear once for each sample)
+	for my $i(@new)
 	{
-	    #$i is ref to array of variants in a file
+	    #$i is ref to array of super-intervals 
+	    #corresponding to original variants in a file
 	    my %seen;
 	    for my $j(@$i)
-	    {
+	    {#j is ref for a array of chr, start, end 
+		if(
 		push @{$non_snp_index_matrix[$count]},[$1,$2-$INDEL_EXTENSION,$3+$INDEL_EXTENSION] and $seen{$key}=1 unless $seen{$key};
 	    }
 	}
 
-	@$ref = @new;
+	return @new;
     }
     for my $count(0..$#avinput_pool)
     {
