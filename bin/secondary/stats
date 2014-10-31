@@ -846,27 +846,53 @@ sub venn
 	#sort all intervals, rank by chr, ref, obs
 	for my $i(@$ref)
 	{
-	    @$i = sort {$a->[0] cmp $b->[0] 
+	    @$i = sort {
+	        $a->[0] cmp $b->[0] 
 		or $a->[1] <=> $b->[1] 
 		or $a->[2] <=> $b->[2] } @$i;
 	}
 	#combine neighbour intervals
 	for my $i(@$ref)
 	{
-	    my ($prev_end,$prev_start);
+	    my ($prev_end,$prev_start)=(0,0);
+	    my $prev_chr;
 	    for my $j(@$i)
 	    {
-		if (defined $merge{$j->[0]})
+		my $cur_chr = $j->[0];
+		if(defined $prev_chr)
 		{
-		    if ($j->[1] <= $prev_end && $j->[2] >= $prev_start)
+		    if( $prev_chr ne $cur_chr)
+		    {
+			#here we enter another chromosome
+			#reset prev_end prev_start to first (start,end) pair on that chromosome
+			if (defined $merge{$cur_chr})
+			{
+			    ($prev_start,$prev_end) = @{$merge{$cur_chr}->[0]};
+			}
+		    } else
 		    {
 
 		    }
 		} else
 		{
-		   push $merge{$j->[0]} = [$j->[1],$j[2]];
+		    $prev_chr = $cur_chr;
 		}
 
+		if (defined $merge{$cur_chr})
+		{
+		    if ($j->[1] <= $prev_end && $j->[2] >= $prev_start)
+		    {
+			#we encouter an overlapping interval
+			#extend current interval
+
+		    }
+		} else
+		{
+		    #this is a new chromosome
+		   $merge{$cur_chr} = [[$j->[1],$j[2]]];
+		($prev_start,$prev_end) = ($j->[1],$j->[2]);
+		}
+		#reset prev_start prev_end when we enter a new chromosome
 	    }
 	}
 	assign IDs to super-intervals
