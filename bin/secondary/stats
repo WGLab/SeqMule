@@ -82,7 +82,7 @@ die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($ven
 die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
 die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
 die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
-die "--vcf and --plink must be used together.\n" if ($plink && !$vcf or !$plink && $vcf);
+die "--vcf and --plink must be used together.\n" if ($plink && !$vcf);
 die "--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
 die "--mendel-stat must be used with --plink\n" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
 
@@ -118,7 +118,7 @@ if ($venn)
 {
     my @files=split /,/,$venn;
     @files=&SeqMule::Utils::getNonEmptyVCF(@files);
-    &venn( &conv2anno(@files) );
+    &venn( \@files,&conv2anno(@files) );
 }
 
 if (defined $capture) 
@@ -647,7 +647,7 @@ sub var_stat
 
     $dump.="print 'Sample='.(\$sample).\"\\n\" if defined \$sample;\n";
     $dump.="print 'Number of variants='.(\$total).\"\\n\" if defined \$total;\n";
-    $dump.="print 'Number of SNPs='.(\$nsnp).\"\\n\" if defined \$nsnp;\n";
+    $dump.="print 'Number of SNVs='.(\$nsnp).\"\\n\" if defined \$nsnp;\n";
     $dump.="print 'Number of indels='.(\$nindel).\"\\n\" if defined \$nindel;\n";
     $dump.="print 'Transitions='.(\$nti).\"\\n\" if defined \$nti;\n";
     $dump.="print 'Transversions='.(\$ntv).\"\\n\" if defined \$ntv;\n";
@@ -786,6 +786,8 @@ sub venn
 
     #generate index
     die "ERROR: No VennDiagram package in R, please install it manually and try again.\n" unless $installed_packages=~/venndiagram/i;
+    my $ref_avinput_name = shift;
+    my @avinput_name = @$ref_avinput_name;
     my @avinput_pool=@_;
     my @snp_index_matrix;
     my @non_snp_index_matrix;
@@ -837,11 +839,11 @@ sub venn
     }
 
     @non_snp_index_matrix = &gen_index_for_interval(\@non_snp_index_matrix);
-    for my $count(0..$#avinput_pool)
+    for my $count(0..$#avinput_name)
     {
 	#add file name to head of array
-	my $input = $avinput_pool[$count];
-	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp)$/;
+	my $input = $avinput_name[$count];
+	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp|\.vcf|\.consensus)$/i;
 
 	unshift @{$snp_index_matrix[$count]},[$name_prefix];
 	unshift @{$non_snp_index_matrix[$count]},[$name_prefix];
@@ -856,8 +858,8 @@ sub venn
     &write_index_pool($non_snp_index_pool,@non_snp_index_matrix);
 
     #make plot for SNP and non-SNP
-    &genPlot($snp_index_pool,scalar @avinput_pool);
-    &genPlot($non_snp_index_pool,scalar @avinput_pool);
+    &genPlot("SNV",$snp_index_pool,scalar @avinput_pool);
+    &genPlot("NON-SNV",$non_snp_index_pool,scalar @avinput_pool);
 }
 sub gen_index_for_interval
 {
@@ -973,12 +975,13 @@ sub write_index_pool
 	    }
 	}
 	print OUT join("\t",@line),"\n";
-	print join("\t",@line),"\n";
     }
     close OUT;
 }
 sub genPlot
 {
+    my $category = shift; #SNP or NON-SNP
+    die "ERROR: category missing" unless defined $category;
     my $variant_index_pool=shift;
     my $count=shift;
 
@@ -987,16 +990,16 @@ sub genPlot
 
     warn "NOTICE: Generating Venn diagram...\n"; 
     my $local_prefix=&getPrefix(split /,/,$venn);
-    my $tiff="${local_prefix}_venn.tiff";
-    my $jpg="${local_prefix}_venn.jpg";
-    my $rfile="${local_prefix}_venn.R";
+    my $tiff="${local_prefix}_${category}_venn.tiff";
+    my $jpg="${local_prefix}_${category}_venn.jpg";
+    my $rfile="${local_prefix}_${category}_venn.R";
     my $exe=&getExe("Rscript");
     my $rlibpath=File::Spec->catdir($install_dir,"rlib");
     my $rscript="#!$exe\n"; #exe path
     $rscript.=
     "x=read.delim(\"$variant_index_pool\",na.strings=\"NA\")\n".
     "y=list()\n".
-    "title='Overlapping of variants'\n";
+    "title='Overlapping of $category variants'\n";
     #convert dataframe to list such that na=remove works
     for my $no(1..$count) 
     {
