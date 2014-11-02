@@ -22,6 +22,7 @@ use Getopt::Long qw/GetOptions/;
 
 ####################CONSTANT#######################
 my $ARGCOUNT=100000; #number of regions to extract using command line, max number if restricted by kernel config
+my $INDEL_EXTENSION = 10; #when determining indel overlapping, interalize indels by extending indel INDEL_EXTENSION bp towards both ends
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 ##################################################
 my ($prefix,
@@ -807,7 +808,6 @@ sub venn
 	#2nd layer is array of file name plus variants
 	my $input = $avinput_pool[$count];
 	my %snp_appear; #force uniqueness
-	my %non_snp_appear; #force uniqueness
 
 	open IN,"<",$input or die "Cannot open $input:$!\n";
 	$snp_index_matrix[$count]=[];
@@ -815,11 +815,12 @@ sub venn
 	while (<IN>) 
 	{
 	    #chr	start	end	ref	obs	...
+	    #1		2	3	4	5
 	    /^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t.*$/ or next;
 
-	    if ($2 == $3) #start == end means this is a SNP
+	    if ($2 == $3 and length($4) == 1 and length($5) == 1 ) #start == end means this is a SNP
 	    {
-		my $key="$1+$2+$3+$4+$5";
+		my $key=[$1,$2,$3,$4,$5];
 		push @{$snp_index_matrix[$count]},$key and $snp_appear{$key}=1 unless $snp_appear{$key};
 	    } else
 	    {
@@ -829,124 +830,21 @@ sub venn
 		#the two indels are considered as the same
 		#non_snp_index_matrix will intervalized later
 		#ref and obs field will not be useful if we use intervalization
-		my $key="$1+$2+$3";
-		push @{$non_snp_index_matrix[$count]},[$1,$2-$INDEL_EXTENSION,$3+$INDEL_EXTENSION] and $non_snp_appear{$key}=1 unless $non_snp_appear{$key};
+		push @{$non_snp_index_matrix[$count]},[$1,$2-$INDEL_EXTENSION,$3+$INDEL_EXTENSION];
 	    }
 	}
 	close IN;
     }
 
     @non_snp_index_matrix = &gen_index_for_interval(\@non_snp_index_matrix);
-    sub gen_index_for_interval
-    {
-	#be careful here
-	#we are dealing with references
-	#so any change to the content may have unexpected side effects
-	my $ref = shift;
-	#group all indels on the same chromosome
-	#this is not memory-efficient, however, there are
-	#only 344K indels on average for each genome
-	#not too much memory even if we have 10 or 20 whole genomes here
-	my %per_chr_interval;
-	my @new; #the original index_matrix with updated index
-
-	#put indels on the same chromosome together
-	for my $file_idx(0..$#{$ref})
-	{
-	    my $i = $ref->[$file_idx];
-	    for my $j(@$i)
-	    {
-		my $current_chr = $j->[0];
-		if (defined $per_chr_interval{$current_chr})
-		{
-		    push @{$per_chr_interval{$current_chr}},[$j->[1],$j->[2],$file_idx];
-		} else
-		{
-		    #assume chromosome name is unique
-		    #well, I haven't really seen a genome with duplicate
-		    #chromosome names inside it.
-		    $per_chr_interval{$current_chr} = [];
-		}
-	    }
-	    #initialize @new
-	    $new[$file_idx] = [];
-	}
-	
-	#sort intervals on the same chromosome
-	for my $i(keys %per_chr_interval)
-	{
-	    @$i = sort {
-		$a->[0] <=> $b->[0] 
-		or $a->[1] <=> $b->[1] } @$i;
-	}
-	#combine neighbour intervals
-	for my $i(keys %per_chr_interval)
-	{
-	    my $prev_pos = [0,0];
-	    my $prev_file_idx;
-
-	    for my $j(@{$per_chr_interval{$i}})
-	    {
-		#j is ref to array of size 4, the last element is filename
-		#prev_pos is ref to array of size 2
-		if ($j->[0] <= $prev_pos->[2] && $j->[1] >= $prev_pos->[1])
-		{
-		    #we encouter an overlapping interval
-		    #extend current interval
-		    if ($prev_pos->[1] > $j->[0])
-		    { #for start, store whichever smaller
-			$prev_pos->[1] = $j->[0];
-		    }
-		    if ($prev_pos->[2] < $j->[1])
-		    { #for end, store whichever bigger
-			$prev_pos->[2] = $j->[1];
-		    }
-		    if($prev_file_idx != $j->[3])
-		    {
-		#do I have push every time???
-		#duplicate push into same file
-		#does not help
-		    push @{new[$j->[3]]},$prev_pos;
-		    $prev_file_idx = $j->[3];
-		    }
-		}
-		else
-		{
-		    #we encounter a non-overlapping interval
-		    #here we cannot use reference, because
-		    #the content may change
-		    $prev_pos = [$i,$j->[1],$j->[2]];
-		    #because here we got a new interval
-		    #we always push it
-		    push @{new[$j->[3]]},$prev_pos;
-		    $prev_file_idx = $j->[3];
-		}
-	    }
-	}
-	#IDs for super-intervals will be chr+start+end
-	#assign original records the IDs of super-intervals (an ID will only appear once for each sample)
-	for my $i(@new)
-	{
-	    #$i is ref to array of super-intervals 
-	    #corresponding to original variants in a file
-	    my %seen;
-	    for my $j(@$i)
-	    {#j is ref for a array of chr, start, end 
-		if(
-		push @{$non_snp_index_matrix[$count]},[$1,$2-$INDEL_EXTENSION,$3+$INDEL_EXTENSION] and $seen{$key}=1 unless $seen{$key};
-	    }
-	}
-
-	return @new;
-    }
     for my $count(0..$#avinput_pool)
     {
 	#add file name to head of array
 	my $input = $avinput_pool[$count];
 	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp)$/;
 
-	unshift @{$snp_index_matrix[$count]},$name_prefix;
-	unshift @{$non_snp_index_matrix[$count]},$name_prefix;
+	unshift @{$snp_index_matrix[$count]},[$name_prefix];
+	unshift @{$non_snp_index_matrix[$count]},[$name_prefix];
     }
 
     $snp_index_pool=File::Spec->catfile($tmpdir,$$.rand($$)."_snp_index_pool.tmp");
@@ -960,6 +858,94 @@ sub venn
     #make plot for SNP and non-SNP
     &genPlot($snp_index_pool,scalar @avinput_pool);
     &genPlot($non_snp_index_pool,scalar @avinput_pool);
+}
+sub gen_index_for_interval
+{
+    #be careful here
+    #we are dealing with references
+    #so any change to the content may have unexpected side effects
+    my $ref = shift;
+    #group all indels on the same chromosome
+    #this is not memory-efficient, however, there are
+    #only 344K indels on average for each genome
+    #not too much memory even if we have 10 or 20 whole genomes here
+    my %per_chr_interval;
+    my @new; #the original index_matrix with updated index
+
+    #put indels on the same chromosome together
+    for my $file_idx(0..$#{$ref})
+    {
+	my $i = $ref->[$file_idx];
+	for my $j(@$i)
+	{
+	    my $current_chr = $j->[0];
+	    unless (defined $per_chr_interval{$current_chr})
+	    {
+		#assume chromosome name is unique
+		#well, I haven't really seen a genome with duplicate
+		#chromosome names inside it.
+		$per_chr_interval{$current_chr} = [];
+	    }
+	    push @{$per_chr_interval{$current_chr}},[$j->[1],$j->[2],$file_idx];
+	}
+	#initialize @new
+	$new[$file_idx] = [];
+    }
+
+    #sort intervals on the same chromosome
+    for my $i(keys %per_chr_interval)
+    {
+	@{$per_chr_interval{$i}} = sort {
+	$a->[0] <=> $b->[0] 
+	    or $a->[1] <=> $b->[1] } @{$per_chr_interval{$i}};
+    }
+    #combine neighbour intervals
+    for my $i(keys %per_chr_interval)
+    {
+	my $prev_pos = [0,0,0];
+	my $prev_file_idx;
+
+	for my $j(@{$per_chr_interval{$i}})
+	{
+	    #j is ref to array of size 3, the last element is filename
+	    #prev_pos is ref to array of size 3
+	    if ($j->[0] <= $prev_pos->[2] && $j->[1] >= $prev_pos->[1])
+	    {
+		#we encouter an overlapping interval
+		#extend current interval
+		if ($prev_pos->[1] > $j->[0])
+		{ #for start, store whichever smaller
+		    $prev_pos->[1] = $j->[0];
+		}
+		if ($prev_pos->[2] < $j->[1])
+		{ #for end, store whichever bigger
+		    $prev_pos->[2] = $j->[1];
+		}
+		if($prev_file_idx != $j->[2])
+		{
+		    #do I have to push every time???
+		    #duplicate push into same file
+		    #does not help
+		    push @{$new[$j->[2]]},$prev_pos;
+		    $prev_file_idx = $j->[2];
+		}
+	    } else
+	    {
+		#we encounter a non-overlapping interval
+		$prev_pos = [$i,$j->[0],$j->[1]];
+		#because here we got a new interval
+		#we always push it
+		push @{$new[$j->[2]]},$prev_pos;
+		$prev_file_idx = $j->[2];
+	    }
+	}
+    }
+    #@new will consist of elements that
+    #are reference to an array of references
+    #for each interval (chr,start,end)
+    #IDs for super-intervals will be chr+start+end
+    #and there shouldn't be duplicates
+    return @new;
 }
 sub write_index_pool
 {
@@ -978,9 +964,16 @@ sub write_index_pool
 	my @line;
 	for my $j(0..$#index_matrix)
 	{
-	    push @line,($index_matrix[$j][$i] || "NA");
+	    if(defined $index_matrix[$j][$i])
+	    {
+		push @line,(join "+",@{$index_matrix[$j][$i]});
+	    } else
+	    {
+		push @line,"NA";
+	    }
 	}
 	print OUT join("\t",@line),"\n";
+	print join("\t",@line),"\n";
     }
     close OUT;
 }
@@ -1016,6 +1009,15 @@ sub genPlot
     'VennDiagram',lib.loc=c('$rlibpath',.libPaths())
     )\n";
 
+    #handle the scenario where some columns are empty
+    $rscript.="
+    for (i in y)
+    {
+    	if(length(i) == 0)
+	{
+		quit(save=\"no\",status=0)
+	}
+    }\n";
 
     #high resolution tiff output
     if ($count==5)
