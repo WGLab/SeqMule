@@ -343,7 +343,7 @@ sub search
     my @list;
     my $path_to_target;
     my @search_path=("$install_dir/exe","$install_dir/bin",cwd);
-    push @search_path, (split /:/,$ENV{PATH});
+    #push @search_path, (split /:/,$ENV{PATH}); #do NOT include PATH for searching, for sake of compatibility
 
     for my $single_path(@search_path)
     {
