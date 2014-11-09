@@ -9,7 +9,7 @@ my $ncpu=8;
 my $mem="4.5g";
 my $jmem="1750m";
 my $gatknt=4;
-my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
+my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/data/test_exome";
 my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
 my $tmpdir = "/state/partition1";
@@ -87,8 +87,8 @@ for my $q("","-quick")
 		push @cmd, "cd $test_folder";
 
 		#print join "\n",@cmd;
-		&exec(@cmd) if grep{$count == $_}(1,20,32);
-		#&exec(@cmd) if $count==0 && $count<=40;
+		#&exec(@cmd) if grep{$count == $_}(1,20,32);
+		&exec(@cmd) and exit if ($j=~/gatk/&& $j=~/samtools/ && $q eq '-quick');
 		$count++;
 	}
     }
