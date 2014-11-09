@@ -3026,7 +3026,7 @@ Options:
 	--verbose,-v		  verbose output
 	--help,-h		  show this message
 
-=head1 EXAMPLE	
+	EXAMPLE	
 
 	#generate a copy of 'advanced_config' for modification. You can find some predefined configurations under 'seqmule/misc/predefined_config' folder.
 	seqmule pipeline -advanced

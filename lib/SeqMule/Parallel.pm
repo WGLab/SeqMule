@@ -384,7 +384,9 @@ sub run
 	    my $cwd=`pwd`;
 	    chomp $cwd;
 	    die "ERROR: $cmd failed\n",
-	        "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n";
+	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3,
+	        "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
+	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
 	} else
 	{
 	    my $elapse_time=time-$start_time;

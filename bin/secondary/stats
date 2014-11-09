@@ -1302,7 +1302,7 @@ Options:
 	--noclean                 do not clean temporary files
 
 
-=head1 EXAMPLE	
+	EXAMPLE	
 
 	#draw Venn Diagram to examine overlapping between different VCF files
 	seqmule stats -p gatk-soap-varscan -venn gatk.vcf,soap.avinput,varscan.vcf

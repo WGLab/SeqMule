@@ -400,8 +400,12 @@ sub gatk
     my $exe='gatk';
     my $executable="GenomeAnalysisTK.jar";
     mkdir "$exe_base/$exe";
+    warn "\n\n\n";
+    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
     warn "CAUTION: SeqMule cannot automatically install GATK due to license limitations.\n",
          "Please download, unpack it and copy $executable to $exe_base/$exe\n";
+    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
+    warn "\n\n\n";
     sleep 5;
 }
 
