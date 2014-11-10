@@ -2429,7 +2429,7 @@ sub procBAM
 	my $newbam="$local_prefix.sort.bam";
 	push @commands, [$threads,
 	    "Sort BAM input assuming it is not sorted",
-	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads $bam -f $newbam $onebam "];
+	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads -f $bam $newbam"];
 	$local_bam=$newbam; 
 	push @removable,$newbam;
     }

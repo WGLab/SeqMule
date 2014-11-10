@@ -343,7 +343,7 @@ sub search
     my @list;
     my $path_to_target;
     my @search_path=("$install_dir/exe","$install_dir/bin",cwd);
-    #push @search_path, (split /:/,$ENV{PATH}); #do NOT include PATH for searching, for sake of compatibility
+    push @search_path, (split /:/,$ENV{PATH}); #we have to include PATH, because programs like java will not be installed by SeqMule
 
     for my $single_path(@search_path)
     {
@@ -747,7 +747,7 @@ sub parsePipeline
 	{
 	    if (! /^${level}p/i)
 	    {
-		die "ERROR: Mandatory program disabled at level $level\nNOTE: For BAM format input, please enable aligners even if you don't want to do alignment. SeqMule will skip this step.\n" if ($mandatory_flag && $enabled_mandatory_count<1);
+		die "ERROR: Mandatory program disabled at level $level\nNOTICE: in configuration, any line beginning with 'P'(upper-case) should ALWAYS be enabled (=1). SeqMule will skip that step if it is unnecessary, though.\n" if ($mandatory_flag && $enabled_mandatory_count<1);
 		die "ERROR: Multiple exclusive programs enabled at level $level\n" if ($exclusive_flag && $enabled_exclusive_count>1);
 		($level)= /^(\d+)p/i;
 
