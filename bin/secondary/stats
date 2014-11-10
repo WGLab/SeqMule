@@ -22,6 +22,7 @@ use Getopt::Long qw/GetOptions/;
 
 ####################CONSTANT#######################
 my $ARGCOUNT=100000; #number of regions to extract using command line, max number if restricted by kernel config
+my $INDEL_EXTENSION = 10; #when determining indel overlapping, interalize indels by extending indel INDEL_EXTENSION bp towards both ends
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 ##################################################
 my ($prefix,
@@ -81,7 +82,7 @@ die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($ven
 die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
 die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
 die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
-die "--vcf and --plink must be used together.\n" if ($plink && !$vcf or !$plink && $vcf);
+die "--vcf and --plink must be used together.\n" if ($plink && !$vcf);
 die "--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
 die "--mendel-stat must be used with --plink\n" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
 
@@ -117,9 +118,7 @@ if ($venn)
 {
     my @files=split /,/,$venn;
     @files=&SeqMule::Utils::getNonEmptyVCF(@files);
-    &genPlot(
-	&venn( &conv2anno(@files) ),scalar(@files) 
-    ); 
+    &venn( \@files,&conv2anno(@files) );
 }
 
 if (defined $capture) 
@@ -648,7 +647,7 @@ sub var_stat
 
     $dump.="print 'Sample='.(\$sample).\"\\n\" if defined \$sample;\n";
     $dump.="print 'Number of variants='.(\$total).\"\\n\" if defined \$total;\n";
-    $dump.="print 'Number of SNPs='.(\$nsnp).\"\\n\" if defined \$nsnp;\n";
+    $dump.="print 'Number of SNVs='.(\$nsnp).\"\\n\" if defined \$nsnp;\n";
     $dump.="print 'Number of indels='.(\$nindel).\"\\n\" if defined \$nindel;\n";
     $dump.="print 'Transitions='.(\$nti).\"\\n\" if defined \$nti;\n";
     $dump.="print 'Transversions='.(\$ntv).\"\\n\" if defined \$ntv;\n";
@@ -769,8 +768,8 @@ sub coverage_stat
 #generate Venn Diagram
 sub venn 
 {
-    warn "Do not support more than 5 files right now\n" and return undef unless (@_<=5);
-    warn "No need to plot for single file\n" and return undef if (@_==1);
+    warn "NOTICE: Do not support more than 5 files right now\n" and return undef unless (@_<=5);
+    warn "NOTICE: No need to plot for single file\n" and return undef if (@_==1);
 
     my $exe=&getExe("Rscript");
     #first check if Venn.diagram available
@@ -779,62 +778,210 @@ sub venn
     my $installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
     unless ( $installed_packages=~/venndiagram/i)
     {
-	warn "VennDiagram not installed, now try to install it.\n";
+	warn "NOTICE: VennDiagram not installed, now try to install it.\n";
 	&SeqMule::Utils::install_R_package($exe,"$install_dir/lib/VennDiagram_1.6.5.tar.gz",$rlibpath)
-	    or die "Cannot install...\nPlease do it manually\n";
+	    or die "ERROR: Cannot install...\nPlease do it manually\n";
 	$installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
     }
 
     #generate index
-    die "No VennDiagram package in R, please install it manually and try again.\n" unless $installed_packages=~/venndiagram/i;
+    die "ERROR: No VennDiagram package in R, please install it manually and try again.\n" unless $installed_packages=~/venndiagram/i;
+    my $ref_avinput_name = shift;
+    my @avinput_name = @$ref_avinput_name;
     my @avinput_pool=@_;
-    my @index_matrix;
-    my $max=0;
-    my $variant_index_pool;
-
-    map {push @gunlink,$_ if /\.tmp$/i} @avinput_pool;
+    my @snp_index_matrix;
+    my @non_snp_index_matrix;
+    my $snp_index_pool;
+    my $non_snp_index_pool;
 
     #remove empty file
     for (@avinput_pool)
     {
-	$_=undef unless -s $_ >0;
+	$_=undef unless (-s $_ >0);
     }
     @avinput_pool=grep {defined $_} @avinput_pool;
-    warn "WARNING: failed to plot Venn diagram, number of nonzero files is more than 5 or smaller than 2.\n" and return unless @avinput_pool<=5 && @avinput_pool>=2;
+    warn "WARNING: failed to plot Venn diagram, number of nonempty files is more than 5 or smaller than 2.\n" and return unless @avinput_pool<=5 && @avinput_pool>=2;
 
     #generate index matrix
     for my $count(0..$#avinput_pool)
     {
-	my ($name_prefix)=$avinput_pool[$count]=~/^(.*)(\.avinput|\.tmp)$/;
-	my %appear; #force uniqueness
+	#*_index_matrix is array of array
+	#first layer is array of file index
+	#2nd layer is array of file name plus variants
+	my $input = $avinput_pool[$count];
+	my %snp_appear; #force uniqueness
 
-	open IN,"<",$avinput_pool[$count] or die "Cannot open $avinput_pool[$count]:$!\n";
-	$index_matrix[$count]=[];
-	push @{$index_matrix[$count]},$name_prefix;
+	open IN,"<",$input or die "Cannot open $input:$!\n";
+	$snp_index_matrix[$count]=[];
+	$non_snp_index_matrix[$count]=[];
 	while (<IN>) 
 	{
+	    #chr	start	end	ref	obs	...
+	    #1		2	3	4	5
 	    /^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t.*$/ or next;
 
-	    my $key="$1+$2+$3+$4+$5";
-	    push @{$index_matrix[$count]},$key and $appear{$key}=1 unless $appear{$key};
+	    if ($2 == $3 and length($4) == 1 and length($5) == 1 ) #start == end means this is a SNP
+	    {
+		my $key=[$1,$2,$3,$4,$5];
+		push @{$snp_index_matrix[$count]},$key and $snp_appear{$key}=1 unless $snp_appear{$key};
+	    } else
+	    {
+		#for indels, MVNs
+		#use intervalization of 20bp (10bp in each direction)
+		#as long as there's an overlap of interval
+		#the two indels are considered as the same
+		#non_snp_index_matrix will intervalized later
+		#ref and obs field will not be useful if we use intervalization
+		push @{$non_snp_index_matrix[$count]},[$1,$2-$INDEL_EXTENSION,$3+$INDEL_EXTENSION];
+	    }
 	}
 	close IN;
-	$max=@{$index_matrix[$count]} if @{$index_matrix[$count]} > $max;
     }
 
-    $variant_index_pool=File::Spec->catfile($tmpdir,$$."_index_pool.tmp");
-    open OUT,">",$variant_index_pool or die "Cannot create $variant_index_pool for Venn Diagram: $!\n";
-    for my $j(1..$max)
+    @non_snp_index_matrix = &gen_index_for_interval(\@non_snp_index_matrix);
+    for my $count(0..$#avinput_name)
+    {
+	#add file name to head of array
+	my $input = $avinput_name[$count];
+	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp|\.vcf|\.consensus)$/i;
+
+	unshift @{$snp_index_matrix[$count]},[$name_prefix];
+	unshift @{$non_snp_index_matrix[$count]},[$name_prefix];
+    }
+
+    $snp_index_pool=File::Spec->catfile($tmpdir,$$.rand($$)."_snp_index_pool.tmp");
+    $non_snp_index_pool=File::Spec->catfile($tmpdir,$$.rand($$)."_non_snp_index_pool.tmp");
+    push @gunlink,$snp_index_pool;
+    push @gunlink,$non_snp_index_pool;
+
+    &write_index_pool($snp_index_pool,@snp_index_matrix);
+    &write_index_pool($non_snp_index_pool,@non_snp_index_matrix);
+
+    #make plot for SNP and non-SNP
+    &genPlot("SNV",$snp_index_pool,scalar @avinput_pool);
+    &genPlot("NON-SNV",$non_snp_index_pool,scalar @avinput_pool);
+}
+sub gen_index_for_interval
+{
+    #be careful here
+    #we are dealing with references
+    #so any change to the content may have unexpected side effects
+    my $ref = shift;
+    #group all indels on the same chromosome
+    #this is not memory-efficient, however, there are
+    #only 344K indels on average for each genome
+    #not too much memory even if we have 10 or 20 whole genomes here
+    my %per_chr_interval;
+    my @new; #the original index_matrix with updated index
+
+    #put indels on the same chromosome together
+    for my $file_idx(0..$#{$ref})
+    {
+	my $i = $ref->[$file_idx];
+	for my $j(@$i)
+	{
+	    my $current_chr = $j->[0];
+	    unless (defined $per_chr_interval{$current_chr})
+	    {
+		#assume chromosome name is unique
+		#well, I haven't really seen a genome with duplicate
+		#chromosome names inside it.
+		$per_chr_interval{$current_chr} = [];
+	    }
+	    push @{$per_chr_interval{$current_chr}},[$j->[1],$j->[2],$file_idx];
+	}
+	#initialize @new
+	$new[$file_idx] = [];
+    }
+
+    #sort intervals on the same chromosome
+    for my $i(keys %per_chr_interval)
+    {
+	@{$per_chr_interval{$i}} = sort {
+	$a->[0] <=> $b->[0] 
+	    or $a->[1] <=> $b->[1] } @{$per_chr_interval{$i}};
+    }
+    #combine neighbour intervals
+    for my $i(keys %per_chr_interval)
+    {
+	my $prev_pos = [0,0,0];
+	my $prev_file_idx;
+
+	for my $j(@{$per_chr_interval{$i}})
+	{
+	    #j is ref to array of size 3, the last element is filename
+	    #prev_pos is ref to array of size 3
+	    if ($j->[0] <= $prev_pos->[2] && $j->[1] >= $prev_pos->[1])
+	    {
+		#we encouter an overlapping interval
+		#extend current interval
+		if ($prev_pos->[1] > $j->[0])
+		{ #for start, store whichever smaller
+		    $prev_pos->[1] = $j->[0];
+		}
+		if ($prev_pos->[2] < $j->[1])
+		{ #for end, store whichever bigger
+		    $prev_pos->[2] = $j->[1];
+		}
+		if($prev_file_idx != $j->[2])
+		{
+		    #do I have to push every time???
+		    #duplicate push into same file
+		    #does not help
+		    push @{$new[$j->[2]]},$prev_pos;
+		    $prev_file_idx = $j->[2];
+		}
+	    } else
+	    {
+		#we encounter a non-overlapping interval
+		$prev_pos = [$i,$j->[0],$j->[1]];
+		#because here we got a new interval
+		#we always push it
+		push @{$new[$j->[2]]},$prev_pos;
+		$prev_file_idx = $j->[2];
+	    }
+	}
+    }
+    #@new will consist of elements that
+    #are reference to an array of references
+    #for each interval (chr,start,end)
+    #IDs for super-intervals will be chr+start+end
+    #and there shouldn't be duplicates
+    return @new;
+}
+sub write_index_pool
+{
+    my $max=0;
+    my $outfile = shift;
+    my @index_matrix = @_;
+
+    for my $i(0..$#index_matrix)
+    {
+	$max = @{$index_matrix[$i]} if @{$index_matrix[$i]} > $max;
+    }
+
+    open OUT,">",$outfile or die "ERROR: Cannot create $outfile for Venn Diagram: $!\n";
+    for my $i(0..($max-1))
     {
 	my @line;
-	push @line,($index_matrix[$_-1][$j-1] || "NA") for (1..@avinput_pool);
+	for my $j(0..$#index_matrix)
+	{
+	    if(defined $index_matrix[$j][$i])
+	    {
+		push @line,(join "+",@{$index_matrix[$j][$i]});
+	    } else
+	    {
+		push @line,"NA";
+	    }
+	}
 	print OUT join("\t",@line),"\n";
     }
     close OUT;
-    return $variant_index_pool;
 }
 sub genPlot
 {
+    my $category = shift; #SNP or NON-SNP
+    die "ERROR: category missing" unless defined $category;
     my $variant_index_pool=shift;
     my $count=shift;
 
@@ -843,16 +990,16 @@ sub genPlot
 
     warn "NOTICE: Generating Venn diagram...\n"; 
     my $local_prefix=&getPrefix(split /,/,$venn);
-    my $tiff="${local_prefix}_venn.tiff";
-    my $jpg="${local_prefix}_venn.jpg";
-    my $rfile="${local_prefix}_venn.R";
+    my $tiff="${local_prefix}_${category}_venn.tiff";
+    my $jpg="${local_prefix}_${category}_venn.jpg";
+    my $rfile="${local_prefix}_${category}_venn.R";
     my $exe=&getExe("Rscript");
     my $rlibpath=File::Spec->catdir($install_dir,"rlib");
     my $rscript="#!$exe\n"; #exe path
     $rscript.=
     "x=read.delim(\"$variant_index_pool\",na.strings=\"NA\")\n".
     "y=list()\n".
-    "title='Overlapping of variants'\n";
+    "title='Overlapping of $category variants'\n";
     #convert dataframe to list such that na=remove works
     for my $no(1..$count) 
     {
@@ -865,6 +1012,15 @@ sub genPlot
     'VennDiagram',lib.loc=c('$rlibpath',.libPaths())
     )\n";
 
+    #handle the scenario where some columns are empty
+    $rscript.="
+    for (i in y)
+    {
+    	if(length(i) == 0)
+	{
+		quit(save=\"no\",status=0)
+	}
+    }\n";
 
     #high resolution tiff output
     if ($count==5)
@@ -914,7 +1070,6 @@ sub genPlot
     chmod 0755,$rfile;
     die "ERROR: Execution failed, please run $rfile manually\n" if system("$exe --vanilla $rfile 1>&2");
     push @gunlink,$rfile;
-    push @gunlink,$variant_index_pool;
     warn "NOTICE: Venn Digram plotted to $tiff and $jpg\n";
 }
 
@@ -953,11 +1108,13 @@ sub conv2anno
 	    { 
 		!system("$^X $exe_conver -includeinfo -format vcf4 $vcf_to_proc > $newout") or die "Failed to convert VCF to AVINPUT when no sample is given: $!\n";
 	    }
+	    push @gunlink,$newout;
 	    push @return_files,$newout;
 	} elsif (/^(.*)\.consensus$/) 
 	{
 	    my $tmp_soapsnp_avinput = File::Spec->catfile($tmpdir,$1.rand($$).".avinputready.tmp");
 	    !system("$^X $exe_conver -includeinfo -format soap $_ > $tmp_soapsnp_avinput") or die "Failed to convert $_ from SOAPsnp format to AVINPUT format: $!\n";
+	    push @gunlink,$tmp_soapsnp_avinput;
 	    push @return_files,$tmp_soapsnp_avinput;
 	} elsif (/\.avinput$/i) 
 	{

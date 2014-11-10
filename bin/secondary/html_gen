@@ -170,7 +170,7 @@ sub genParameterPage
     my $page=File::Spec->catfile("pages","parameter.html");
     my $page_content=`cat $page`;
     my $param_file="parameter.txt";
-    push @unlink,$param_file;
+    #push @unlink,$param_file;
     my @config_lines=&SeqMule::Utils::parsePipeline($param_file);
 
     open OUT,'>',$page or die "Failed to write to $page: $!\n";
@@ -241,7 +241,8 @@ sub genSummaryPage
 {
 #generate data summary page (for all samples)
     my $page="summary.html";
-    my $log="log.txt";push @unlink,$log;
+    my $log="log.txt";
+    #push @unlink,$log;
     my $log_content=`cat $log`;
     my $page_content=`cat $page`;
 
@@ -290,11 +291,13 @@ sub genSamplePage
 	my $result_folder="${sample}_result";
 	my $stat_table=&stat_table_gen($sample);
 	my $fastqc_link;
-	my $venn=File::Spec->catfile("..",$result_folder,"${sample}_venn.jpg");
+	my $venn=File::Spec->catfile("..",$result_folder,"${sample}_SNV_venn.jpg");
+	my $non_snv_venn=File::Spec->catfile("..",$result_folder,"${sample}_NON-SNV_venn.jpg");
 	my $cov=File::Spec->catfile("..",$result_folder,"${sample}_cov.jpg");
 	my $fastqc_dir=File::Spec->catfile("..",$result_folder,"$sample*fastqc");
 	#keep a local copy such that reports can be downloaded and viewed independently
-	my $local_venn=File::Spec->catfile($sample,"${sample}_venn.jpg"); 
+	my $local_venn=File::Spec->catfile($sample,"${sample}_SNV_venn.jpg"); 
+	my $local_non_snv_venn=File::Spec->catfile($sample,"${sample}_NON-SNV_venn.jpg"); 
 	my $local_cov=File::Spec->catfile($sample,"${sample}_cov.jpg");
 
 	mkdir $sample unless -d $sample;
@@ -316,6 +319,7 @@ sub genSamplePage
 
 	#copy images
 	!system("cp -f $venn $sample") or die "Failed to copy $venn to $sample:$!\n" if -f $venn;
+	!system("cp -f $non_snv_venn $sample") or die "Failed to copy $venn to $sample:$!\n" if -f $non_snv_venn;
 	!system("cp -f $cov $sample") or die "Failed to copy $cov to $sample:$!\n" if -f $cov;
 
 	open OUT,'>',$out_page or die "Failed to write to $out_page: $!\n";
@@ -348,8 +352,13 @@ sub genSamplePage
 		}
 		if (-f $local_venn)
 		{
-		    print OUT "<h2>Venn Diagram</h2>\n<p>Showing overlapping of up to 5 variant output</p>\n";
+		    print OUT "<h2>Venn Diagram (SNV)</h2>\n<p>Showing overlapping of up to 5 SNV variant output</p>\n";
 		    print OUT "<img class='center' src='../$local_venn' width=500 height=500>\n"; #local_venn is relative to outdir
+		}
+		if (-f $local_non_snv_venn)
+		{
+		    print OUT "<h2>Venn Diagram (non-SNV)</h2>\n<p>Showing overlapping of up to 5 NON-SNV variant output</p>\n";
+		    print OUT "<img class='center' src='../$local_non_snv_venn' width=500 height=500>\n"; #local_venn is relative to outdir
 		}
 		if (-f $local_cov)
 		{
