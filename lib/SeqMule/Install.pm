@@ -400,8 +400,12 @@ sub gatk
     my $exe='gatk';
     my $executable="GenomeAnalysisTK.jar";
     mkdir "$exe_base/$exe";
+    warn "\n\n\n";
+    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
     warn "CAUTION: SeqMule cannot automatically install GATK due to license limitations.\n",
          "Please download, unpack it and copy $executable to $exe_base/$exe\n";
+    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
+    warn "\n\n\n";
     sleep 5;
 }
 
@@ -781,7 +785,7 @@ sub search
     my @search_path;
     push @search_path, File::Spec->catdir($install_dir,"exe") if -d File::Spec->catdir($install_dir,"exe"); #exe dir contains all external programs
     push @search_path, File::Spec->catdir($install_dir,"bin") if -d File::Spec->catdir($install_dir,"bin"); #bin dir contains some accessory programs
-    #look at PATH first and then look into installation dir
+    #don't look at PATH, only look into installation dir
     for my $target(@targets)
     {
 	push @found,$target and next if $search_sys_path && &sys_which($target); #++ must precede var otherwise always return 0 at first loop
@@ -817,19 +821,23 @@ sub status
     $seqmule = '!!!WARNING!!!: MISSING PREREQUISITES' if @exe_notinstall;
 
     select(STDERR);
-    print "==============================================================================\n";
-    print "$seqmule\n";
+    warn "\n"x3;
+    warn "==============================================================================\n";
+    warn "==============================================================================\n";
+    warn "$seqmule\n";
     &version($install_dir);
-    print "==============================================================================\n";
+    warn "==============================================================================\n";
+    warn "==============================================================================\n";
+    warn "\n"x3;
     if (@exe_notinstall)
     {
-	print "MISSING PROGRAMS\n\n";
-	map {s/\t+$//;printf '%-15s',$_; print "\t\tMISSING\n"} @exe_notinstall;
+	warn "MISSING PROGRAMS\n\n";
+	map {s/\t+$//;printf '%-15s',$_; warn "\t\tMISSING\n"} @exe_notinstall;
     }
 
-    print "\n\nImportant commands:\n".
+    warn "\n\nImportant commands:\n".
     "	./Build freshinstall	#(re)install all external programs (Recommended)\n".
-    "	./Build installexes	#installs all missing external programs\n".
+    "	./Build installexes	#installs only missing external programs\n".
     "	./Build status		#Shows this status message\n\n".
     "Other Commands:\n".
     "	./Build fastqc		#installs FastQC (for quality control)\n".
@@ -847,6 +855,8 @@ sub status
     "	./Build snver		#installs snver\n".
     "	./Build freebayes	#installs freebayes\n".
     "	./Build vcftools	#installs vcftools\n";
+    warn "WARNING: Alternatively, you can copy and paste the tools you have outside of SeqMule\n";
+    warn "WARNING: into the exe/ folder to skip installation. However, no guarantee to work.\n";
     select(STDOUT);
 }
 
