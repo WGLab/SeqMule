@@ -263,6 +263,10 @@ sub vcf2plink
 
     warn "WARNING: no paternal or maternal ID is provided. Continue anyway ...\n" unless ($paternal_id || $maternal_id);
 
+    unless ($nofilter)
+    {
+	$vcf = &rm_filtered_var_from_vcf($vcf);
+    }
     !system("$vcftools --vcf $vcf --plink ".($nofilter? "":"--remove-filtered-all")." --out $local_prefix 2>/dev/null") or 
     die "ERROR: failed to convert $vcf to PLINK format with VCFtools ($!).\n";
 
@@ -328,6 +332,12 @@ sub vcf_consensus
     @in=@$unzipped;
     push @gunlink,@$unlink;
 
+    #remove filtered variants
+    unless ($nofilter)
+    {
+	@in = map { &rm_filtered_var_from_vcf($_) } @in;
+    }
+
     @local_sample = &figure_out_vcf_sample(@in);
 
     &run_gatk_combine_var({
@@ -351,6 +361,10 @@ sub vcf_union
     @in=@$unzipped;
     push @gunlink,@$unlink;
 
+    unless ($nofilter)
+    {
+	@in = map { &rm_filtered_var_from_vcf($_) } @in;
+    }
 
     @local_sample = &figure_out_vcf_sample(@in);
     &run_gatk_combine_var({
@@ -532,7 +546,7 @@ sub var_stat
 
     if (! defined $sample)
     {
-	warn "NOTICE: Multiple samples in VCF, please specify sample name (-s) if you only need stats from a specific sample.\n" if @sample_in_vcf>1;
+	warn "NOTICE: Multiple samples in VCF, please specify sample name (-s) if you only need stats from a specific sample (does not influence Mendelian stats).\n" if @sample_in_vcf>1;
     } else
     {
 	die "$sample NOT found in VCF\n" if (grep { $_ eq $sample} @sample_in_vcf) == 0;
@@ -1091,12 +1105,7 @@ sub conv2anno
 	    {
 		#extract variants with PASS or . in FILTER field before conversion
 		warn "NOTICE: Converting input file to ANNOVAR format, variants that failed to pass filtering will be ignored.\n";
-		my $vcf_no_filtered_record=File::Spec->catfile($tmpdir,"$$".rand($$)."_nofiltered.vcf");
-		!system("$^X -ne 'print if /^#|^[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t(PASS|\\.)\\t/' $vcf_to_proc > $vcf_no_filtered_record") or die "ERROR: Failed to extract variants that passed filtering or have no filter.\n";
-		warn "NOTICE: ",
-		(&SeqMule::Utils::countline($vcf_to_proc)-&SeqMule::Utils::countline($vcf_no_filtered_record)),
-		    " records removed.\n";
-		$vcf_to_proc=$vcf_no_filtered_record;
+		$vcf_to_proc = &rm_filtered_var_from_vcf($vcf_to_proc);
 	    }
 
 	    if (defined $sample)
@@ -1259,6 +1268,17 @@ sub loadPM
     {
 	return 1;
     }
+}
+sub rm_filtered_var_from_vcf
+{
+    my $vcf_to_proc = shift;
+    my $vcf_no_filtered_record=File::Spec->catfile($tmpdir,"$$".rand($$)."_nofiltered.vcf");
+    !system("$^X -ne 'print if /^#|^[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t(PASS|\\.)\\t/' $vcf_to_proc > $vcf_no_filtered_record") or die "ERROR: Failed to extract variants that passed filtering or have no filter.\n";
+    warn "NOTICE: ",
+    (&SeqMule::Utils::countline($vcf_to_proc)-&SeqMule::Utils::countline($vcf_no_filtered_record)),
+    " records removed because of being filtered.\n";
+    push @gunlink,$vcf_no_filtered_record;
+    return $vcf_no_filtered_record;
 }
 
 
