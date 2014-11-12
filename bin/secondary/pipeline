@@ -2430,6 +2430,9 @@ sub procBAM
 	push @commands, [$threads,
 	    "Sort BAM input assuming it is not sorted",
 	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads -f $bam $newbam"];
+	#whenever bam_list is changed, original_input should be changed accordingly
+	$original_input{$newbam}=$original_input{$local_bam};
+	delete $original_input{$local_bam};
 	$local_bam=$newbam; 
 	push @removable,$newbam;
     }
