@@ -30,6 +30,8 @@ my $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files sma
 my $GATK_HARD_FILTER_BAM_SIZE=1_000_000_000; #in bytes, BAM files smaller than it will be subject to SNP hard filtering instead of VQSR
 my $GATK_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files smaller than it will be subject to indel hard filtering instead of VQSR
 my $RMDUP_MIN_LEN=10_000_000; #remove minimum 
+my $SAMTOOLS_SORT_MEM_EXOME = '2G';
+my $SAMTOOLS_SORT_MEM_GENOME = '4G';
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 
 #cmd opt
@@ -2346,7 +2348,7 @@ sub procBAM
 	}
 	$original_input{$onebam}=join(",",map {basename $_} @bam_list);
 	@bam_list=($onebam);
-    } else
+    } else #no merge
     {
 	if (@prefix_list)
 	{
@@ -2419,6 +2421,21 @@ sub procBAM
 	}
     }
 #check @SQ tags, try to fix inconsistent tags
+    #sort all BAMs as we cannot assume they are aligned
+    for my $local_bam(@bam_list)
+    {
+	my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
+	die "ERROR: $local_bam must have *.bam as file name\n" unless defined $local_prefix;
+	my $newbam="$local_prefix.sort.bam";
+	push @commands, [$threads,
+	    "Sort BAM input assuming it is not sorted",
+	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads -f $bam $newbam"];
+	#whenever bam_list is changed, original_input should be changed accordingly
+	$original_input{$newbam}=$original_input{$local_bam};
+	delete $original_input{$local_bam};
+	$local_bam=$newbam; 
+	push @removable,$newbam;
+    }
 }
 
 sub confOptCheck
