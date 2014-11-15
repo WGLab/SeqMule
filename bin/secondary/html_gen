@@ -97,9 +97,9 @@ sub stat_gen_for_summary
 		{
 		    $result.="Average coverage is ".$$_[1]." (in target region if this is captured sequencing).</br>";
 		}
-		if ($$_[0]=~/Number of SNPs/i)
+		if ($$_[0]=~/Number of SNVs/i)
 		{
-		    $result.=$$_[1]." SNPs are called.</br>";
+		    $result.=$$_[1]." SNVs are called.</br>";
 		}
 		if ($$_[0]=~/Number of indels/i)
 		{

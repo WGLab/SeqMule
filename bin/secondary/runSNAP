@@ -44,6 +44,7 @@ my %options=%{ $steps[$n-1][2] };
 #my $tmpbam = File::Spec->catfile($tmpdir,$$.rand($$)."_snap.bam");
 my $tmpbam = File::Spec->catfile(".",$$.rand($$)."_snap.bam");
 $bam=~/(.*?)\.bam$/ or die "ERROR: expect *.bam for BAM files: $bam\n";
+my $prefix_bam = $1;
 
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 
@@ -68,11 +69,11 @@ $cmd = '';
 $cmd .= " $samtools view -b ";
 $cmd.=" -F 256 "; #only output primary alignment
 $cmd .=($threads >= 2? " -@ $threads" : "");
-$cmd .= " $tmpbam | $samtools sort -f ".($sortmem?" -m $sortmem":"").($threads>=2? " -@ $threads":"")." - $bam";
+$cmd .= " $tmpbam | $samtools sort ".($sortmem?" -m $sortmem":"").($threads>=2? " -@ $threads":"")." - $prefix_bam";
 push @cmd,$cmd;
 $cmd = '';
 
-#push @cmd,"rm $tmpbam";
+push @cmd,"rm $tmpbam";
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
