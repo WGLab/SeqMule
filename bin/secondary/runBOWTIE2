@@ -38,6 +38,7 @@ GetOptions(
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
@@ -94,7 +95,8 @@ $cmd.=" -F 256 "; #only output primary alignment
 $cmd .=($threads >= 2? " -@ $threads" : "");
 $cmd .= " - | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix";
 
-exec $cmd;
+my $script=&SeqMule::Parallel::genTempScript($cmd);
+exec $script;
 
 
 __END__

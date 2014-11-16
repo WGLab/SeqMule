@@ -765,6 +765,38 @@ sub vcftools
     warn "Finished installing $exe\n";
     chdir($cwd);
 }
+sub snap
+{
+    my $install_dir=shift;
+    my $exe_loc = shift;
+    my $exe_base="$install_dir/exe";
+    mkdir $exe_base unless -d $exe_base;
+    my $exe='snap';
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
+    my $file = "$install_dir/exe/$exe.zip"; #file to save to
+    my $url = $exe_locations{$exe} or die "No URL for $exe\n";
+    my $executable="$exe_base/$exe/snap";
+    my $cwd=cwd();
+
+    &rm_file($file);
+    &sys_rmdir("$exe_base/$exe");
+    print "Downloading $exe...\n";
+    &SeqMule::Utils::getstore($url, $file) or return &downfail($exe,$url);
+    print "Unpacking $exe archive...\n";
+    &SeqMule::Utils::extract_archive($file,$exe_base) or return &unpackfail($file); #feed extract_archive full path to zipped file
+    push(@unlink, $file);
+
+    chdir($exe_base);
+    my ($dir) = grep {-d $_} <snap-*>; #dir got after unpacking
+    &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    chdir($exe);
+    if (-f "Makefile")
+    {
+	!system("make") and -f $executable or &makefail($exe);
+    }
+    warn "Finished installing $exe\n";
+    chdir($cwd);
+}
 
 #########################END OF INDIVIDUAL PROGRAMS##############################
 
@@ -853,6 +885,7 @@ sub status
     "	./Build soapsnp		#installs SOAPsnp tools\n".
     "	./Build tabix		#installs tabix\n".
     "	./Build snver		#installs snver\n".
+    "	./Build snap		#installs SNAP\n".
     "	./Build freebayes	#installs freebayes\n".
     "	./Build vcftools	#installs vcftools\n";
     warn "WARNING: Alternatively, you can copy and paste the tools you have outside of SeqMule\n";

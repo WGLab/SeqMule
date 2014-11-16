@@ -1,4 +1,5 @@
 #dbsnp vcf file naming rule: dbsnp_build_version.vcf;eg dbsnp_hg19_135.vcf
+#index file must contain 'index' string in its local file name
 #format
 #option_name	file1	url_file1	md5_file1	file2	url_file2	MD5_file2
 #
@@ -29,3 +30,5 @@ hg19iontorrent	hg19iontorrent.tar.gz	http://seqmule.usc.edu/hg_index/hg19iontorr
 hg18iontorrent	hg18iontorrent.tar.gz	http://seqmule.usc.edu/hg_index/hg18iontorrent.tar.gz	14646d62cf699e46801f432d7967d4a5
 hg19nimblegen	hg19nimblegen.tar.gz	http://seqmule.usc.edu/hg_index/hg19nimblegen.tar.gz	16080ba5ea61e5c5b236fcca1a8846c5
 hg18nimblegen	hg18nimblegen.tar.gz	http://seqmule.usc.edu/hg_index/hg18nimblegen.tar.gz	90cfcb807b83a80c503dcee85280918a
+hg18isnap	index_snap_human_b36_both.fasta.tar.gz	http://seqmule.usc.edu/hg_index/snap_human_b36_both_index.tar.gz	a7d3b45caa22a31ad67e66c335971b07 
+hg19isnap	index_snap_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/snap_human_g1k_v37_index.tar.gz	3418d3835ee29f8dd1d60df91a2311c1

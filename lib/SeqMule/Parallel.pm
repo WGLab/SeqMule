@@ -538,6 +538,7 @@ sub genTempScript
     my $tmp="/tmp/$$".time()."script";
     open OUT,'>',$tmp or die "Can't write to $tmp: $!\n";
     print OUT "#!/bin/sh\nset -e\n"; #let shell run the script, exit at first error
+    print OUT "set -o pipefail\n"; #let shell run the script, exit at first error
     print OUT join ("\n",@cmd);
     close OUT;
     chmod 0755,$tmp or die "Failed to chmod 755 on $tmp\n";

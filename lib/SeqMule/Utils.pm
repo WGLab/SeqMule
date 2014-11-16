@@ -967,6 +967,15 @@ sub getProgramVersion
     } elsif ($loc=~/soapsnp$/i)
     {
 	return "1.03";#no version number found, use the current latest version
+    } elsif ($loc=~/snap$/i)
+    {
+	$version=`$loc 2>&1`;
+	if ($version=~/version\s*([\w\-\.]+)\.?/i)
+	{
+	    my $version_num = $1;
+	    $version_num =~ s/\.+$//;
+	    return $version_num;
+	}
     }
 
     return "NA";
