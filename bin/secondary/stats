@@ -540,9 +540,26 @@ sub var_stat
     my $local_prefix=&getPrefix($local_vcf);
     my $outfile="${local_prefix}_var_stat.txt";
     my $vcftools=&getExe("vcf-stats");
-    my $dump;
     my $output;
     my @sample_in_vcf=&SeqMule::Utils::getVCFSample($local_vcf);
+    my $stat_ref;
+    my @description = (
+		['sample'		=>	'Sample'],
+		['count'		=>	'Number of variants'],
+		['snp_count'		=>	'Number of SNVs'],
+		['percent_snp'		=>	'Percentage of SNVs'],
+		['indel_count'		=>	'Number of indels'],
+		['percent_indel'	=>	'Percentage of indels'],
+		['nti'			=>	'Transitions'],
+		['ntv'			=>	'Transversions'],
+		['titv'			=>	'Ti/Tv Ratio'],
+		['nhet'			=>	'Total heterozygotes'],
+		['percent_ht'		=>	'Percentage of heterozygotes'],
+		['het_RA_count'		=>	'Ref/Alt heterozygotes'],
+		['het_AA_count'		=>	'Alt/Alt heterozygotes'],
+		['hom_AA_count'		=>	'Homozygotes'],
+		['percent_hom'		=>	'Percentage of homozygotes'],
+	    );
 
     if (! defined $sample)
     {
@@ -554,7 +571,6 @@ sub var_stat
     }
 
     warn "Generating variant stats\n";
-    &loadPM($vcftools);
     unless ($nofilter)
     {
 	#only consider variants with 'PASS' or '.' in FILTER
@@ -563,156 +579,29 @@ sub var_stat
 	    or die "Failed to output filtered variants: $!\n";
 	$local_vcf=$tmp;
     }
-    if (defined $sample)
-    {
-	$dump=`$vcftools $local_vcf -s $sample 2>/dev/null` or die "Cannot read output from vcf-stats: $!\n";
-    } else
-    {
-	$dump=`$vcftools $local_vcf 2>/dev/null` or die "Cannot read output from vcf-stats: $!\n";
-    }
 
-    if (0)
-    { #example output
-	my $VAR1 = {#in fact, 'my' keyword is not present
-	    'samples' => {
-		'father' => {
-		    'hom_AA_count' => 97282, #1/1,2/2 variant
-		    'indel_count' => 6057,
-		    'indel' => {
-			'-13' => 11,
-			'5' => 78,
-			#ignore some lines
-		    },
-		    'het_RA_count' => 47435, #0/1 variant
-		    'snp_count' => 138743, #number of SNPs
-		    'count' => 162826, #snp+indel
-		    'hom_RR_count' => 18026, #0/0 non-mutation
-		    'ref' => 65461,
-		    'private' => 144800, #snp_count+indel_count-shared_variant
-		    'missing' => 50070,
-		    'het_AA_count' => 83, #1/2,1/3 etc., variant
-		    'snp' => {
-			'A>C' => 5648,
-			'A>G' => 24308, #ti
-			'T>G' => 5694,
-			'T>A' => 3587,
-			'T>C' => 24096, #ti
-			'C>T' => 23792, #ti
-			'C>A' => 5222,
-			'A>T' => 3600,
-			'G>T' => 5301,
-			'C>G' => 6885,
-			'G>C' => 6765,
-			'G>A' => 23859 #ti
-		    },
-		    'unphased' => 162826,
-		    'ref_count' => 65461
-		}
-	    },
-	    'all' => {
-		'indel_count' => 6863,
-		'indel' => {
-		    '-13' => 13,
-		    '5' => 90
-		    #ignore some lines
-		},
-		'snp_count' => 206033,
-		'count' => 212896,
-		'nalt_1' => 212763,
-		'shared' => {
-		    '1' => 144800,
-		    '0' => 68096
-		},
-		'nalt_2' => 132,
-		'snp' => {
-		    'A>C' => 8268,
-		    'A>G' => 35693,
-		    'T>G' => 8306,
-		    'T>A' => 5287,
-		    'C>T' => 35659,
-		    'T>C' => 35731,
-		    'C>A' => 7870,
-		    'A>T' => 5463,
-		    'G>T' => 7841,
-		    'C>G' => 10121,
-		    'G>C' => 10001,
-		    'G>A' => 35826
-		},
-		'nalt_3' => 1
+    $stat_ref = &get_vcf_stat({vcftools=>$vcftools,sample=>$sample,local_vcf=>$local_vcf});
+
+    #output autosomal heterozygosity rate
+    #output X chromosomal heterozygosity rate
+
+    #prepare output
+    $output .= "$original_vcf=Variant stats".($nofilter? '':'(filter applied)')."\n";
+    for my $i(keys %{$stat_ref})#sample is key
+    {
+	for my $j(@description) #only output keys listed in description, other stats are not guaranteed to make sense
+	{#make description a list, so order can be preserved
+	    my $key = $j->[0];
+	    my $desc = $j->[1];
+	    if ($stat_ref->{$i}->{$key})
+	    {
+		$output .= $desc.'='.$stat_ref->{$i}->{$key}."\n";
 	    }
-	};
+	}
     }
-    eval $dump will return the reference to hash, start from there!!
-    #eval('my %return = %{$$VAR1{samples}}');
-    #for my $i(keys %return)
-    #{
-    #    for my $j(keys %{$return{$i}})
-    #    {
-    #        print $return{$i}->{$j},"\n";
-    #    }
-    #}
-    #$dump.='{'."\n";
-    #$dump.='my %sample_hash= %{$$VAR1{samples}};'."\n";
-    #$dump.='my @sample=keys %sample_hash;'."\n";
-    #$dump.='for my $sample(@sample) {'."\n";
-    #$dump.='my %sample_stat= %{$sample_hash{$sample}};'."\n";
-    #$dump.='my $nsnp=$sample_stat{snp_count} if exists $sample_stat{snp_count};'."\n";
-    #$dump.='my $nindel=$sample_stat{indel_count} if exists $sample_stat{indel_count};'."\n";
-    #$dump.='my $total=$nsnp+$nindel if defined $nsnp && defined $nindel;'."\n";
-    #$dump.='my $percent_snp = $nsnp/$total if $nsnp && $total;'."\n";
-    #$dump.='$percent_snp = (sprintf "%.1f",$percent_snp*100)."%";'."\n";
-    #$dump.='my $percent_indel = $nindel/$total if $nindel && $total;'."\n";
-    #$dump.='$percent_indel= (sprintf "%.1f",$percent_indel*100)."%";'."\n";
-    #$dump.='my $nti=0;map {$nti+=${$sample_stat{snp}}{$_} if exists ${$sample_stat{snp}}{$_} } qw(A>G G>A C>T T>C);'."\n";
-    #$dump.='my $ntv=0;map {$ntv+=${$sample_stat{snp}}{$_} if exists ${$sample_stat{snp}}{$_} } qw(A>C C>A G>T T>G A>T T>A C>G G>C);'."\n";
-    #$dump.='my $titv= $ntv ? $nti/$ntv : 0;'."\n";
-    #$dump.='$titv= sprintf "%.2f",$titv;'."\n";
-    #$dump.='my $nhet_RA=$sample_stat{het_RA_count} if exists $sample_stat{het_RA_count};'."\n";
-    #$dump.='my $nhet_AA=$sample_stat{het_AA_count} if exists $sample_stat{het_AA_count};'."\n";
-    #$dump.='my $nhet=$sample_stat{het_AA_count}+$sample_stat{het_RA_count} if exists $sample_stat{het_AA_count} && exists $sample_stat{het_RA_count};'."\n";
-    #$dump.='my $percent_het=$nhet/$total if $nhet && $total;'."\n";
-    #$dump.='$percent_het= (sprintf "%.1f",$percent_het*100)."%";'."\n";
-    #$dump.='my $nhom=$sample_stat{hom_AA_count} if exists $sample_stat{hom_AA_count};'."\n";
-    #$dump.='my $percent_hom=$nhom/$total if $nhom && $total if $nhet && $total;'."\n";
-    #$dump.='$percent_hom= (sprintf "%.1f",$percent_hom*100)."%";'."\n";
 
-    #$dump.="print 'Sample='.(\$sample).\"\\n\" if defined \$sample;\n";
-    #$dump.="print 'Number of variants='.(\$total).\"\\n\" if defined \$total;\n";
-    #$dump.="print 'Number of SNVs='.(\$nsnp).\"\\n\" if defined \$nsnp;\n";
-    #$dump.="print 'Percentage of SNVs='.(\$percent_snp).\"\\n\" if defined \$percent_snp;\n";
-    #$dump.="print 'Number of indels='.(\$nindel).\"\\n\" if defined \$nindel;\n";
-    #$dump.="print 'Percentage of indels='.(\$percent_indel).\"\\n\" if defined \$percent_indel;\n";
-    #$dump.="print 'Transitions='.(\$nti).\"\\n\" if defined \$nti;\n";
-    #$dump.="print 'Transversions='.(\$ntv).\"\\n\" if defined \$ntv;\n";
-    #$dump.="print 'Ti/Tv Ratio='.(\$titv).\"\\n\" if defined \$titv;\n";
-    #$dump.="print 'Total heterozygotes='.(\$nhet).\"\\n\" if defined \$nhet;\n";
-    #$dump.="print 'Percentage of heterozygotes='.(\$percent_het).\"\\n\" if defined \$percent_het;\n";
-    #$dump.="print 'Ref/Alt heterozygotes='.(\$nhet_RA).\"\\n\" if defined \$nhet_RA;\n";
-    #$dump.="print 'Alt/Alt heterozygotes='.(\$nhet_AA).\"\\n\" if defined \$nhet_AA;\n";
-    #$dump.="print 'Homozygotes='.(\$nhom).\"\\n\" if defined \$nhom;\n";
-    #$dump.="print 'Percentage of homozygotes='.(\$percent_hom).\"\\n\" if defined \$percent_hom;\n";
-    #$dump.="}\n";
-    #$dump.='}'."\n";
-
-    #my $tmp_script=File::Spec->catfile($tmpdir,"$$.seqmule.varstat");
-    #open SCRIPT,'>',$tmp_script or die "Failed to write to $tmp_script: $!\n";
-    #print SCRIPT $dump;
-    #close SCRIPT;
-
-    #open IN,'-|',"$^X $tmp_script 2>/dev/null" or die "Failed to read from vcf-stats dump: $!\n";
-    #$output.="$original_vcf=Variant stats".($nofilter? '':'(filter applied)')."\n";
-    #while(<IN>)
-    #{
-    #    $output.=$_;
-    #}
-    #close IN;
-
-    ##output autosomal heterozygosity rate
-    ##output X chromosomal heterozygosity rate
-
-
-    #&SeqMule::Utils::write2outfile($output,$outfile);
-    #warn "NOTICE: Output written to $outfile\n";
+    &SeqMule::Utils::write2outfile($output,$outfile);
+    warn "NOTICE: Output written to $outfile\n";
 }
 
 
@@ -1295,6 +1184,160 @@ sub loadPM
     {
 	return 1;
     }
+}
+sub get_vcf_stat
+{
+    my $opt = shift;
+    my $vcftools = $opt->{'vcftools'} or die "ERROR: Missing VCFtools executable.";
+    my $sample = $opt->{'sample'};
+    my $local_vcf = $opt->{'local_vcf'} or die "ERROR: Missing local_vcf.";
+    my $dump;
+
+    &loadPM($vcftools);
+    if (defined $sample)
+    {
+	$dump=`$vcftools $local_vcf -s $sample 2>/dev/null` or die "ERROR: Cannot read output from vcf-stats: $!\n";
+    } else
+    {
+	$dump=`$vcftools $local_vcf 2>/dev/null` or die "ERROR: Cannot read output from vcf-stats: $!\n";
+    }
+
+    if (0)
+    { #example output
+	my $VAR1 = {#in fact, 'my' keyword is not present
+	    'samples' => {
+		'father' => {
+		    'hom_AA_count' => 97282, #1/1,2/2 variant
+		    'indel_count' => 6057,
+		    'indel' => {
+			'-13' => 11,
+			'5' => 78,
+			#ignore some lines
+		    },
+		    'het_RA_count' => 47435, #0/1 variant
+		    'snp_count' => 138743, #number of SNPs
+		    'count' => 162826, #snp+indel
+		    'hom_RR_count' => 18026, #0/0 non-mutation
+		    'ref' => 65461,
+		    'private' => 144800, #snp_count+indel_count-shared_variant
+		    'missing' => 50070,
+		    'het_AA_count' => 83, #1/2,1/3 etc., variant
+		    'snp' => {
+			'A>C' => 5648,
+			'A>G' => 24308, #ti
+			'T>G' => 5694,
+			'T>A' => 3587,
+			'T>C' => 24096, #ti
+			'C>T' => 23792, #ti
+			'C>A' => 5222,
+			'A>T' => 3600,
+			'G>T' => 5301,
+			'C>G' => 6885,
+			'G>C' => 6765,
+			'G>A' => 23859 #ti
+		    },
+		    'unphased' => 162826,
+		    'ref_count' => 65461
+		}
+	    },
+	    'all' => {
+		'indel_count' => 6863,
+		'indel' => {
+		    '-13' => 13,
+		    '5' => 90
+		    #ignore some lines
+		},
+		'snp_count' => 206033,
+		'count' => 212896,
+		'nalt_1' => 212763,
+		'shared' => {
+		    '1' => 144800,
+		    '0' => 68096
+		},
+		'nalt_2' => 132,
+		'snp' => {
+		    'A>C' => 8268,
+		    'A>G' => 35693,
+		    'T>G' => 8306,
+		    'T>A' => 5287,
+		    'C>T' => 35659,
+		    'T>C' => 35731,
+		    'C>A' => 7870,
+		    'A>T' => 5463,
+		    'G>T' => 7841,
+		    'C>G' => 10121,
+		    'G>C' => 10001,
+		    'G>A' => 35826
+		},
+		'nalt_3' => 1
+	    }
+	};
+    }
+    my $ref_stat_hash = eval "my $dump"; #add 'my' keyword because it's absent
+    unless ($ref_stat_hash)
+    {
+	die "ERROR: failed to get statistics from vcf-stats ($@)\n";
+    }
+    my $sample_hash_ref = $ref_stat_hash->{samples};
+    for my $sample(keys %{$sample_hash_ref}) 
+    {
+	my $single_sample_stat_ref = $sample_hash_ref->{$sample};
+
+	#add sample name
+	$single_sample_stat_ref->{sample} = $sample;
+
+	#snp and indel counts
+	my $nsnp=$single_sample_stat_ref->{snp_count} if exists $single_sample_stat_ref->{snp_count};
+	my $nindel=$single_sample_stat_ref->{indel_count} if exists $single_sample_stat_ref->{indel_count};
+	my $total=$single_sample_stat_ref->{count} if exists $single_sample_stat_ref->{count};
+
+	if($nsnp && $total)
+	{
+	    my $percent_snp = $nsnp/$total if $nsnp && $total;
+	    $percent_snp = (sprintf "%.1f",$percent_snp*100)."%";
+	    $single_sample_stat_ref->{percent_snp} = $percent_snp;
+	}
+	if($nindel && $total)
+	{
+	    my $percent_indel = $nindel/$total if $nindel && $total;
+	    $percent_indel= (sprintf "%.1f",$percent_indel*100)."%";
+	    $single_sample_stat_ref->{percent_indel} = $percent_indel;
+	}
+
+	#ti tv and ratio
+	my $nti=0;
+	map {$nti+=${$single_sample_stat_ref->{snp}}{$_} if exists ${$single_sample_stat_ref->{snp}}{$_} } qw(A>G G>A C>T T>C);
+	$single_sample_stat_ref->{nti} = $nti if $nti;
+	my $ntv=0;
+	map {$ntv+=${$single_sample_stat_ref->{snp}}{$_} if exists ${$single_sample_stat_ref->{snp}}{$_} } qw(A>C C>A G>T T>G A>T T>A C>G G>C);
+	$single_sample_stat_ref->{ntv} = $ntv if $ntv;
+
+	my $titv= $ntv ? $nti/$ntv : 0;
+	$titv= sprintf "%.2f",$titv;
+	$single_sample_stat_ref->{titv} = $titv if $titv;
+
+	#hom het counts
+	my $nhet_RA=$single_sample_stat_ref->{het_RA_count} if exists $single_sample_stat_ref->{het_RA_count};
+	my $nhet_AA=$single_sample_stat_ref->{het_AA_count} if exists $single_sample_stat_ref->{het_AA_count};
+	my $nhet=$single_sample_stat_ref->{het_AA_count}+$single_sample_stat_ref->{het_RA_count} if exists $single_sample_stat_ref->{het_AA_count} && exists $single_sample_stat_ref->{het_RA_count};
+
+	if($nhet && $total)
+	{
+	    my $percent_het=$nhet/$total if $nhet && $total;
+	    $percent_het= (sprintf "%.1f",$percent_het*100)."%";
+	    $single_sample_stat_ref->{percent_het} = $percent_het;
+	}
+
+	my $nhom=$single_sample_stat_ref->{hom_AA_count} if exists $single_sample_stat_ref->{hom_AA_count};
+	if($nhom && $total)
+	{
+	    my $percent_hom=$nhom/$total;
+	    $percent_hom= (sprintf "%.1f",$percent_hom*100)."%";
+	    $single_sample_stat_ref->{percent_hom} = $percent_hom;
+	}
+
+    }
+    return $sample_hash_ref;
 }
 sub rm_filtered_var_from_vcf
 {
