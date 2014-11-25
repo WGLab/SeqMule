@@ -216,7 +216,6 @@ seqmule update
     Options:
 
       --git			update from GitHub
-      --install			automatically upgrade 3rd party tools
       --tmpdir <DIR>		temporary folder for storing copy of downloaded stuff. Default is $TMPDIR
       or /tmp
       -h,--help			help
@@ -228,9 +227,3 @@ seqmule update
 
       #update SeqMule to the latest version on GitHub
       seqmule update --git
-
-      #update 3rd party tools if newer version are introduced into SeqMule
-      seqmule update --install
-
-      #it's okay to combine --git and --install options
-      seqmule update --install --git
