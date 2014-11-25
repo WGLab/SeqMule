@@ -414,7 +414,7 @@ sub snap
     my $snap=&getExe(&SeqMule::Utils::getProgramExe("snap")); 
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runSnapCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNAP");
-    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq.py"));
+    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
     my $local_ref;
 
     die "ERROR: SNAP cannot handle Phred+64 score\n" if $phred == 64;

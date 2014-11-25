@@ -1,0 +1,39 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+die "Usage: <1.fq> <2.fq> <out.fq>\n" unless @ARGV == 3;
+my $fq1 = shift;
+my $fq2 = shift;
+my $out = shift;
+
+open FQ1,'<',$fq1 or die "ERROR: failed to read $fq1\n";
+open FQ2,'<',$fq2 or die "ERROR: failed to read $fq2\n";
+open OUT,'>',$out or die "ERROR: failed to write to $out\n";
+
+while(1)
+{
+        # process the first file
+	my $id1 = <FQ1>;
+	last unless $id1;
+	my $seq1 = <FQ1>;
+	my $plus1 = <FQ1>;
+	my $qual1 = <FQ1>;
+
+        # process the second file
+	my $id2 = <FQ2>;
+	last unless $id2;
+	my $seq2 = <FQ2>;
+	my $plus2 = <FQ2>;
+	my $qual2 = <FQ2>;
+
+        # write output
+	print OUT $id1,$seq1,$plus1,$qual1;
+	print OUT $id2,$seq2,$plus2,$qual2;
+}
+
+close FQ1;
+close FQ2;
+close OUT;
+warn "NOTICE: done writing interleaved FASTQ file ($out)\n";
