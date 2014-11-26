@@ -823,7 +823,7 @@ sub search
 	push @found,$target and next if $search_sys_path && &sys_which($target); #++ must precede var otherwise always return 0 at first loop
 	for my $single_path(@search_path)
 	{
-	    my $result=`find $single_path -depth -name \'$target\' -print0 -quit`;
+	    my $result=`find -L $single_path -depth -name \'$target\' -type f -print0 -quit`;
 	    $result=~s/\0$//; #remove trailling NULL char
 	    push @found,$target and last if (-f $result && $result =~ m%/$target$%i);
 	}

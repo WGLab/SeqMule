@@ -13,7 +13,7 @@ use Getopt::Long qw/GetOptions/;
 my ($advanced,$n,$help,
     $snap,$samtools,$sortmem,$java,$jmem,$sortsam,$ref,$bam,$threads,$rg,$sample,$pl,$lb);
 #check tmpdir beforeuse!!!!
-my $tmpdir;
+my ($tmpdir,$interleave_fq);
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
@@ -23,6 +23,7 @@ GetOptions(
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$jmem,
     'sortsam=s'		=>	\$sortsam,
+    'interleave_fq=s'	=>	\$interleave_fq,
     'ref=s'		=>	\$ref,
     'bam=s'		=>	\$bam,
     'threads=i'		=>	\$threads,
@@ -45,20 +46,37 @@ my %options=%{ $steps[$n-1][2] };
 my $tmpbam = File::Spec->catfile(".",$$.rand($$)."_snap.bam");
 $bam=~/(.*?)\.bam$/ or die "ERROR: expect *.bam for BAM files: $bam\n";
 my $prefix_bam = $1;
+    my $combo_fq = "$prefix_bam.combo.fastq";
 
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 
 my $cmd;
 my @cmd;
 
-$cmd .= "$snap ";
-$cmd .= (@fq==2? " paired ":" single "); 
-$cmd .= " $ref @fq "; 
+if(@fq == 2)
+{
+
+    push @cmd,"$interleave_fq @fq $combo_fq";
+##cat NA12878D_HiSeqX_combo.readpairno.fastq | /home/yunfeiguo/projects/SeqMule_pre-release/exe/snap/snap  paired  /home/yunfeiguo/projects/SeqMule_pre-release/bin/secondary/../../database/snap/human_g1k_v37.fasta -pairedInterleavedFastq - -F a  -h 300  -H 2000  -d 15  -s 50 1000  -t 12 -R '@RG\tID:READGROUP_snap-freebayes12\tSM:snap-freebayes12\tPL:ILLUMINA\tLB:LIBRARY'  -o -bam ./3131012100.1648201228_snap.bam
+    $cmd .= "cat $combo_fq | ";
+    $cmd .= "$snap ";
+    $cmd .= " paired ";
+    $cmd .= " $ref -pairedInterleavedFastq - ";
+} elsif (@fq == 1)
+{
+    $cmd .= "cat $fq[0] | ";
+    $cmd .= "$snap ";
+    $cmd .= " single ";
+    $cmd .= " $ref -fastq - ";
+} else
+{
+    die "ERROR: expect 1 or 2 FASTQ files.";
+}
 $cmd .= " -F a "; #only output aligned reads
 $cmd .= " -h $options{singleMaxHits} " if $options{singleMaxHits} ne '';
-$cmd .= " -H $options{pairMaxHits} " if $options{pairMaxHits} ne '';
+$cmd .= " -H $options{pairMaxHits} " if @fq == 2 && $options{pairMaxHits} ne '';
 $cmd .= " -d $options{maxDist} " if $options{maxDist} ne '';
-$cmd .= " -s $options{readSpacingMin} $options{readSpacingMax} " if $options{readSpacingMin} ne '' && $options{readSpacingMax} ne '';
+$cmd .= " -s $options{readSpacingMin} $options{readSpacingMax} " if @fq == 2 && $options{readSpacingMin} ne '' && $options{readSpacingMax} ne '';
 $cmd .=($threads >= 2? " -t $threads" : "");
 $cmd .= " -R '\@RG\\tID:$rg\\tSM:$sample\\tPL:$pl\\tLB:$lb' ";
 $cmd .= " $options{additional} " if $options{additional} ne '';
@@ -73,7 +91,11 @@ $cmd .= " $tmpbam | $samtools sort ".($sortmem?" -m $sortmem":"").($threads>=2? 
 push @cmd,$cmd;
 $cmd = '';
 
-push @cmd,"rm $tmpbam";
+push @cmd,"rm -f $tmpbam";
+if(@fq == 2)
+{
+    push @cmd,"rm -f $combo_fq";
+}
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;

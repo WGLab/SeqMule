@@ -31,7 +31,7 @@ my $GATK_HARD_FILTER_BAM_SIZE=1_000_000_000; #in bytes, BAM files smaller than i
 my $GATK_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files smaller than it will be subject to indel hard filtering instead of VQSR
 my $RMDUP_MIN_LEN=10_000_000; #remove minimum 
 my $SAMTOOLS_SORT_MEM_EXOME = '2G';
-my $SAMTOOLS_SORT_MEM_GENOME = '4G';
+my $SAMTOOLS_SORT_MEM_GENOME = '2G'; #2G has been tested to work with wgs
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 
 #cmd opt
@@ -414,6 +414,7 @@ sub snap
     my $snap=&getExe(&SeqMule::Utils::getProgramExe("snap")); 
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runSnapCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNAP");
+    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
     my $local_ref;
 
     die "ERROR: SNAP cannot handle Phred+64 score\n" if $phred == 64;
@@ -448,6 +449,7 @@ sub snap
 	$cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
 	$cmd.=" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME);
 	$cmd .= " -tmpdir $TMPDIR";
+	$cmd .= " -interleave_fq $interleave_fq ";
 	$cmd.=" @local_fq";
 
 	push @commands,[$threads,"SNAP alignment",$cmd];$cmd="";
