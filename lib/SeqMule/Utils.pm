@@ -840,6 +840,7 @@ sub getProgramExe
 	freebayes       =>      "freebayes",
 	snver           =>      "SNVerIndividual.jar",
 	soapsnp         =>      "soapsnp",
+	vt		=>      "vt",
     );
     my $program=shift;
 
