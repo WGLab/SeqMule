@@ -33,7 +33,7 @@ my ($prefix,
     $plink,$paternal_id,$maternal_id,$mendelian_stat,
     $sample,$nofilter,
     $jmem,$nt,$tmpdir,
-    $help,$noclean,
+    $help,$noclean,$verbose,
 );
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
 my @gunlink;
@@ -69,6 +69,7 @@ GetOptions(
 
     'help|h'	        =>	\$help,
     'noclean'		=>	\$noclean,
+    'verbose|v'		=>	\$verbose,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
@@ -1290,13 +1291,15 @@ sub normalize_vcf
     #be careful if you use getPrefix later on!!!
     my $vt = &getExe(&SeqMule::Utils::getProgramExe('vt'));
     my @return;
+    warn "NOTICE: normalzing VCF with Vt...\n";
     for my $local_vcf(@_)
     {
 	my $local_normal_vcf = File::Spec->catfile($tmpdir,"$$".rand($$)."_normalized.vcf");
-	!system("$vt normalize -r $ref $local_vcf | $vt mergedups - -o $local_normal_vcf") or die "ERROR: failed to normalize $local_vcf using vt ($!)\n";
+	!system("$vt normalize -r $ref $local_vcf ".($verbose? "":"2>/dev/null")." | $vt mergedups - -o $local_normal_vcf ".($verbose? "":"2>/dev/null")) or die "ERROR: failed to normalize $local_vcf using vt ($!)\n";
 	push @return,$local_normal_vcf;
 	push @gunlink,$local_normal_vcf;
     }
+    warn "NOTICE: done normalzing.\n";
     return @return;
 }
 
