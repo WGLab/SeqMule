@@ -33,7 +33,7 @@ my ($prefix,
     $plink,$paternal_id,$maternal_id,$mendelian_stat,
     $sample,$nofilter,
     $jmem,$nt,$tmpdir,
-    $help,$noclean,
+    $help,$noclean,$verbose,
 );
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
 my @gunlink;
@@ -69,22 +69,23 @@ GetOptions(
 
     'help|h'	        =>	\$help,
     'noclean'		=>	\$noclean,
+    'verbose|v'		=>	\$verbose,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
 #option check
-die "No prefix while multiple input files are used!\n" if ( ($consensus_files || $union_files || $venn || $consensus_vcf || $union_vcf ) && !$prefix);
-die "Please supply a sorted BAM file (-bam)\n" if (defined $aln && ! $bam );
-die "Please supply a sorted BAM file (-bam) or VCF file (-vcf)\n" if (defined $capture && ! ( $bam or $vcf));
-die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-c)\n" if ($consensus_files && $consensus_files=~s/,/,/g < 1);
-die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-u)\n" if ($union_files && $union_files=~s/,/,/g < 1);
-die "Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($venn && $venn=~s/,/,/g < 1);
-die "Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
-die "Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
-die "No reference file. Use --ref option.\n" if ( ($union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
-die "--vcf and --plink must be used together.\n" if ($plink && !$vcf);
-die "--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
-die "--mendel-stat must be used with --plink\n" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
+die "ERROR:No prefix while multiple input files are used!\n" if ( ($consensus_files || $union_files || $venn || $consensus_vcf || $union_vcf ) && !$prefix);
+die "ERROR:Please supply a sorted BAM file (-bam)\n" if (defined $aln && ! $bam );
+die "ERROR:Please supply a sorted BAM file (-bam) or VCF file (-vcf)\n" if (defined $capture && ! ( $bam or $vcf));
+die "ERROR:Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-c)\n" if ($consensus_files && $consensus_files=~s/,/,/g < 1);
+die "ERROR:Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-u)\n" if ($union_files && $union_files=~s/,/,/g < 1);
+die "ERROR:Please specify at least 2 VCF, AVINPUT or SOAPsnp files (-venn)\n" if ($venn && $venn=~s/,/,/g < 1);
+die "ERROR:Please specify at least 2 VCF files (-u-vcf)\n" if ($union_vcf && $union_vcf=~s/,/,/g < 1);
+die "ERROR:Please specify at least 2 VCF files (-c-vcf)\n" if ($consensus_vcf && $consensus_vcf=~s/,/,/g < 1);
+die "ERROR:No reference file specified or found. Use --ref option.\n" if ( ($venn || $union_vcf || $consensus_vcf) && ! ($ref && -f $ref));
+die "ERROR:--vcf and --plink must be used together.\n" if ($plink && !$vcf);
+die "ERROR:--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
+die "ERROR:--mendel-stat must be used with --plink\n" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
 
 #set default
 $jmem=$jmem||'1750m';
@@ -118,7 +119,7 @@ if ($venn)
 {
     my @files=split /,/,$venn;
     @files=&SeqMule::Utils::getNonEmptyVCF(@files);
-    &venn( \@files,&conv2anno(@files) );
+    &venn( \@files,&conv2anno(&normalize_vcf(@files)) );
 }
 
 if (defined $capture) 
@@ -436,6 +437,10 @@ sub run_gatk_combine_var
 	    $local_vcf=$local_out_nomissing;
 	    push @gunlink,$local_out,$local_out_nomissing;
 	}
+	#before combine single-sample VCF
+	#consider add normalization here, so that we don't have to deal with multi-genotype issue
+	@per_sample_vcf = &normalize_vcf(@per_sample_vcf);
+	
 	my $per_sample_combo_vcf = File::Spec->catfile($tmpdir,$$.rand($$)."per_sample_combo.vcf");
 	my $cmd =
 	"$java -Xmx$jmem -jar $gatk -T CombineVariants".
@@ -1349,6 +1354,23 @@ sub rm_filtered_var_from_vcf
     " records removed because of being filtered.\n";
     push @gunlink,$vcf_no_filtered_record;
     return $vcf_no_filtered_record;
+}
+sub normalize_vcf
+{
+    #temporary output file names will be returned
+    #be careful if you use getPrefix later on!!!
+    my $vt = &getExe(&SeqMule::Utils::getProgramExe('vt'));
+    my @return;
+    warn "NOTICE: normalzing VCF with Vt...\n";
+    for my $local_vcf(@_)
+    {
+	my $local_normal_vcf = File::Spec->catfile($tmpdir,"$$".rand($$)."_normalized.vcf");
+	!system("$vt normalize -r $ref $local_vcf ".($verbose? "":"2>/dev/null")." | $vt mergedups - -o $local_normal_vcf ".($verbose? "":"2>/dev/null")) or die "ERROR: failed to normalize $local_vcf using vt ($!)\n";
+	push @return,$local_normal_vcf;
+	push @gunlink,$local_normal_vcf;
+    }
+    warn "NOTICE: done normalzing.\n";
+    return @return;
 }
 
 

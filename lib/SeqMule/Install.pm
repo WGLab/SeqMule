@@ -102,6 +102,12 @@ sub installexes
 	warn "Nothing to do\n";
     }
 }
+sub debug
+{
+    my $install_dir = shift;
+    my $debug_for_opt = shift;
+    eval "&".$debug_for_opt."(\"$install_dir\",\"$install_dir/misc/exe_locations\")" or die "ERROR: failed to run $debug_for_opt under debug mode\n";
+}
 
 sub parse_locations 
 {
@@ -281,7 +287,7 @@ sub fastqc
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
     chmod 0755,$executable or return &chmodfail($executable);
     die "Failed to find executables for $exe\n" unless (-f $executable);
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -316,7 +322,7 @@ sub bowtie
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -350,7 +356,7 @@ sub bwa
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -388,7 +394,7 @@ sub samtools
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub gatk
@@ -434,7 +440,7 @@ sub gatklite
     my ($dir) = grep {-d $_} <GenomeAnalysisTKLite-*>; #dir got after unpacking
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
     die "Failed to find executables for $exe\n" unless (-f "$exe_base/$exe/GenomeAnalysisTKLite.jar");
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub snver
@@ -461,7 +467,7 @@ sub snver
 
     chdir($exe_base);
     die "Failed to find executables for $exe\n" unless -f $executable;
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -489,7 +495,7 @@ sub picard
     my ($dir) = grep {-d $_} <picard-tools-*>; #dir got after unpacking
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
     die "Failed to find executables for $exe\n" unless (-f "$exe_base/$exe/MarkDuplicates.jar" && -f "$exe_base/$exe/SortSam.jar");
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -518,7 +524,7 @@ sub soap
     my ($dir) = grep {-d $_} <soap2*>; #dir got after unpacking
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
     die "Failed to find executables for $exe\n" unless (-f $executable);
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -545,7 +551,7 @@ sub varscan
     mkdir $exe or die "Cannot create directory $exe\n"; 
     &File::Copy::move($file,$exe) or return &movefail($exe,$exe);
     die "Failed to find executables for $exe\n" unless (-f $executable);
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub soapsnp
@@ -582,7 +588,7 @@ sub soapsnp
     &msort($install_dir,$exe_loc);
     warn "Installing accessory program: soap2sam\n";
     &soap2sam($install_dir,$exe_loc);
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub msort 
@@ -610,7 +616,7 @@ sub msort
     chdir("$exe_base/$dir");
     warn "Configuring $exe...\n";
     !system("make") and -f $executable or return &makefail ($exe);
-    warn "NOTICE: Finished installing accessoary program: $exe\n";
+    warn "NOTICE: \nNOTICE: Finished installing accessoary program: $exe\n";
     chdir($cwd);
 }
 sub soap2sam 
@@ -637,7 +643,7 @@ sub soap2sam
     mkdir $exe unless -d $exe;
     &File::Copy::move("soap2sam.pl",$exe) or return &movefail("soap2sam.pl",$exe);
     die "Failed to find executables for $exe\n" unless (-f $executable);
-    warn "Finished installing accessoary program: $exe\n";
+    warn "\nNOTICE: Finished installing accessoary program: $exe\n";
     chdir($cwd);
 }
 sub bowtie2
@@ -670,7 +676,7 @@ sub bowtie2
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub freebayes
@@ -697,7 +703,7 @@ sub freebayes
     chdir($exe_base);
     chdir($exe);
     !system("make") and -f $executable or &makefail($exe);
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub tabix
@@ -730,7 +736,7 @@ sub tabix
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub vcftools
@@ -762,7 +768,7 @@ sub vcftools
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 sub snap
@@ -794,7 +800,39 @@ sub snap
     {
 	!system("make") and -f $executable or &makefail($exe);
     }
-    warn "Finished installing $exe\n";
+    warn "\nNOTICE: Finished installing $exe\n";
+    chdir($cwd);
+}
+sub vt
+{
+    my $install_dir=shift;
+    my $exe_loc = shift;
+    my $exe_base="$install_dir/exe";
+    mkdir $exe_base unless -d $exe_base;
+    my $exe='vt';
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
+    my $file = "$install_dir/exe/$exe.zip"; #file to save to
+    my $url = $exe_locations{$exe} or die "No URL for $exe\n";
+    my $executable="$exe_base/$exe/vt";
+    my $cwd=cwd();
+
+    &rm_file($file);
+    &sys_rmdir("$exe_base/$exe");
+    print "Downloading $exe...\n";
+    &SeqMule::Utils::getstore($url, $file) or return &downfail($exe,$url);
+    print "Unpacking $exe archive...\n";
+    &SeqMule::Utils::extract_archive($file,$exe_base) or return &unpackfail($file); #feed extract_archive full path to zipped file
+    push(@unlink, $file);
+
+    chdir($exe_base);
+    my ($dir) = grep {-d $_} <vt-*>; #dir got after unpacking
+    &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    chdir($exe);
+    if (-f "Makefile")
+    {
+	!system("make -j 10") and -f $executable or &makefail($exe);
+    }
+    warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
 
@@ -823,7 +861,7 @@ sub search
 	push @found,$target and next if $search_sys_path && &sys_which($target); #++ must precede var otherwise always return 0 at first loop
 	for my $single_path(@search_path)
 	{
-	    my $result=`find $single_path -depth -name \'$target\' -print0 -quit`;
+	    my $result=`find -L $single_path -depth -name \'$target\' -type f -print0 -quit`;
 	    $result=~s/\0$//; #remove trailling NULL char
 	    push @found,$target and last if (-f $result && $result =~ m%/$target$%i);
 	}
@@ -871,6 +909,7 @@ sub status
     "	./Build freshinstall	#(re)install all external programs (Recommended)\n".
     "	./Build installexes	#installs only missing external programs\n".
     "	./Build status		#Shows this status message\n\n".
+    "	./Build debug <cmd>	#run an option under debugging mode (only works for individual programs)\n\n".
     "Other Commands:\n".
     "	./Build fastqc		#installs FastQC (for quality control)\n".
     "	./Build bowtie		#installs Bowtie (for read alignment)\n".
@@ -887,7 +926,8 @@ sub status
     "	./Build snver		#installs snver\n".
     "	./Build snap		#installs SNAP\n".
     "	./Build freebayes	#installs freebayes\n".
-    "	./Build vcftools	#installs vcftools\n";
+    "	./Build vcftools	#installs vcftools\n".
+    "	./Build vt		#installs Vt\n";
     warn "WARNING: Alternatively, you can copy and paste the tools you have outside of SeqMule\n";
     warn "WARNING: into the exe/ folder to skip installation. However, no guarantee to work.\n";
     select(STDOUT);
