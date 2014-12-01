@@ -564,6 +564,7 @@ sub var_stat
 		['het_AA_count'		=>	'Alt/Alt heterozygotes'],
 		['hom_AA_count'		=>	'Homozygotes'],
 		['percent_hom'		=>	'Percentage of homozygotes'],
+		['hethom'		=>	'Heterozygote/Homozygote ratio'],
 	    );
 
     if (! defined $sample)
@@ -1341,6 +1342,13 @@ sub get_vcf_stat
 	    $single_sample_stat_ref->{percent_hom} = $percent_hom;
 	}
 
+	#het/hom ratio
+	if($nhom && $nhet)
+	{
+	    my $hethom=$nhet/$nhom;
+	    $hethom = sprintf "%.2f",$hethom;
+	    $single_sample_stat_ref->{hethom} = $hethom;
+	}
     }
     return $sample_hash_ref;
 }
