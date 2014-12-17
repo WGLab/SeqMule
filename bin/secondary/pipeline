@@ -2749,7 +2749,8 @@ sub genStat
 	{
 	    if (@venn_files <= 5 && @venn_files >= 2)
 	    {
-		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix ".($sample_in_bam?" -s $sample_in_bam ":"")];
+		my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+		+		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix -ref $local_ref ".($sample_in_bam?" -s $sample_in_bam ":"")];
 	    } else
 	    {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
