@@ -2486,9 +2486,10 @@ sub procBAM
 	my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
 	die "ERROR: $local_bam must have *.bam as file name\n" unless defined $local_prefix;
 	my $newbam="$local_prefix.sort.bam";
+	my $newbam_prefix="$local_prefix.sort";
 	push @commands, [$threads,
 	    "Sort BAM input assuming it is not sorted",
-	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads -f $bam $newbam"];
+	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads $bam $newbam_prefix"];
 	#whenever bam_list is changed, original_input should be changed accordingly
 	$original_input{$newbam}=$original_input{$local_bam};
 	delete $original_input{$local_bam};
@@ -2750,7 +2751,7 @@ sub genStat
 	    if (@venn_files <= 5 && @venn_files >= 2)
 	    {
 		my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-		+		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix -ref $local_ref ".($sample_in_bam?" -s $sample_in_bam ":"")];
+		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix -ref $local_ref ".($sample_in_bam?" -s $sample_in_bam ":"")];
 	    } else
 	    {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
