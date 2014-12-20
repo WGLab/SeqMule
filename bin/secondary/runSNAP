@@ -67,7 +67,13 @@ if(@fq == 2)
     $cmd .= "cat $fq[0] | ";
     $cmd .= "$snap ";
     $cmd .= " single ";
-    $cmd .= " $ref -fastq - ";
+    if($fq[0]=~/\.gz$/i)
+    {
+	$cmd .= " $ref -compressedFastq - ";
+    } else
+    {
+	$cmd .= " $ref -fastq - ";
+    }
 } else
 {
     die "ERROR: expect 1 or 2 FASTQ files.";

@@ -59,6 +59,19 @@ $cmd.=" --sam-RG PL:$pl ";
 $cmd.=" --sam-RG LB:$lb ";
 $cmd.=" $options{additional} " if $options{additional} ne '';
 $cmd.=" --seed 1 "; #make results reproducible
+
+for my $i(@fq)
+{
+    if($i=~/\.gz$/i)
+    {
+	warn "NOTICE: unzipping $i...\n";
+	my $tmpfile = File::Spec->catfile($tmpdir,"$$".rand($$).".fastq");
+	!system("gunzip -c $i > $tmpfile") or die "ERROR: failed to unzip $i: $!\n";
+	#the original fq is lost here!!!!
+	$i = $tmpfile;
+    }
+}
+
 if (@fq>1)
 {   
     $cmd.=" -1 $fq[0] -2 $fq[1]";

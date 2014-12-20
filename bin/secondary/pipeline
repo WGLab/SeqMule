@@ -329,7 +329,7 @@ sub bwa
 
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my @local_fq;
 	my @sai;
@@ -385,7 +385,7 @@ sub bwa_mem
 
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my @local_fq;
 	my $local_bam="${local_prefix}_bwamem.sort.bam"; push @removable,$local_bam;
@@ -436,7 +436,7 @@ sub snap
     #SNAP can run multiple alignments without reloading index
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my @local_fq;
 	my $local_bam="${local_prefix}_snap.sort.bam"; 
@@ -502,7 +502,7 @@ sub bowtie
 
     for my $no (0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my $local_bam="${local_prefix}_bowtie.sort.bam"; push @removable,$local_bam;
 
@@ -565,7 +565,7 @@ sub bowtie2
 
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my $local_bam="${local_prefix}_bowtie2.sort.bam";
 
@@ -618,7 +618,7 @@ sub soap
     #generate command for multiple input files
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my $local_sam="${local_prefix}_soap.sam";
 	my $local_bam="${local_prefix}_soap.sort.bam";
@@ -2329,36 +2329,38 @@ sub procFQ
 	}
     }
 
-#check if gunzip exists when users supply gzipped FASTQ files
-    if ( grep { /\.gz/i } (@fq1_list,@fq2_list))
-    {
-	if (&SeqMule::Utils::sys_which("gunzip"))
-	{
-	    if (@fq1_list)
-	    {
-		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq1_list) or die "Failed to unpack @fq1_list\n";
-		@fq1_list=@$return;
-		push @script_unlink_list,@$rm;
-	    }
-	    if (@fq2_list)
-	    {
-		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq2_list) or die "Failed to unpack @fq2_list\n";
-		@fq2_list=@$return;
-		push @script_unlink_list,@$rm;
-	    }
-	    for (keys %original_input)
-	    {
-		if (/(.*?)\.gz/i)
-		{
-		    $original_input{$1}=$original_input{$_};
-		    delete $original_input{$_};
-		}
-	    }
-	}else
-	{
-	    die "Cannot find gunzip. Please use unzipped FASTQ files.\n";
-	}
-    }
+    #Yunfei Guo commented out the following code on Dec 18, 2014
+##check if gunzip exists when users supply gzipped FASTQ files
+#    if ( grep { /\.gz/i } (@fq1_list,@fq2_list))
+#    {
+#	if (&SeqMule::Utils::sys_which("gunzip"))
+#	{
+#	    if (@fq1_list)
+#	    {
+#		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq1_list) or die "Failed to unpack @fq1_list\n";
+#		@fq1_list=@$return;
+#		push @script_unlink_list,@$rm;
+#	    }
+#	    if (@fq2_list)
+#	    {
+#		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq2_list) or die "Failed to unpack @fq2_list\n";
+#		@fq2_list=@$return;
+#		push @script_unlink_list,@$rm;
+#	    }
+#	    for (keys %original_input)
+#	    {
+#		if (/(.*?)\.gz/i)
+#		{
+#		    $original_input{$1}=$original_input{$_};
+#		    delete $original_input{$_};
+#		}
+#	    }
+#	}else
+#	{
+#	    die "Cannot find gunzip. Please use unzipped FASTQ files.\n";
+#	}
+#    }
+
 #examine first 1000 reads, count bases in ASCII code 33-58 for phred33 and 80-104 for phred64
     $phred=&SeqMule::Utils::phred_score_check(1000,@fq1_list,@fq2_list) if ($fq1 && $phred==1);
 }
@@ -2984,7 +2986,7 @@ sub convert64to33
 	    for (@fq1_list)
 	    {
 		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq)$/${1}_phred33.$2/;
+		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
 		$original_input{$file}=$original_input{$_};
 		delete $original_input{$_};
 		push @out,$file;
@@ -2999,7 +3001,7 @@ sub convert64to33
 	    for (@fq2_list)
 	    {
 		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq)$/${1}_phred33.$2/;
+		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
 		$original_input{$file}=$original_input{$_};
 		delete $original_input{$_};
 		push @out,$file;

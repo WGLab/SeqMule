@@ -435,7 +435,14 @@ sub phred_score_check
     for my $fq (@files)
     {
 
-	open my $fh, '<', $fq or die "Cannot read $fq: $!\n"; 
+	my $fh;
+	if($fq =~ /\.gz$/i)
+	{
+	    open $fh, '-|', "gunzip -c $fq" or die "Cannot read $fq: $!\n"; 
+	} else
+	{
+	    open $fh, '<', $fq or die "Cannot read $fq: $!\n"; 
+	}
 	#disable line counting for speed
 	#die "ERROR: not all reads have 4 lines\n$msg\n" unless &countline($fq) % 4 ==0; #this could be wrong since we didn't multiply total number of reads by 4 and compare the result with line_count
 	while (<$fh>)
@@ -509,8 +516,15 @@ sub countline
     #count non-empty lines and return total line count
     #usage: $result=&countline($file)
     my $file=shift;
-    warn "NOTICE: Counting lines in $file\n";
-    my $line_count=`grep -Pv \'^\\s*\$\' $file | wc -l`;
+    warn "NOTICE: Counting non-empty lines in $file\n";
+    my $line_count;
+    if($file =~ /\.gz$/i)
+    {
+	$line_count = `gunzip -c $file | grep -Pv \'^\\s*\$\' | wc -l`;
+    } else
+    {
+	$line_count = `grep -Pv \'^\\s*\$\' $file | wc -l`;
+    }
     chomp $line_count;
     return $line_count;
 }
@@ -529,8 +543,17 @@ sub phred64to33
 	warn "ERROR: input file $infile is the same as the output file $outfile\n" and return 0 if $infile eq $outfile;
 	warn "ERROR: not all reads have 4 lines\n" and return 0 unless &countline($infile) % 4 ==0; #this could be wrong since we didn't multiply total number of reads by 4 and compare the result with line_count
 	warn "Begin converting $infile to standard Phred score\n";
-	open my $fhin,"<",$infile or die "Cannot open $infile: $!\n";
-	open my $fhout,">",$outfile or die "Cannot write $outfile\n";
+	my ($fhin,$fhout);
+
+	$infile =~ /\.gz$/i ? 
+	(open $fhin,"-|","gunzip -c $infile" or die "Cannot open $infile: $!\n"):
+	(open $fhin,"<",$infile or die "Cannot open $infile: $!\n");
+
+	$outfile =~ /\.gz$/i ?
+	(open $fhout,"|-","gzip -c - > $outfile" or die "Cannot write $outfile\n"):
+	(open $fhout,">",$outfile or die "Cannot write $outfile\n");
+
+
 	while (<$fhin>)
 	{
 	    if (/^@/)
