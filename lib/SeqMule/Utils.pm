@@ -1387,7 +1387,8 @@ sub splitRegion
     #split regions in BAM header or BED file into n pieces
     my $MULTIPLIER=5; #n*multiplier is the total number of parts, each part is then assigned to n BED files by rotating, this way, the reads will be more uniformly distributed across regions defined by the new BED files.
     my $MINBIN=50_000; #minimum length for a part (total/n/multiplier), assume max read len=1000, 1% error rate
-    my $MAXBIN=5_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
+    #my $MAXBIN=5_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
+    my $MAXBIN=1_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
     my %opt=%{shift @_};
     my $n=$opt{threads};
     my $bed=$opt{bed};
