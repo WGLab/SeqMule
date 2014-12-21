@@ -8,8 +8,21 @@ my $fq1 = shift;
 my $fq2 = shift;
 my $out = shift;
 
-open FQ1,'<',$fq1 or die "ERROR: failed to read $fq1\n";
-open FQ2,'<',$fq2 or die "ERROR: failed to read $fq2\n";
+if($fq1=~/\.gz$/i)
+{
+    open FQ1,'-|',"gunzip -c $fq1" or die "ERROR: failed to read $fq1\n";
+} else
+{
+    open FQ1,'<',$fq1 or die "ERROR: failed to read $fq1\n";
+}
+if($fq2=~/\.gz$/i)
+{
+    open FQ2,'-|',"gunzip -c $fq2" or die "ERROR: failed to read $fq2\n";
+} else
+{
+    open FQ2,'<',$fq2 or die "ERROR: failed to read $fq2\n";
+}
+
 open OUT,'>',$out or die "ERROR: failed to write to $out\n";
 
 while(1)
