@@ -199,15 +199,11 @@ sub genParameterPage
 		if ($program =~/picard/i)
 		{
 		    $version = &SeqMule::Utils::getProgramVersion(
-			&getExe("SortSam.jar"),
-			&getExe(&SeqMule::Utils::getProgramExe("java")),
-		    );
+			&getExe("SortSam.jar"), "java",);
 		} else
 		{
 		    $version = &SeqMule::Utils::getProgramVersion(
-			&getExe(&SeqMule::Utils::getProgramExe($program)),
-			&getExe(&SeqMule::Utils::getProgramExe("java")),
-		    );
+			&getExe(&SeqMule::Utils::getProgramExe($program)), "java",);
 		}
 
 		if ($subprogram)

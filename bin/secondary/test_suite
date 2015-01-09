@@ -12,7 +12,7 @@ my $jmem="2500m";
 my $gatknt=4;
 my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/data/test";
-my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
+my $config_folder="/home/yunfeiguo/projects/SeqMule_dev/misc/predefined_config";
 #for no merge, no ms
 my $first_fq="part.1.fastq";
 my $second_fq="part.2.fastq";
@@ -79,11 +79,12 @@ for my $q("","-quick")
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
 		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#push @cmd, "$starting_point $q --advanced $j";
+		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
 		#&exec(@cmd) if grep{$count==$_} (84,86,88,90,92,96,98);
-		&exec(@cmd) and exit if ($j=~/gatk/ && $j=~/samtools/);
+		&exec(@cmd) if $count<=20;
 		$count++;
 	}
     }
