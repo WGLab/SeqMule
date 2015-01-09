@@ -30,6 +30,9 @@ while(1)
         # process the first file
 	my $id1 = <FQ1>;
 	last unless $id1;
+	if (not $id1 =~ m#\S+/1#) {
+		$id1 =~ s#(\S+)#\1/1#;
+	}
 	my $seq1 = <FQ1>;
 	my $plus1 = <FQ1>;
 	my $qual1 = <FQ1>;
@@ -37,6 +40,9 @@ while(1)
         # process the second file
 	my $id2 = <FQ2>;
 	last unless $id2;
+	if (not $id2 =~ m#\S+/2#) {
+		$id2 =~ s#(\S+)#\1/2#;
+	}
 	my $seq2 = <FQ2>;
 	my $plus2 = <FQ2>;
 	my $qual2 = <FQ2>;
