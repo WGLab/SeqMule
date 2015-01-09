@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-die "Usage: <1.fq> <2.fq> <out.fq>\n" unless @ARGV == 3;
+die "Usage: <1.fq|1.fq.gz> <2.fq|2.fq.gz> <out.fq|out.fq.gz>\n" unless @ARGV == 3;
 my $fq1 = shift;
 my $fq2 = shift;
 my $out = shift;
@@ -23,7 +23,11 @@ if($fq2=~/\.gz$/i)
     open FQ2,'<',$fq2 or die "ERROR: failed to read $fq2\n";
 }
 
-open OUT,'>',$out or die "ERROR: failed to write to $out\n";
+if ($out =~ m/\.gz$/) {
+	open (OUT, "| gzip > $out") or die "ERROR: failed to write to gzip file $out\n";
+} else {
+	open OUT,'>',$out or die "ERROR: failed to write to $out\n";
+}
 
 while(1)
 {
