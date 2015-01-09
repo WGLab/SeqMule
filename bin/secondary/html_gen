@@ -60,7 +60,8 @@ sub stat_gen_for_summary
     my $aln_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_aln_stat.txt");
     my $var_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_var_stat.txt");
     my $cov_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_cov_stat.txt");
-    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file);
+    my $mendel_stat_file = File::Spec->catfile("..",$result_folder,"${sample}_mendel_stat.txt");
+    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file,$mendel_stat_file);
 
     for my $item(@action)
     {
@@ -96,13 +97,21 @@ sub stat_gen_for_summary
 		{
 		    $result.="Average coverage is ".$$_[1]." (in target region if this is captured sequencing).</br>";
 		}
-		if ($$_[0]=~/Number of SNPs/i)
+		if ($$_[0]=~/Number of SNVs/i)
 		{
-		    $result.=$$_[1]." SNPs are called.</br>";
+		    $result.=$$_[1]." SNVs are called.</br>";
 		}
 		if ($$_[0]=~/Number of indels/i)
 		{
 		    $result.=$$_[1]." indels are found.</br>";
+		}
+		if ($$_[0]=~/Number of Mendelian errors/i)
+		{
+		    $result.="Number of Mendelian errors is ".$$_[1]."</br>";
+		}
+		if ($$_[0]=~/Proportion of Mendelian errors/i)
+		{
+		    $result.="Proportion of Mendelian errors in all calls shared by this family: ".$$_[1]."</br>";
 		}
 	    }
 	}
@@ -119,7 +128,8 @@ sub stat_table_gen
     my $var_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_var_stat.txt");
     my $qc_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_qc_stat.txt");
     my $cov_stat_file=File::Spec->catfile("..",$result_folder,"${sample}_cov_stat.txt");
-    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file);
+    my $mendel_stat_file = File::Spec->catfile("..",$result_folder,"${sample}_mendel_stat.txt");
+    my @action=($aln_stat_file,$cov_stat_file,$var_stat_file,$mendel_stat_file);
 
     for my $item(@action)
     {
@@ -139,7 +149,7 @@ sub stat_table_gen
 
 	    for (@lines[0..$#lines])
 	    {
-		if ($$_[1]=~/QC stats|Alignment stats|Variant stats|Coverage stats/)#for paired end sequencing data
+		if ($$_[1]=~/QC stats|Alignment stats|Variant stats|Coverage stats|Mendelian error stats/)#for paired end sequencing data
 		{
 		    $result.="<table><caption>".$$_[1]."</caption>\n";
 		    $result.="<tr><td colspan=2>source: ".$$_[0]."</td></tr>\n";
@@ -160,7 +170,7 @@ sub genParameterPage
     my $page=File::Spec->catfile("pages","parameter.html");
     my $page_content=`cat $page`;
     my $param_file="parameter.txt";
-    push @unlink,$param_file;
+    #push @unlink,$param_file;
     my @config_lines=&SeqMule::Utils::parsePipeline($param_file);
 
     open OUT,'>',$page or die "Failed to write to $page: $!\n";
@@ -231,7 +241,8 @@ sub genSummaryPage
 {
 #generate data summary page (for all samples)
     my $page="summary.html";
-    my $log="log.txt";push @unlink,$log;
+    my $log="log.txt";
+    #push @unlink,$log;
     my $log_content=`cat $log`;
     my $page_content=`cat $page`;
 
@@ -280,11 +291,13 @@ sub genSamplePage
 	my $result_folder="${sample}_result";
 	my $stat_table=&stat_table_gen($sample);
 	my $fastqc_link;
-	my $venn=File::Spec->catfile("..",$result_folder,"${sample}_venn.jpg");
+	my $venn=File::Spec->catfile("..",$result_folder,"${sample}_SNV_venn.jpg");
+	my $non_snv_venn=File::Spec->catfile("..",$result_folder,"${sample}_NON-SNV_venn.jpg");
 	my $cov=File::Spec->catfile("..",$result_folder,"${sample}_cov.jpg");
 	my $fastqc_dir=File::Spec->catfile("..",$result_folder,"$sample*fastqc");
 	#keep a local copy such that reports can be downloaded and viewed independently
-	my $local_venn=File::Spec->catfile($sample,"${sample}_venn.jpg"); 
+	my $local_venn=File::Spec->catfile($sample,"${sample}_SNV_venn.jpg"); 
+	my $local_non_snv_venn=File::Spec->catfile($sample,"${sample}_NON-SNV_venn.jpg"); 
 	my $local_cov=File::Spec->catfile($sample,"${sample}_cov.jpg");
 
 	mkdir $sample unless -d $sample;
@@ -306,6 +319,7 @@ sub genSamplePage
 
 	#copy images
 	!system("cp -f $venn $sample") or die "Failed to copy $venn to $sample:$!\n" if -f $venn;
+	!system("cp -f $non_snv_venn $sample") or die "Failed to copy $venn to $sample:$!\n" if -f $non_snv_venn;
 	!system("cp -f $cov $sample") or die "Failed to copy $cov to $sample:$!\n" if -f $cov;
 
 	open OUT,'>',$out_page or die "Failed to write to $out_page: $!\n";
@@ -338,8 +352,13 @@ sub genSamplePage
 		}
 		if (-f $local_venn)
 		{
-		    print OUT "<h2>Venn Diagram</h2>\n<p>Showing overlapping of up to 5 variant output</p>\n";
+		    print OUT "<h2>Venn Diagram (SNV)</h2>\n<p>Showing overlapping of up to 5 SNV variant output</p>\n";
 		    print OUT "<img class='center' src='../$local_venn' width=500 height=500>\n"; #local_venn is relative to outdir
+		}
+		if (-f $local_non_snv_venn)
+		{
+		    print OUT "<h2>Venn Diagram (non-SNV)</h2>\n<p>Showing overlapping of up to 5 NON-SNV variant output</p>\n";
+		    print OUT "<img class='center' src='../$local_non_snv_venn' width=500 height=500>\n"; #local_venn is relative to outdir
 		}
 		if (-f $local_cov)
 		{

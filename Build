@@ -46,6 +46,8 @@ my %exe_require=( #core executables for each program
 		'tabix'		=> ['bgzip','tabix'],
 		'vcftools'	=> ['vcftools'],
 		'freebayes'	=> ['freebayes'],
+		'snap'		=> ['snap'],
+		'vt'		=> ['vt'],
 		#'snver'	=> ['SNVerIndividual.jar'],
 );
 my %opt_action=(
@@ -53,6 +55,7 @@ my %opt_action=(
 		'installexes'   => \&SeqMule::Install::installexes,
 		'freshinstall'  => \&SeqMule::Install::freshinstall,
 		'clean'		=> \&SeqMule::Install::clean,
+		'debug'		=> \&SeqMule::Install::debug,
 		###########EXEs######################
 		'fastqc' 	=> \&SeqMule::Install::fastqc,
 		'bowtie' 	=> \&SeqMule::Install::bowtie,
@@ -69,6 +72,8 @@ my %opt_action=(
 		'soapsnp' 	=> \&SeqMule::Install::soapsnp,
 		'vcftools'	=> \&SeqMule::Install::vcftools,
 		'freebayes'	=> \&SeqMule::Install::freebayes,
+		'snap'		=> \&SeqMule::Install::snap,
+		'vt'		=> \&SeqMule::Install::vt,
 		#'snver'	=> \&SeqMule::Install::snver,
 );
 
@@ -76,8 +81,19 @@ my %opt_action=(
 my $opt=shift @ARGV;
 if ( (! defined $opt) or (! defined $opt_action{$opt}) )
 {
-    warn "Invalid option!\n" if (defined $opt && ! defined $opt_action{$opt});
+    warn "!" x 40,"\n\nWARNING: Invalid option!\n\n","!" x 40 if (defined $opt && ! defined $opt_action{$opt});
     &{$opt_action{'status'}}($RealBin,\%sys_require,\%exe_require); #only status subroutine needs argument
     exit 0;
 }
-&{$opt_action{$opt}}($RealBin,\%sys_require,\%exe_require);
+if ($opt =~ /status|installexes|freshinstall|clean/)
+{
+    &{$opt_action{$opt}}($RealBin,\%sys_require,\%exe_require);
+} elsif ($opt =~ /debug/)
+{
+    die "ERROR: one more argument expected (specify which option [for individual program] to run).\n" unless
+    defined $ARGV[0];
+    &{$opt_action{$opt}}($RealBin,$ARGV[0]);
+} else
+{
+    &{$opt_action{$opt}}($RealBin);
+}

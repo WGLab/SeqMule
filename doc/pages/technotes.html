@@ -71,13 +71,6 @@ $(window).load(function() {
     <div id="templatemo_main"><br class="cleaner" />
 	<h1>SeqMule Technical Notes</h1>
 	<div id="table-of-content"></div>
-	<h3 id="q1">Merging indels</h3>
-	<p>Because there isn't a standard way to record inerstions and deletions (indels)
-	, SeqMule will not try to check if two indels are identical. They will be treated
-	identically only if they have exact the same chromomsome, start, end, reference allele 
-	and observed allele.
-	</p>
-	<br>
 	<h3 id="q2">Small contigs in human genome</h3>
 	<p>Contigs like GL000192.1 will be treated the same way as chromomsome 1 and others since
 	some genes are mapped to these contigs.
@@ -108,6 +101,7 @@ $(window).load(function() {
 	</p><br>
 	<h3 id="q7">Multiple alignments</h3>
 	<p>SeqMule only outputs primary alignments because secondary alignments really do not help too much for variant calling, and they make it more difficult to calculate alignment statistics.</p>
+	<br>
 	<br>
     </div> <!-- end of main -->
     

@@ -430,6 +430,25 @@ my $original="../advanced_config";
 #    "s/snver=0/snver=1/;";
 #    &procOriginal($out,$regex);
 #}
+####################SNAP#######################3
+{
+    my $out="snap_freebayes.config";
+    my $regex=
+    "s/snap=0/snap=1/;".
+    "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
+    "s/freebayes=0/freebayes=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="snap_freebayes_samtools_varscan.config";
+    my $regex=
+    "s/snap=0/snap=1/;".
+    "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
+    "s/freebayes=0/freebayes=1/;".
+    "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/varscan=0/varscan=1/;";
+    &procOriginal($out,$regex);
+}
 
 
 sub procOriginal
@@ -458,6 +477,7 @@ sub procOriginal
 	s/soapsnp=\s*\d/soapsnp=0/;
 	s/freebayes=\s*\d/freebayes=0/;
 	s/snver=\s*\d/snver=0/;
+	s/snap=\s*\d/snap=0/;
 	eval $regex;
 	print OUT;
     }

@@ -38,6 +38,7 @@ GetOptions(
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
@@ -58,6 +59,19 @@ $cmd.=" --sam-RG PL:$pl ";
 $cmd.=" --sam-RG LB:$lb ";
 $cmd.=" $options{additional} " if $options{additional} ne '';
 $cmd.=" --seed 1 "; #make results reproducible
+
+for my $i(@fq)
+{
+    if($i=~/\.gz$/i)
+    {
+	warn "NOTICE: unzipping $i...\n";
+	my $tmpfile = File::Spec->catfile($tmpdir,"$$".rand($$).".fastq");
+	!system("gunzip -c $i > $tmpfile") or die "ERROR: failed to unzip $i: $!\n";
+	#the original fq is lost here!!!!
+	$i = $tmpfile;
+    }
+}
+
 if (@fq>1)
 {   
     $cmd.=" -1 $fq[0] -2 $fq[1]";
@@ -73,7 +87,8 @@ $cmd.=" -F 256 "; #only output primary alignment
 $cmd.=($threads>=2? " -@ $threads ":"");
 $cmd .= " - | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix";
 
-exec $cmd;
+my $script=&SeqMule::Parallel::genTempScript($cmd);
+exec $script;
 #warn $cmd,"\n";
 
 

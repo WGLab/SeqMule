@@ -9,7 +9,7 @@ my $file=shift @ARGV;
 my $alias=shift @ARGV;
 my $out=shift @ARGV;
 
-die "Input FASTQ file must have .fq or .fastq suffix, input BAM file must have .bam suffix\n" unless $file=~/(.*)\.(fq|fastq|bam)$/i;
+die "Input FASTQ file must have .fq or .fastq suffix, input BAM file must have .bam suffix\n" unless $file=~/(.*)\.(fq|fastq|fq\.gz|fastq\.gz|bam)$/i;
 
 my $folder= ($2 eq 'fq' ? $file : $1)."_fastqc";
 my $summary= ($2 eq 'fq' ? $file : $1)."_fastqc/summary.txt";

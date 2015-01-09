@@ -30,6 +30,8 @@ my $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files sma
 my $GATK_HARD_FILTER_BAM_SIZE=1_000_000_000; #in bytes, BAM files smaller than it will be subject to SNP hard filtering instead of VQSR
 my $GATK_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files smaller than it will be subject to indel hard filtering instead of VQSR
 my $RMDUP_MIN_LEN=10_000_000; #remove minimum 
+my $SAMTOOLS_SORT_MEM_EXOME = '2G';
+my $SAMTOOLS_SORT_MEM_GENOME = '2G'; #2G has been tested to work with wgs
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 
 #cmd opt
@@ -269,6 +271,10 @@ sub cmd_gen
     {
 	return &soapsnp(@_);
     }
+    elsif ($program eq 'snap')
+    {
+	return &snap(@_);
+    }
     else {die "ERROR: Unrecognized program: $program\n"}
 }
 
@@ -323,7 +329,7 @@ sub bwa
 
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my @local_fq;
 	my @sai;
@@ -379,7 +385,7 @@ sub bwa_mem
 
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my @local_fq;
 	my $local_bam="${local_prefix}_bwamem.sort.bam"; push @removable,$local_bam;
@@ -398,6 +404,58 @@ sub bwa_mem
     }
 }
 
+sub snap
+{
+    #output example
+    #./bwa mem -R '@RG\tID:foo\tSM:bar' -M -t 12 ~/projects/seqmule_main/database/bwa/human_g1k_v37.fasta ../s4.1.fastq ../s4.2.fastq
+    my ($n,$program,$subprogram,$opt_ref)=@_;
+    my %options=%{$opt_ref};
+
+    my $snap=&getExe(&SeqMule::Utils::getProgramExe("snap")); 
+    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
+    my $runSnapCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNAP");
+    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
+    my $local_ref;
+
+    die "ERROR: SNAP cannot handle Phred+64 score\n" if $phred == 64;
+
+    if ($ref) 
+    {
+	$local_ref=$ref;
+    } else
+    {
+	$local_ref=($buildver eq 'hg19'? $HG19REF:$HG18REF);
+	my $original=File::Spec->catfile($install_dir,"database",$local_ref);
+	my $link=File::Spec->catfile($install_dir,"database","snap",$local_ref);
+	$local_ref=$link;
+    }
+
+    &index_check("snap",$local_ref) or die "ERROR: SNAP index file(s) missing\n";
+
+    #this part can be improved
+    #SNAP can run multiple alignments without reloading index
+    for my $no(0..$#fq1_list)
+    {
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
+	my $sample=($merge? $prefix : $prefix_list[$no]);
+	my @local_fq;
+	my $local_bam="${local_prefix}_snap.sort.bam"; 
+	push @removable,$local_bam;
+	my $cmd;
+
+	push @local_fq,$fq1_list[$no];
+	push @local_fq,$fq2_list[$no] if $paired;
+
+	$cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
+	$cmd.=" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME);
+	$cmd .= " -tmpdir $TMPDIR";
+	$cmd .= " -interleave_fq $interleave_fq ";
+	$cmd.=" @local_fq";
+
+	push @commands,[$threads,"SNAP alignment",$cmd];$cmd="";
+	push @bam_files,$local_bam;
+    }
+}
 sub bowtie
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
@@ -444,7 +502,7 @@ sub bowtie
 
     for my $no (0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my $local_bam="${local_prefix}_bowtie.sort.bam"; push @removable,$local_bam;
 
@@ -507,7 +565,7 @@ sub bowtie2
 
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my $local_bam="${local_prefix}_bowtie2.sort.bam";
 
@@ -560,7 +618,7 @@ sub soap
     #generate command for multiple input files
     for my $no(0..$#fq1_list)
     {
-	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq)/i;
+	my ($local_prefix)= $fq1_list[$no]=~/(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i;
 	my $sample=($merge? $prefix : $prefix_list[$no]);
 	my $local_sam="${local_prefix}_soap.sam";
 	my $local_bam="${local_prefix}_soap.sort.bam";
@@ -1905,6 +1963,9 @@ sub index_check
     } elsif ($program=~/^bwa$/i)
     {
 	return (-e "$prefix.amb" && -e  "$prefix.bwt" && -e "$prefix.pac" && -e "$prefix.ann" && -e "$prefix.fai" && -e "$prefix.sa");
+    } elsif ($program=~/^snap$/i)
+    {
+	return (-e File::Spec->catfile($prefix,"Genome") && -e  File::Spec->catfile($prefix,"GenomeIndex") && -e File::Spec->catfile($prefix,"GenomeIndexHash") && -e File::Spec->catfile($prefix,"OverflowTable"));
     } else { die "Unrecognized program for index check\n"}
 }
 
@@ -2268,36 +2329,38 @@ sub procFQ
 	}
     }
 
-#check if gunzip exists when users supply gzipped FASTQ files
-    if ( grep { /\.gz/i } (@fq1_list,@fq2_list))
-    {
-	if (&SeqMule::Utils::sys_which("gunzip"))
-	{
-	    if (@fq1_list)
-	    {
-		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq1_list) or die "Failed to unpack @fq1_list\n";
-		@fq1_list=@$return;
-		push @script_unlink_list,@$rm;
-	    }
-	    if (@fq2_list)
-	    {
-		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq2_list) or die "Failed to unpack @fq2_list\n";
-		@fq2_list=@$return;
-		push @script_unlink_list,@$rm;
-	    }
-	    for (keys %original_input)
-	    {
-		if (/(.*?)\.gz/i)
-		{
-		    $original_input{$1}=$original_input{$_};
-		    delete $original_input{$_};
-		}
-	    }
-	}else
-	{
-	    die "Cannot find gunzip. Please use unzipped FASTQ files.\n";
-	}
-    }
+    #Yunfei Guo commented out the following code on Dec 18, 2014
+##check if gunzip exists when users supply gzipped FASTQ files
+#    if ( grep { /\.gz/i } (@fq1_list,@fq2_list))
+#    {
+#	if (&SeqMule::Utils::sys_which("gunzip"))
+#	{
+#	    if (@fq1_list)
+#	    {
+#		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq1_list) or die "Failed to unpack @fq1_list\n";
+#		@fq1_list=@$return;
+#		push @script_unlink_list,@$rm;
+#	    }
+#	    if (@fq2_list)
+#	    {
+#		my ($return,$rm)=&SeqMule::Utils::gunzip(@fq2_list) or die "Failed to unpack @fq2_list\n";
+#		@fq2_list=@$return;
+#		push @script_unlink_list,@$rm;
+#	    }
+#	    for (keys %original_input)
+#	    {
+#		if (/(.*?)\.gz/i)
+#		{
+#		    $original_input{$1}=$original_input{$_};
+#		    delete $original_input{$_};
+#		}
+#	    }
+#	}else
+#	{
+#	    die "Cannot find gunzip. Please use unzipped FASTQ files.\n";
+#	}
+#    }
+
 #examine first 1000 reads, count bases in ASCII code 33-58 for phred33 and 80-104 for phred64
     $phred=&SeqMule::Utils::phred_score_check(1000,@fq1_list,@fq2_list) if ($fq1 && $phred==1);
 }
@@ -2346,7 +2409,7 @@ sub procBAM
 	}
 	$original_input{$onebam}=join(",",map {basename $_} @bam_list);
 	@bam_list=($onebam);
-    } else
+    } else #no merge
     {
 	if (@prefix_list)
 	{
@@ -2419,6 +2482,22 @@ sub procBAM
 	}
     }
 #check @SQ tags, try to fix inconsistent tags
+    #sort all BAMs as we cannot assume they are aligned
+    for my $local_bam(@bam_list)
+    {
+	my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
+	die "ERROR: $local_bam must have *.bam as file name\n" unless defined $local_prefix;
+	my $newbam="$local_prefix.sort.bam";
+	my $newbam_prefix="$local_prefix.sort";
+	push @commands, [$threads,
+	    "Sort BAM input assuming it is not sorted",
+	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads $bam $newbam_prefix"];
+	#whenever bam_list is changed, original_input should be changed accordingly
+	$original_input{$newbam}=$original_input{$local_bam};
+	delete $original_input{$local_bam};
+	$local_bam=$newbam; 
+	push @removable,$newbam;
+    }
 }
 
 sub confOptCheck
@@ -2673,7 +2752,8 @@ sub genStat
 	{
 	    if (@venn_files <= 5 && @venn_files >= 2)
 	    {
-		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix ".($sample_in_bam?" -s $sample_in_bam ":"")];
+		my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix -ref $local_ref ".($sample_in_bam?" -s $sample_in_bam ":"")];
 	    } else
 	    {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
@@ -2908,7 +2988,7 @@ sub convert64to33
 	    for (@fq1_list)
 	    {
 		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq)$/${1}_phred33.$2/;
+		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
 		$original_input{$file}=$original_input{$_};
 		delete $original_input{$_};
 		push @out,$file;
@@ -2923,7 +3003,7 @@ sub convert64to33
 	    for (@fq2_list)
 	    {
 		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq)$/${1}_phred33.$2/;
+		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
 		$original_input{$file}=$original_input{$_};
 		delete $original_input{$_};
 		push @out,$file;
@@ -3026,7 +3106,7 @@ Options:
 	--verbose,-v		  verbose output
 	--help,-h		  show this message
 
-=head1 EXAMPLE	
+	EXAMPLE	
 
 	#generate a copy of 'advanced_config' for modification. You can find some predefined configurations under 'seqmule/misc/predefined_config' folder.
 	seqmule pipeline -advanced

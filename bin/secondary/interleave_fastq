@@ -1,0 +1,62 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+die "Usage: <1.fq|1.fq.gz> <2.fq|2.fq.gz> <out.fq|out.fq.gz>\n" unless @ARGV == 3;
+my $fq1 = shift;
+my $fq2 = shift;
+my $out = shift;
+
+if($fq1=~/\.gz$/i)
+{
+    open FQ1,'-|',"gunzip -c $fq1" or die "ERROR: failed to read $fq1\n";
+} else
+{
+    open FQ1,'<',$fq1 or die "ERROR: failed to read $fq1\n";
+}
+if($fq2=~/\.gz$/i)
+{
+    open FQ2,'-|',"gunzip -c $fq2" or die "ERROR: failed to read $fq2\n";
+} else
+{
+    open FQ2,'<',$fq2 or die "ERROR: failed to read $fq2\n";
+}
+
+if ($out =~ m/\.gz$/) {
+	open (OUT, "| gzip > $out") or die "ERROR: failed to write to gzip file $out\n";
+} else {
+	open OUT,'>',$out or die "ERROR: failed to write to $out\n";
+}
+
+while(1)
+{
+        # process the first file
+	my $id1 = <FQ1>;
+	last unless $id1;
+	if (not $id1 =~ m#\S+/1#) {
+		$id1 =~ s#(\S+)#$1/1#;
+	}
+	my $seq1 = <FQ1>;
+	my $plus1 = <FQ1>;
+	my $qual1 = <FQ1>;
+
+        # process the second file
+	my $id2 = <FQ2>;
+	last unless $id2;
+	if (not $id2 =~ m#\S+/2#) {
+		$id2 =~ s#(\S+)#$1/2#;
+	}
+	my $seq2 = <FQ2>;
+	my $plus2 = <FQ2>;
+	my $qual2 = <FQ2>;
+
+        # write output
+	print OUT $id1,$seq1,$plus1,$qual1;
+	print OUT $id2,$seq2,$plus2,$qual2;
+}
+
+close FQ1;
+close FQ2;
+close OUT;
+warn "NOTICE: done writing interleaved FASTQ file ($out)\n";

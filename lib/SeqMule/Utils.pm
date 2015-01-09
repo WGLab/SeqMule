@@ -343,7 +343,7 @@ sub search
     my @list;
     my $path_to_target;
     my @search_path=("$install_dir/exe","$install_dir/bin",cwd);
-    push @search_path, (split /:/,$ENV{PATH});
+    push @search_path, (split /:/,$ENV{PATH}); #we have to include PATH, because programs like java will not be installed by SeqMule
 
     for my $single_path(@search_path)
     {
@@ -357,7 +357,7 @@ sub search
 	#if multiple targets are found, only the last one will be output
 	return $path_to_target if $path_to_target;
     }
-    warn "ERROR: Failed to find $target\nPlease use \'cd $install_dir\' and then \'./Build installexes\' or add path to $target to PATH environmental variable\n" and sleep 2 and return 0;
+    croak "ERROR: Failed to find $target\nPlease use \'cd $install_dir\' and then \'./Build installexes\' or add path to $target to PATH environmental variable\n";
 }
 
 
@@ -435,7 +435,14 @@ sub phred_score_check
     for my $fq (@files)
     {
 
-	open my $fh, '<', $fq or die "Cannot read $fq: $!\n"; 
+	my $fh;
+	if($fq =~ /\.gz$/i)
+	{
+	    open $fh, '-|', "gunzip -c $fq" or die "Cannot read $fq: $!\n"; 
+	} else
+	{
+	    open $fh, '<', $fq or die "Cannot read $fq: $!\n"; 
+	}
 	#disable line counting for speed
 	#die "ERROR: not all reads have 4 lines\n$msg\n" unless &countline($fq) % 4 ==0; #this could be wrong since we didn't multiply total number of reads by 4 and compare the result with line_count
 	while (<$fh>)
@@ -509,8 +516,15 @@ sub countline
     #count non-empty lines and return total line count
     #usage: $result=&countline($file)
     my $file=shift;
-    warn "NOTICE: Counting lines in $file\n";
-    my $line_count=`grep -Pv \'^\\s*\$\' $file | wc -l`;
+    warn "NOTICE: Counting non-empty lines in $file\n";
+    my $line_count;
+    if($file =~ /\.gz$/i)
+    {
+	$line_count = `gunzip -c $file | grep -Pv \'^\\s*\$\' | wc -l`;
+    } else
+    {
+	$line_count = `grep -Pv \'^\\s*\$\' $file | wc -l`;
+    }
     chomp $line_count;
     return $line_count;
 }
@@ -529,8 +543,17 @@ sub phred64to33
 	warn "ERROR: input file $infile is the same as the output file $outfile\n" and return 0 if $infile eq $outfile;
 	warn "ERROR: not all reads have 4 lines\n" and return 0 unless &countline($infile) % 4 ==0; #this could be wrong since we didn't multiply total number of reads by 4 and compare the result with line_count
 	warn "Begin converting $infile to standard Phred score\n";
-	open my $fhin,"<",$infile or die "Cannot open $infile: $!\n";
-	open my $fhout,">",$outfile or die "Cannot write $outfile\n";
+	my ($fhin,$fhout);
+
+	$infile =~ /\.gz$/i ? 
+	(open $fhin,"-|","gunzip -c $infile" or die "Cannot open $infile: $!\n"):
+	(open $fhin,"<",$infile or die "Cannot open $infile: $!\n");
+
+	$outfile =~ /\.gz$/i ?
+	(open $fhout,"|-","gzip -c - > $outfile" or die "Cannot write $outfile\n"):
+	(open $fhout,">",$outfile or die "Cannot write $outfile\n");
+
+
 	while (<$fhin>)
 	{
 	    if (/^@/)
@@ -747,7 +770,7 @@ sub parsePipeline
 	{
 	    if (! /^${level}p/i)
 	    {
-		die "ERROR: Mandatory program disabled at level $level\nNOTE: For BAM format input, please enable aligners even if you don't want to do alignment. SeqMule will skip this step.\n" if ($mandatory_flag && $enabled_mandatory_count<1);
+		die "ERROR: Mandatory program disabled at level $level\nNOTICE: in configuration, any line beginning with 'P'(upper-case) should ALWAYS be enabled (=1). SeqMule will skip that step if it is unnecessary, though.\n" if ($mandatory_flag && $enabled_mandatory_count<1);
 		die "ERROR: Multiple exclusive programs enabled at level $level\n" if ($exclusive_flag && $enabled_exclusive_count>1);
 		($level)= /^(\d+)p/i;
 
@@ -840,6 +863,7 @@ sub getProgramExe
 	freebayes       =>      "freebayes",
 	snver           =>      "SNVerIndividual.jar",
 	soapsnp         =>      "soapsnp",
+	vt		=>      "vt",
     );
     my $program=shift;
 
@@ -967,6 +991,15 @@ sub getProgramVersion
     } elsif ($loc=~/soapsnp$/i)
     {
 	return "1.03";#no version number found, use the current latest version
+    } elsif ($loc=~/snap$/i)
+    {
+	$version=`$loc 2>&1`;
+	if ($version=~/version\s*([\w\-\.]+)\.?/i)
+	{
+	    my $version_num = $1;
+	    $version_num =~ s/\.+$//;
+	    return $version_num;
+	}
     }
 
     return "NA";
@@ -1354,7 +1387,8 @@ sub splitRegion
     #split regions in BAM header or BED file into n pieces
     my $MULTIPLIER=5; #n*multiplier is the total number of parts, each part is then assigned to n BED files by rotating, this way, the reads will be more uniformly distributed across regions defined by the new BED files.
     my $MINBIN=50_000; #minimum length for a part (total/n/multiplier), assume max read len=1000, 1% error rate
-    my $MAXBIN=5_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
+    #my $MAXBIN=5_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
+    my $MAXBIN=1_000_000; #maximum length for a part, increase uniformity for large regions (eg genome)
     my %opt=%{shift @_};
     my $n=$opt{threads};
     my $bed=$opt{bed};
@@ -1656,6 +1690,54 @@ sub getNonEmptyVCF
     @vcf=grep{$_} @vcf;
 
     return @vcf;
+}
+sub parseMendelFix
+{
+    my $in = shift;
+    my %result;
+    open IN,'<',$in or croak "ERROR: failed to read $in ($!)\n";
+    while(<IN>)
+    {
+	    #example
+#ID	NCALL1	CR1	FATHER	FOCALL	FOIBS0	FOIBS1	FOIBS2	FOERROR	MOTHER	MOCALL	MOIBS0	MOIBS1	MOIBS2	MOERROR	TRIOCALL	ADI	PADI	ADO	PADO	NERROR	PPCERROR	NFIX	NCALL2	CR2
+#son	45285	0.999	father	45242	533	19804	24905	1.178109e-02	mother	44994	509	20122	24363	1.131262e-02	44559	215	4.825063e-03	853	1.914316e-02	1068	2.396822e-02	899	44759	0.988
+	if($.==1)
+	{#skip header
+	    1;
+	} else
+	{
+	    my @f = split;
+	    $result{$f[0]} = {
+		ID		=>	$f[0],
+		NCALL1		=>	$f[1],
+		CR1		=>	$f[2],
+		FATHER		=>	$f[3],
+		FOCALL		=>	$f[4],
+		FOIBS0		=>	$f[5],
+		FOIBS1		=>	$f[6],
+		FOIBS2		=>	$f[7],
+		FOERROR		=>	$f[8],
+		MOTHER		=>	$f[9],
+		MOCALL		=>	$f[10],
+		MOIBS0		=>	$f[11],
+		MOIBS1		=>	$f[12],
+		MOIBS2		=>	$f[13],
+		MOERROR		=>	$f[14],
+		TRIOCALL	=>	$f[15],
+		ADI		=>	$f[16],
+		PADI		=>	$f[17],
+		ADO		=>	$f[18],
+		PADO		=>	$f[19],
+		NERROR		=>	$f[20],
+		PPCERROR	=>	$f[21],
+		NFIX		=>	$f[22],
+		NCALL2		=>	$f[23],
+		CR2		=>	$f[24],
+	    };
+	}
+    }
+    close IN;
+    return \%result;
 }
 sub cleanup
 { 

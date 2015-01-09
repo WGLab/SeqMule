@@ -195,7 +195,17 @@ $(window).load(function() {
 	<p>This script is not meant to be changed by users. If you really want to, modify the 2nd field <b>ONLY</b>. Do <b>NOT</b> add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters (*$&gt&lt&amp?;|`) are not allowed.</p>
 	<p>Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMule's explicit programs (e.g. <b>stats</b>).</p>
 	<br>
-	<h3 id="q8">CAVEAT</h3>
+	<h3 id="q10">GENERATE MENDELIAN ERROR STATISTICS</h3>
+	<p>
+	Assume you get a VCF with a family trio. The sample ID is 'father' for father, 'mother' for mother, 'son' for offspring, respectively. To generate Mendelian error statistics (e.g. how many genotypes are impossible in son based on parents' genotypes), simply run the following command:
+	<code>seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother</code>
+	The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained.
+	</p> <br>
+	<p>
+	If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with 'seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa', where '123combo' is the prefix for the merged VCF.
+	</p>
+	<br>
+	<h3 id="q_caveat">CAVEAT</h3>
 	<p>
 	NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under <b>seqmule/misc/predefined_config</b> folder.<br>
 	</p> <br>

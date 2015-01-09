@@ -42,6 +42,7 @@ my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 my ($bam_prefix)= $bam=~/(.*?)\.bam$/ or die "ERROR: expect *.bam for BAM files: $bam\n";
 
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my $cmd;
 
 $cmd .= "$bwa mem -M ";# -M for Picardtools compatibility
@@ -61,7 +62,8 @@ $cmd .=($threads >= 2? " -@ $threads" : "");
 $cmd .= " - | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix";
 
 
-exec $cmd;
+my $script=&SeqMule::Parallel::genTempScript($cmd);
+exec $script;
 
 
 __END__

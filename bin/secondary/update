@@ -30,13 +30,12 @@ my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 my @unlink;
 
 my (
-    $help,$git,$install,$tmpdir,
+    $help,$git,$tmpdir,
 );
 #------------------------------------------------------------------------------------------------
 
 GetOptions(
     'git'		=>	\$git,
-    'install'		=>	\$install,
     'tmpdir'		=>	\$tmpdir,
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
@@ -66,29 +65,26 @@ warn "NOTICE: downloading new version ...\n";
 &SeqMule::Utils::extract_archive($tmpfile,$unzip_dir) or die "ERROR: failed unzip $tmpfile ($!)\n";
 
 #check if it's necessary to reinstall certain 3rd party programs
-if($install)
-{
-    warn "NOTICE: check if any third party program needs to be re-installed.\n";
-    my $current_exe_loc = File::Spec->catfile($install_dir,"misc","exe_locations");
-    my $new_exe_loc = File::Spec->catfile($content_dir,"misc","exe_locations");
-    my $diff = `sort $current_exe_loc $new_exe_loc | uniq -u`;
+warn "NOTICE: check if any third party program needs to be re-installed.\n";
+my $current_exe_loc = File::Spec->catfile($install_dir,"misc","exe_locations");
+my $new_exe_loc = File::Spec->catfile($content_dir,"misc","exe_locations");
+my $diff = `sort $current_exe_loc $new_exe_loc | uniq -u`;
 #FORMAT:program\tURL
-    if ($diff)
+if ($diff)
+{
+    my $tmp_exe_loc = File::Spec->catfile($tmpdir,time."exe_locations.tmp");
+    push @unlink,$tmp_exe_loc;
+    &SeqMule::Utils::write2outfile($diff,$tmp_exe_loc);
+    my %exe_loc = &SeqMule::Install::parse_locations($install_dir,$tmp_exe_loc); 
+    &update_source;
+    warn "NOTICE: re-installing ",join(" ",keys %exe_loc)," ...\n";
+    for my $exe (keys %exe_loc)
     {
-	my $tmp_exe_loc = File::Spec->catfile($tmpdir,time."exe_locations.tmp");
-	push @unlink,$tmp_exe_loc;
-	&SeqMule::Utils::write2outfile($diff,$tmp_exe_loc);
-	my %exe_loc = &SeqMule::Install::parse_locations($install_dir,$tmp_exe_loc); 
-	&update_source;
-	warn "NOTICE: re-installing ",join(" ",keys %exe_loc)," ...\n";
-	for my $exe (keys %exe_loc)
-	{
-	    eval ("&SeqMule::Install::$exe(\$install_dir,\$tmp_exe_loc)");
-	}
-    } else
-    {
-	warn "NOTICE: NO 3rd party program needs to be re-installed.\n";
+	eval ("&SeqMule::Install::$exe(\$install_dir,\$tmp_exe_loc)");
     }
+} else
+{
+    warn "NOTICE: NO 3rd party program needs to be re-installed.\n";
 }
 #update source
 &update_source;
@@ -147,7 +143,6 @@ For details about each option, please use 'seqmule update -h':
 Options:
 
       --git			update from GitHub
-      --install			automatically upgrade 3rd party tools
       --tmpdir <DIR>		temporary folder for storing copy of downloaded stuff. Default is $TMPDIR
       or /tmp
       -h,--help			help
@@ -159,12 +154,6 @@ Examples:
 
       #update SeqMule to the latest version on GitHub
       seqmule update --git
-
-      #update 3rd party tools if newer version are introduced into SeqMule
-      seqmule update --install
-
-      #it's okay to combine --git and --install options
-      seqmule update --install --git
 
 =head1 OPTIONS
 

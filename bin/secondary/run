@@ -113,7 +113,7 @@ Options:
       --sge			run each command via Sun Grid Engine
       -h,--help			help
 
-=head1 EXAMPLE
+      EXAMPLE
 
       #continue run from last executed step
       seqmule run your_analysis.script
