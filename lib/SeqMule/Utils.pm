@@ -343,7 +343,8 @@ sub search
     my @list;
     my $path_to_target;
     my @search_path=("$install_dir/exe","$install_dir/bin",cwd);
-    push @search_path, (split /:/,$ENV{PATH}); #we have to include PATH, because programs like java will not be installed by SeqMule
+    #push @search_path, (split /:/,$ENV{PATH}); #we have to include PATH, because programs like java will not be installed by SeqMule
+    #we do not search global path, we assume &search subroutine only handles locally-installed applications
 
     for my $single_path(@search_path)
     {
@@ -1774,7 +1775,7 @@ Utils::search_db({
 			version => $dbsnpver,
 			install_dir => $install_dir,
 		})
-Utils::search($install_dir,"Rscript","local")
+Utils::search($install_dir,"Rscript")
 $phred_scheme=Utils::phred_score_check(readcount,@files);
 
 =head1 AUTHOR

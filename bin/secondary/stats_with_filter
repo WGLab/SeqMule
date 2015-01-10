@@ -149,7 +149,7 @@ sub vcf_consensus
 {
     my @in=@_;
     die "At least 2 VCF files for extracting consensus calls\n" unless @in>1;
-    my $java=&getExe("java");
+    my $java="java";
     my $gatk=&getExe("GenomeAnalysisTKLite.jar","GenomeAnalysisTK.jar");
     my $out=&getPrefix(@in)."_consensus.vcf";
     my $local_minN=$minN || scalar @in;
@@ -175,7 +175,7 @@ sub vcf_union
 {
     my @in=@_;
     die "At least 2 VCF files for extracting union calls\n" unless @in>1;
-    my $java=&getExe("java");
+    my $java="java";
     my $gatk=&getExe("GenomeAnalysisTKLite.jar","GenomeAnalysisTK.jar");
     my $out=&getPrefix(@in)."_union.vcf";
 
@@ -429,7 +429,7 @@ sub coverage_plot
     my $stat_file=shift;
     my $n=3; #skip non-coverage lines
     my $lines;
-    my $r=&getExe("Rscript");
+    my $r="Rscript";
 
     return undef unless $stat_file;
     warn "$stat_file missing\n" and return undef unless -f $stat_file;
@@ -514,7 +514,7 @@ sub venn
     warn "Do not support more than 5 files right now\n" and return undef unless (@_<=5);
     warn "No need to plot for single file\n" and return undef if (@_==1);
 
-    my $exe=&getExe("Rscript");
+    my $exe="Rscript";
     #first check if Venn.diagram available
     my $rlibpath=File::Spec->catdir($install_dir,"rlib");
     #check installed packages in seqmule rlib and user's rlib
@@ -588,7 +588,7 @@ sub genPlot
     my $tiff="${local_prefix}_venn.tiff";
     my $jpg="${local_prefix}_venn.jpg";
     my $rfile="${local_prefix}_venn.R";
-    my $exe=&getExe("Rscript");
+    my $exe="Rscript";
     my $rlibpath=File::Spec->catdir($install_dir,"rlib");
     my $rscript="#!$exe\n"; #exe path
     $rscript.=
