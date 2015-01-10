@@ -8,6 +8,7 @@ use Fcntl qw/:flock/;
 use File::Spec;
 
 my $debug=0;
+my $splitter="-" x 10;
 
 sub writeParallelCMD
 {
@@ -102,7 +103,6 @@ sub single_line_exec
     my ($script,$n,@cmd)=@_;
     my @out;
     my $cmd_string=join(" ",@cmd);
-    my $splitter="-" x 10;
     my $start_time=time;
     my $msg=&getMsg($script,$n);
 
@@ -148,7 +148,7 @@ sub single_line_exec
 	my $total_min=&getTotalMin($start_time);
 
 	&start2finish($script,$n);
-	warn "\n\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: step $n is finished at $time, $msg, $total_min min]\n";
+	warn "\n\n[ => SeqMule Execution Status: step $n is finished at $time, $msg, $total_min min]\n\n";
     } else
     {
 	my $time=`date`;chomp $time;
@@ -407,7 +407,7 @@ sub run
 			system("$cmd &");
 			&wait2start($file,$step);
 		    }
-		    warn "[ => SeqMule Execution Status: Running $step of $step_total steps: $msg\nTime Elapsed: ",&convertTime($elapse_time),"]\n";
+		    warn "${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg\nTime Elapsed: ",&convertTime($elapse_time),"]\n";
 		}
 	    } else
 	    {
