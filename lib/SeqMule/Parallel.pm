@@ -148,7 +148,7 @@ sub single_line_exec
 	my $total_min=&getTotalMin($start_time);
 
 	&start2finish($script,$n);
-	warn "\n\n[ => SeqMule Execution Status: step $n is finished at $time, $msg, $total_min min]\n\n";
+	warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
     } else
     {
 	my $time=`date`;chomp $time;
@@ -375,6 +375,7 @@ sub run
     #each command of the file is only able to control its own line
     &firstScan($file,$step);
 
+    warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
     my $start_time=time;
     while (1)
     {
@@ -407,16 +408,15 @@ sub run
 			system("$cmd &");
 			&wait2start($file,$step);
 		    }
-		    warn "${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg\nTime Elapsed: ",&convertTime($elapse_time),"]\n";
+		    warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
+		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
 		}
 	    } else
 	    {
 		if (&allDone($file))
 		{
-		    my $time=`date`;chomp $time;
-		    warn "[ => SeqMule Execution Status: All done at $time]\n";
+		    warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
 		    warn "Total time: ",&convertTime($elapse_time),"\n";
-		    warn `date`;
 		    last;
 		}
 	    }
@@ -425,6 +425,13 @@ sub run
 	    #&checkRunningPID($file);
 	}
     }
+}
+
+sub getReadableTimestamp
+{
+    my $time = `date`;
+    chomp $time;
+    return($time);
 }
 
 sub convertTime
