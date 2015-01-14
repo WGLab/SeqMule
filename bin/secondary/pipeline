@@ -2206,8 +2206,8 @@ sub procFQ
 {
     $fq_toggle=1 if $fq1;
     $paired=1 if ($fq1 && $fq2);
-    @fq1_list=split /,/,$fq1 if $fq1; @fq1_list= map { abs_path $_ } @fq1_list;
-    @fq2_list=split /,/,$fq2 if $fq2; @fq2_list= map { abs_path $_ } @fq2_list;
+    @fq1_list=split /,/,$fq1 if $fq1; @fq1_list= map { abs_path glob $_ } @fq1_list;
+    @fq2_list=split /,/,$fq2 if $fq2; @fq2_list= map { abs_path glob $_ } @fq2_list;
     if ( grep { $_ !~ /\.(fq|fastq|fastq\.gz|fq\.gz)$/i } (@fq1_list,@fq2_list) )
     {
 	die "ERROR: All FASTQ files must have suffix .fq.gz .fastq.gz .fq or .fastq\n";
@@ -2369,7 +2369,7 @@ sub procBAM
 {
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     @bam_list=split /,/,$bam if $bam; 
-    @bam_list= map { abs_path $_ } @bam_list;
+    @bam_list= map { abs_path glob $_ } @bam_list;
     if (grep { $_ !~ /\.bam$/i } @bam_list)
     {
 	die "ERROR: All BAM files must have suffix .bam\n";
