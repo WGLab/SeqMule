@@ -754,7 +754,23 @@ sub samtools
 	    #do snp calling for each bam
 	    &samtools_variant('single',$n,\%options,@target_bam_files);
 	}
-    } else {die "ERROR: Unrecognized subprogram for SAMtools: $subprogram\n"}
+    } elsif ($subprogram=~/rmdup/i)
+    {
+	for my $local_bam(@bam_files) 
+	{
+	    my $cmd;
+	    my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
+	    my $newbam="$local_prefix.rmdup.bam";
+	    #only mark duplicates, do not really remove them from BAM
+	    $cmd.="$exe rmdup ";
+	    $cmd.=" $local_bam $newbam";
+	    push @commands,[$threads,"Remove duplicates",$cmd];$cmd="";
+	    $local_bam=$newbam; push @removable,$newbam;
+	}
+	@original_bam_files=@bam_files;
+	@bam_for_aln_stat=@bam_files;
+
+    }else {die "ERROR: Unrecognized subprogram for SAMtools: $subprogram\n"}
 }
 sub samtools_variant
 {
@@ -2935,7 +2951,7 @@ sub parsePipeline
 	my ($program,$subprogram,$option_ref)=@{$advanced_config_lines[$_]};
 
 
-	if ($program=~/^picard$/i && $subprogram=~/markduplicates/i && $capture && $wes)
+	if ($program=~/^samtools$/i && $subprogram=~/rmdup/i && $capture && $wes)
 	{
 	    if (&SeqMule::Utils::bed2total($capture)<$RMDUP_MIN_LEN)
 	    {

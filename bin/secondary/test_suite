@@ -85,7 +85,7 @@ for my $q("","-quick")
 		push @cmd, "cd $test_folder";
 
 		#&exec(@cmd) if grep{$count==$_} (84,86,88,90,92,96,98);
-		&exec(@cmd) if $count<=0;
+		&exec(@cmd) if $count>=1 and $count<=15;
 		$count++;
 	}
     }
