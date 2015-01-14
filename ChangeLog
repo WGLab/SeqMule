@@ -1,3 +1,16 @@
+v1.1.2
+2015-01-13 Kai Wang <kaichop@gmail.com>, Yunfei Guo <yunfeigu@usc.edu>
+
+* Add SNAP aligner for faster alignment
+* Better support for gzipped FASTQ input
+* Add Mendelian statistics calculation
+* Add variant normalization
+* Faster variant calling under quick mode
+* Add separate Venn diagrams for SNVs and non-SNVs
+* Better variant consensus generation
+* Improved stability
+* Bug fixes
+
 v1.1.1
 2014-10-17 Yunfei Guo <yunfeigu@usc.edu>
 
