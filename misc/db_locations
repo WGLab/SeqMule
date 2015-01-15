@@ -32,3 +32,5 @@ hg19nimblegen	hg19nimblegen.tar.gz	http://seqmule.usc.edu/hg_index/hg19nimblegen
 hg18nimblegen	hg18nimblegen.tar.gz	http://seqmule.usc.edu/hg_index/hg18nimblegen.tar.gz	90cfcb807b83a80c503dcee85280918a
 hg18isnap	index_snap_human_b36_both.fasta.tar.gz	http://seqmule.usc.edu/hg_index/snap_human_b36_both_index.tar.gz	a7d3b45caa22a31ad67e66c335971b07 
 hg19isnap	index_snap_human_g1k_v37.fasta.tar.gz	http://seqmule.usc.edu/hg_index/snap_human_g1k_v37_index.tar.gz	3418d3835ee29f8dd1d60df91a2311c1
+hg19illumina	hg19illumina.tar.gz	http://seqmule.usc.edu/hg_index/hg19illumina.tar.gz	01f5e11c9a297c593aeef4b0ad6250a1
+hg18illumina	hg18illumina.tar.gz	http://seqmule.usc.edu/hg_index/hg18illumina.tar.gz	f20148e8d76485424acdf5860147a1d1
