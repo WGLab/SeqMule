@@ -99,7 +99,7 @@ sub exec
     my @cmd=@_;
     my $tmp="/tmp/seqmule_test.$$".rand($$);
     open OUT,'>',$tmp or die "Can't open $tmp: $!\n";
-    print OUT "#!/bin/sh\nset -e\n";
+    print OUT "#!/bin/bash\nset -e\n";
     print OUT join("\n",@cmd);
     close OUT;
     chmod 0755,$tmp;
