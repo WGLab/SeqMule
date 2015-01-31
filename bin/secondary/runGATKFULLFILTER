@@ -82,7 +82,7 @@ my @cmd;
 if (@vcf && @vcf>1)
 {
     #if multiple input VCF, combine them first
-    my $cmd="$java_opt -T CombineVariants -R $ref ";
+    my $cmd="$java_opt -T CombineVariants -R $ref --genotypemergeoption UNSORTED ";
     map {$cmd.=" --variant $_ " } @vcf;
     $cmd.=" -o $vcf ".($capture? " -L $capture":"");
     push @cmd,$cmd;
@@ -191,7 +191,7 @@ if ($options{filter}==1)
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;
     }
-    push @cmd,"$java_opt -T CombineVariants -R $ref --variant $snp_filter --variant $indel_filter -o $vcf_filter".($capture? " -L $capture":"");
+    push @cmd,"$java_opt -T CombineVariants -R $ref --genotypemergeoption UNSORTED --variant $snp_filter --variant $indel_filter -o $vcf_filter".($capture? " -L $capture":"");
 }
 
 #make a copy of final_vcf for each sample, with "multi-call" keyword

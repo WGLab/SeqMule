@@ -38,7 +38,6 @@ $help and pod2usage ({-verbose=>1});
 die "ERROR: Script file missing or more than one arguments specified.\n" unless @ARGV==1;
 $script=shift @ARGV;
 
-warn "*************EXECUTION BEGINS*****************\n";
 if ($sge)
 {
     die "NOT IMPLEMENTED YET\n";

@@ -56,7 +56,8 @@ sub getstore
     croak "ERROR: no URL\n" unless defined $url;
     if(&sys_which("wget"))
     {
-	my $command = "wget \'$url\' -nd  --retr-symlinks -r -O $file --no-check-certificate ";
+	#2014Jan24 Usually stable connections are expected, so I set the timeout and number of retry to be small.
+	my $command = "wget --dns-timeout=30 --connect-timeout=30 --read-timeout=30 --tries=10 \'$url\' -nd  --retr-symlinks -r -O $file --no-check-certificate ";
 	$command.=$arg[0] if defined $arg[0];
 	return !system($command); 
     }

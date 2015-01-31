@@ -28,6 +28,7 @@ my $basic_merge;
 my $basic_ms;
 my @config_files=glob "$config_folder/*.config";
 
+#$basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
 $basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
 $basic_merge="$exe pipeline -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
 $basic_ms="$exe pipeline -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
@@ -84,7 +85,7 @@ for my $q("","-quick")
 		push @cmd, "cd $test_folder";
 
 		#&exec(@cmd) if grep{$count==$_} (84,86,88,90,92,96,98);
-		&exec(@cmd) if $count<=20;
+		&exec(@cmd) if $count>=1 and $count<=15;
 		$count++;
 	}
     }
@@ -96,7 +97,7 @@ sub exec
     my @cmd=@_;
     my $tmp="/tmp/seqmule_test.$$".rand($$);
     open OUT,'>',$tmp or die "Can't open $tmp: $!\n";
-    print OUT "#!/bin/sh\nset -e\n";
+    print OUT "#!/bin/bash\nset -e\n";
     print OUT join("\n",@cmd);
     close OUT;
     chmod 0755,$tmp;

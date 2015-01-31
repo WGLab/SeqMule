@@ -84,10 +84,12 @@ sub db_down
 	'hg18agilent'	=>'hg18 Agilent SureSelect and HaloPlex capture kit target regions',
 	'hg18iontorrent' =>'hg18 IonTorrent AmpliSeq capture kit target regions',
 	'hg18nimblegen' =>'hg18 Nimblegen SeqCap capture kit target regions',
+	'hg18illumina' =>'hg18 Illumina TruSight capture kit target regions',
 
 	'hg19agilent'	=>'hg19 Agilent SureSelect and HaloPlex capture kit target regions',
 	'hg19iontorrent' =>'hg19 IonTorrent AmpliSeq capture kit target regions',
 	'hg19nimblegen' =>'hg19 Nimblegen SeqCap capture kit target regions',
+	'hg19illumina' =>'hg19 Illumina TruSight capture kit target regions',
     );
     my $all_hg18_list=join (',',grep {/hg18/i} keys %db_alias);
     my $all_hg19_list=join (',',grep {/hg19/i} keys %db_alias);
@@ -280,6 +282,8 @@ The following list gives possible options and their corresponding databases. You
         'hg19iontorrent' =>'hg19 IonTorrent AmpliSeq capture kit target regions',
         'hg18nimblegen' =>'hg18 Nimblegen SeqCap capture kit target regions',
         'hg19nimblegen' =>'hg19 Nimblegen SeqCap capture kit target regions',
+	'hg18illumina' =>'hg18 Illumina TruSight capture kit target regions',
+	'hg19illumina' =>'hg19 Illumina TruSight capture kit target regions',
 
 =end text
 
