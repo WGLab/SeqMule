@@ -544,7 +544,7 @@ sub genTempScript
     my @cmd=@_;
     my $tmp="/tmp/$$".time()."script";
     open OUT,'>',$tmp or die "Can't write to $tmp: $!\n";
-    print OUT "#!/bin/sh\nset -e\n"; #let shell run the script, exit at first error
+    print OUT "#!/bin/bash\nset -e\n"; #let shell run the script, exit at first error
     print OUT "set -o pipefail\n"; #let shell run the script, exit at first error
     print OUT join ("\n",@cmd);
     close OUT;
