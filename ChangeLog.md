@@ -1,9 +1,9 @@
-v1.1.4
+# v1.1.4
 2015-02-13 Yunfei Guo <yunfeigu@usc.edu>
 
 * fixed a bug for file names containing whitespace.
 
-v1.1.3
+# v1.1.3
 2015-01-31 Yunfei Guo <yunfeigu@usc.edu>
 
 * Illumina TruSight Capture Kit BED files added
@@ -11,7 +11,7 @@ v1.1.3
 * Improved runtime output
 * Bug fixes for /bin/sh, GATK3.3.0
 
-v1.1.2
+# v1.1.2
 2015-01-13 Kai Wang <kaichop@gmail.com>, Yunfei Guo <yunfeigu@usc.edu>
 
 * Add SNAP aligner for faster alignment
@@ -24,13 +24,13 @@ v1.1.2
 * Improved stability
 * Bug fixes
 
-v1.1.1
+# v1.1.1
 2014-10-17 Yunfei Guo <yunfeigu@usc.edu>
 
 * Add '-tmpdir' option in 'seqmule stats' and 'seqmule pipeline'
 * Add 'seqmule update' to make allow automatic update.
 
-v1.1.0
+# v1.1.0
 2014-05-29 Yunfei Guo <yunfeigu@usc.edu>
 
 * Add GATK full version, Freebayes
