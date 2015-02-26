@@ -86,6 +86,7 @@ die "ERROR:No reference file specified or found. Use --ref option.\n" if ( ($ven
 die "ERROR:--vcf and --plink must be used together.\n" if ($plink && !$vcf);
 die "ERROR:--paternal and --maternal must be used together\n" if ($paternal_id && !$maternal_id or !$paternal_id && $maternal_id);
 die "ERROR:--mendel-stat must be used with --plink\n" if ($mendelian_stat && !$plink or !$mendelian_stat && $plink);
+die "ERROR:Please use -capture or -aln option with -bam\n" if (defined $bam && ! ($aln or $capture) );
 
 #set default
 $jmem=$jmem||'1750m';
@@ -721,7 +722,6 @@ sub coverage_plot
 
     my $source=File::Spec->catfile($tmpdir,"$$".rand($$).".coverage_plot.script");
     my $local_prefix=&getPrefix($bam);
-    my $pdf="${local_prefix}_cov.pdf";
     my $jpg="${local_prefix}_cov.jpg";
     my $code=#skip first N lines
     "x=read.table(\"$stat_file\",skip=$n,sep=\" \")
@@ -729,24 +729,34 @@ sub coverage_plot
     x\$V9=as.numeric(sub('%','',x\$V9))/100
     coverage=subset(x,select=c(3,9))
     names(coverage)=c(\"Coverage\",\"Cumulative fraction\")
-    xlim=c(max(coverage[[1]]),1)
-    pdf(\"$pdf\")
-    suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim,ylim=c(0,1),axes=FALSE))
-    axis(side=1,at=c(10000,1000,100,20,10,5,1))
-    axis(side=2,at=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1))
+
+    xlim = c(max(coverage[[1]]),1)
+    ylim = c(0,1)
+    xtick.pos = c(10000,1000,100,20,10,5,1)
+    ytick.pos = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+
+    xlim2 = c(max(coverage[[1]][coverage[[2]]>=0.1]),1)
+    ylim2 = c(0.1,1)
+    ytick.pos2 = c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+
+    print(xlim2);
+
+    jpeg(\"$jpg\",width=5,height=10,units='in',res=500)
+    par(mfrow = c(2,1))
+    suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim,ylim=ylim,axes=FALSE))
+    axis(side=1,at=xtick.pos)
+    axis(side=2,at=ytick.pos)
     box()
-    garbage <- dev.off()
-    jpeg(\"$jpg\",width=5,height=5,units='in',res=500)
-    suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim,ylim=c(0,1),axes=FALSE))
-    axis(side=1,at=c(10000,1000,100,20,10,5,1))
-    axis(side=2,at=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1))
+    suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim2,ylim=ylim2,axes=FALSE))
+    axis(side=1,at=xtick.pos)
+    axis(side=2,at=ytick.pos2)
     box()
     garbage <- dev.off()
     ";
     &SeqMule::Utils::write2outfile($code,$source);
     system ("$r --vanilla $source 1>&2");
-    warn "Failed to plot $stat_file" and return undef if $?;
-    warn "$pdf and $jpg generated\n";
+    warn "ERROR: Failed to plot $stat_file" and return undef if $?;
+    warn "NOTICE: coverage plot <<$jpg>> generated\n";
     push @gunlink,$source;
 }
 
