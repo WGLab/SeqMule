@@ -18,7 +18,7 @@ use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 use File::Copy qw/copy move/;
 use File::Basename qw/basename dirname/;
-use File::Glob ':bsd_glob';
+use File::Glob 'bsd_glob';
 use Cwd qw/abs_path realpath/;
 use SeqMule::Utils;
 use SeqMule::Parallel;
