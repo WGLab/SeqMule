@@ -240,6 +240,12 @@ sub cmd_gen
 	push @aligners,"soap";
 	return &soap(@_);
     }
+    elsif ($program eq 'snap')
+    {
+	return unless $fq_toggle;
+	push @aligners,"snap";
+	return &snap(@_);
+    }
     elsif ($program eq 'samtools') 
     {
 	return &samtools(@_);
@@ -271,10 +277,6 @@ sub cmd_gen
     elsif ($program eq 'soapsnp')
     {
 	return &soapsnp(@_);
-    }
-    elsif ($program eq 'snap')
-    {
-	return &snap(@_);
     }
     else {die "ERROR: Unrecognized program: $program\n"}
 }
