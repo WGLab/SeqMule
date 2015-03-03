@@ -6,12 +6,12 @@ use File::Basename qw/basename/;
 use File::Spec;
 
 my $ncpu=8;
-my $mem="4.5g";
+my $mem="6g";
 my $jmem="1750m";
 my $gatknt=4;
-my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
+my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/data/test_exome";
-my $config_folder="/home/yunfeiguo/projects/SeqMule_dev/misc/predefined_config";
+my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
 my $tmpdir = "/state/partition1";
 #for no merge, no ms
 my $first_fq="fa_1.fq";
@@ -45,7 +45,7 @@ for my $q("","-quick")
     {
 	#for my $ms("","-ms","-merge")
 	#for my $ms("","-ms")
-	for my $ms("")
+	for my $ms("-merge")
 	{
 		my @cmd;
 		my @target_files;
@@ -88,7 +88,7 @@ for my $q("","-quick")
 
 		#print join "\n",@cmd;
 		#&exec(@cmd) if grep{$count == $_}(1,20,32);
-		&exec(@cmd) and exit if ($j=~/gatk/&& $j=~/samtools/ && $j=~/bwa/ && $q eq '-quick');
+		&exec(@cmd) and exit if ($j=~/snap/);
 		$count++;
 	}
     }
