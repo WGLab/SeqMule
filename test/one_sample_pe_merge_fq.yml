@@ -1,0 +1,11 @@
+fastq:
+    sample1:
+      -
+       - sample1_lane1.1.fq
+       - sample1_lane1.2.fq 
+      -
+       - sample1_lane2.1.fq
+       - sample1_lane2.2.fq 
+      -
+       - sample1_lane3.1.fq
+       - sample1_lane3.2.fq 
