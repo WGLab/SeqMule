@@ -18,7 +18,6 @@ use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 use File::Copy qw/copy move/;
 use File::Basename qw/basename dirname/;
-use Cwd qw/abs_path realpath/;
 use SeqMule::Utils;
 use SeqMule::Parallel;
 
@@ -239,6 +238,12 @@ sub cmd_gen
 	push @aligners,"soap";
 	return &soap(@_);
     }
+    elsif ($program eq 'snap')
+    {
+	return unless $fq_toggle;
+	push @aligners,"snap";
+	return &snap(@_);
+    }
     elsif ($program eq 'samtools') 
     {
 	return &samtools(@_);
@@ -270,10 +275,6 @@ sub cmd_gen
     elsif ($program eq 'soapsnp')
     {
 	return &soapsnp(@_);
-    }
-    elsif ($program eq 'snap')
-    {
-	return &snap(@_);
     }
     else {die "ERROR: Unrecognized program: $program\n"}
 }
@@ -473,7 +474,7 @@ sub bowtie
     if ($bowtie_index_prefix)
     {
 	#bowtie index can also appear in bowtie dir, in env
-	my $exe_folder=dirname(abs_path($bowtie));
+	my $exe_folder=dirname(&SeqMule::Utils::abs_path_failsafe($bowtie));
 
 	my @index_pres;
 	push @index_pres, $bowtie_index_prefix,File::Spec->catfile($exe_folder,"indexes",$bowtie_index_prefix);
@@ -536,7 +537,7 @@ sub bowtie2
     if ($bowtie2_index_prefix)
     {
 	#bowtie index can also appear in bowtie dir, in env
-	my $exe_folder=dirname(abs_path($bowtie2));
+	my $exe_folder=dirname(&SeqMule::Utils::abs_path_failsafe($bowtie2));
 
 	my @index_pres;
 	push @index_pres, $bowtie2_index_prefix,File::Spec->catfile($exe_folder,"indexes",$bowtie2_index_prefix);
@@ -2222,8 +2223,8 @@ sub procFQ
 {
     $fq_toggle=1 if $fq1;
     $paired=1 if ($fq1 && $fq2);
-    @fq1_list=split /,/,$fq1 if $fq1; @fq1_list= map { abs_path glob $_ } @fq1_list;
-    @fq2_list=split /,/,$fq2 if $fq2; @fq2_list= map { abs_path glob $_ } @fq2_list;
+    @fq1_list=split /,/,$fq1 if $fq1; @fq1_list= map { &SeqMule::Utils::abs_path_failsafe($_) } @fq1_list;
+    @fq2_list=split /,/,$fq2 if $fq2; @fq2_list= map { &SeqMule::Utils::abs_path_failsafe($_) } @fq2_list;
     if ( grep { $_ !~ /\.(fq|fastq|fastq\.gz|fq\.gz)$/i } (@fq1_list,@fq2_list) )
     {
 	die "ERROR: All FASTQ files must have suffix .fq.gz .fastq.gz .fq or .fastq\n";
@@ -2308,13 +2309,14 @@ sub procFQ
 	{
 	    my $newfq1=File::Spec->catfile($result_folder,"$prefix_list[$i].1.fastq".($fq1_list[$i]=~/\.gz/i ? ".gz":""));
 	    my $newfq2=File::Spec->catfile($result_folder,"$prefix_list[$i].2.fastq".($fq2_list[$i]=~/\.gz/i ? ".gz":""));
-	    if (-f $newfq1 or -f $newfq2)
+	    if (-e $newfq1 or -e $newfq2 #-e dosenot return true for symbolic links, weird thing!
+		or -l $newfq1 or -l $newfq2)
 	    {
-		if ( (abs_path $newfq1) ne (abs_path $fq1_list[$i]) or
-		    (abs_path $newfq2) ne (abs_path $fq2_list[$i])
+		if ( (&SeqMule::Utils::abs_path_failsafe($newfq1)) ne (&SeqMule::Utils::abs_path_failsafe($fq1_list[$i])) or
+		    (&SeqMule::Utils::abs_path_failsafe($newfq2)) ne (&SeqMule::Utils::abs_path_failsafe($fq2_list[$i]))
 		)
 		{
-		    die "ERROR: $newfq1 or $newfq2 exists, and they link to other files, please use another prefix.\n";
+		    die "ERROR: $newfq1 or $newfq2 exists, and they link to other files, please use another prefix or delete them.\n";
 		}
 	    }
 
@@ -2330,11 +2332,11 @@ sub procFQ
 	} else
 	{
 	    my $newfq=File::Spec->catfile($result_folder,"$prefix_list[$i].fastq".($fq1_list[$i]=~/\.gz/i ? ".gz":""));
-	    if (-f $newfq)
+	    if (-e $newfq or -l $newfq)
 	    {
-		if ( (abs_path $newfq) ne (abs_path $fq1_list[$i]) )
+		if ( (&SeqMule::Utils::abs_path_failsafe($newfq)) ne (&SeqMule::Utils::abs_path_failsafe($fq1_list[$i])) )
 		{
-		    die "ERROR: $newfq exists, please use another prefix.\n";
+		    die "ERROR: $newfq exists, and it links to other file, please use another prefix or delete it.\n";
 		}
 
 	    }
@@ -2385,7 +2387,7 @@ sub procBAM
 {
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     @bam_list=split /,/,$bam if $bam; 
-    @bam_list= map { abs_path glob $_ } @bam_list;
+    @bam_list= map { &SeqMule::Utils::abs_path_failsafe($_) } @bam_list;
     if (grep { $_ !~ /\.bam$/i } @bam_list)
     {
 	die "ERROR: All BAM files must have suffix .bam\n";
@@ -2437,7 +2439,7 @@ sub procBAM
 		my $result_folder=$prefix_list[$i]."_result";
 		mkdir $result_folder unless -d $result_folder;
 		my $newbam=File::Spec->catfile($result_folder,"$prefix_list[$i].bam");
-		die "ERROR: $newbam exists, use another prefix!\n" if (-f $newbam && (abs_path $newbam) ne (abs_path $bam_list[$i]));
+		die "ERROR: $newbam exists, use another prefix or remove it!\n" if (-f $newbam && (&SeqMule::Utils::abs_path_failsafe($newbam)) ne (&SeqMule::Utils::abs_path_failsafe($bam_list[$i])));
 		symlink $bam_list[$i],$newbam; 
 		$original_input{$newbam}=basename $bam_list[$i];
 		$bam_list[$i]=$newbam;
@@ -2452,7 +2454,7 @@ sub procBAM
 		my $result_folder=$prefix_list[$i]."_result";
 		mkdir $result_folder unless -d $result_folder;
 		my $newbam=File::Spec->catfile($result_folder,"$prefix_list[$i].bam");
-		die "ERROR: $newbam exists, use another prefix!\n" if (-f $newbam && (abs_path $newbam) ne (abs_path $bam_list[$i]));
+		die "ERROR: $newbam exists, use another prefix or remove it!\n" if (-f $newbam && (&SeqMule::Utils::abs_path_failsafe($newbam)) ne (&SeqMule::Utils::abs_path_failsafe($bam_list[$i])));
 		symlink $bam_list[$i],$newbam; 
 		$original_input{$newbam}=basename $bam_list[$i];
 		$bam_list[$i]=$newbam;
