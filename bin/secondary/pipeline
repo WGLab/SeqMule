@@ -35,7 +35,7 @@ my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 
 #cmd opt
 my (
-    $prefix,$fq1,$fq2,$bam,$merge,$multi_sample_calling,$minN,
+    $prefix,$fq1,$fq2,$bam,$merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
     $threads, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
     $no_resolve_conflict,
@@ -53,6 +53,7 @@ my %original_input;
 my @fq1_list;
 my @fq2_list;
 my @bam_list;
+my @merging_rule_list;
 
 #readgroup information
 my @readgroup;
@@ -101,6 +102,7 @@ GetOptions(
     'b=s'	        =>	\$fq2,
     'bam=s'		=>	\$bam,
     'merge|m'		=>	\$merge,
+    'mergingrule'	=>	\$mergingrule,
     'ms'		=>	\$multi_sample_calling,
     'N=i'		=>	\$minN,
     #analysis param
@@ -152,6 +154,7 @@ $help||@ARGV and pod2usage ({-verbose=>1});
 &confOptCheck(); #check again after options are deteremined
 &procFQ() if $fq1;
 &procBAM() if $bam;
+&checkMerge() if $merge;
 &checkForSplit() if $quick;
 &genAnalysisPrefix();
 &reportParam();
@@ -163,6 +166,31 @@ warn "To execute it, execute 'seqmule run $script_file'\n" and exit 0 if $norun;
 exec File::Spec->catfile($install_dir,"bin","seqmule"),"run",$script_file;
 
 #-----------------------------------subroutines--------------------------------------------
+#
+sub checkMerge
+{
+    #set merging rule
+    if ($mergingrule)
+    {
+	@merging_rule_list = split /,/,$mergingrule;
+    } else
+    { #by default, seqmule tries to assign the files evenly among samples
+	if($fq1)
+	{
+	    @merging_rule_list = (int (@fq1_list/@prefix_list)) x @prefix_list;
+	} elsif ($bam)
+	{
+	    @merging_rule_list = (int (@bam_list/@prefix_list)) x @prefix_list;
+	}
+    }
+    if(&SeqMule::Utils::sum(@merging_rule_list) != 
+	($fq_toggle? @fq1_list:@bam_list))
+    {
+	die "ERROR: total number of files specified by merging rule is not equal to number of input files\n".
+	"It is also possible that SeqMule fails to assign integer number of files to each sample equally.\n".
+	"Parsed merging rule: @merging_rule_list\n";
+    }
+}
 
 sub genAnalysisPrefix
 {
@@ -3083,7 +3111,9 @@ Options:
 	-a <FASTQ>             	  1st FASTQ file (or comma-delimited list)
 	-b <FASTQ>             	  2nd FASTQ file (or comma-delimited list)
 	--bam <BAM>		  BAM file (or comma-delimited list). Exclusive of -a,-b options.
-	--merge,-m		  merge all FASTQ or BAM files before analysis
+	--merge,-m		  merge FASTQ or BAM files before analysis
+	--mergingrule <TEXT>	  comma-delimited numbers for how many (pairs of) files merged for each sample.
+				  Default: equal number of (pairs of) files for each samples.
 	-ms			  do multiple-sample variant calling (only valid for GATK VarScan and SAMtools)
 
 	-N <INT>		  if more than one set of variants are generated, extract variants shared by at least INT VCF output

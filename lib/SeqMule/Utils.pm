@@ -12,6 +12,15 @@ use Carp qw/carp croak/;
 no warnings 'File::Find';
 
 
+sub sum
+{
+    my $sum = 0;
+    for my $i(@_)
+    {
+	$sum += $i;
+    }
+    return $sum;
+}
 sub abs_path_failsafe
 {
     my $result = abs_path $_[0];
