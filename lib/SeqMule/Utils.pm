@@ -12,6 +12,16 @@ use Carp qw/carp croak/;
 no warnings 'File::Find';
 
 
+sub abs_path_failsafe
+{
+    my $result = abs_path $_[0];
+    unless($result)
+    {
+	croak "ERROR: Cwd's abs_path doesn't work as expected.\n".
+	"Please check your input file path, make sure there is no\n".
+	"'~' symbol and file exists (after resolving symbolic link).\n";
+    }
+}
 sub rndStr
 {
     #usage: &rndStr(INT,@stringOfchar)
