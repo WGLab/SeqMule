@@ -12,6 +12,41 @@ use Carp qw/carp croak/;
 no warnings 'File::Find';
 
 
+sub getFQprefix
+{
+    my $filename = shift;
+    if($filename =~ /(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i)
+    {
+	return $1;
+    } else
+    {
+	croak "ERROR: regex matching failed for $filename\n";
+    }
+}
+sub file_idx2prefix_idx
+{
+    #given a file index, return corresponding prefix index
+    #the rule_list specifies how many files each prefix correspond to.
+    #assume file_idx begins at 0
+    my $file_idx = shift;
+    my @rule_list = @_;
+
+    if(grep {$_ <= 0} (@rule_list) or $file_idx < 0)
+    {
+	croak "ERROR: merging rule list cannot be smaller than 1 (0 for file index)\n";
+    }
+    for my $i(0..$#rule_list)
+    {
+	if($file_idx < $rule_list[$i])
+	{
+	    return $i;
+	} else
+	{
+	    $file_idx -= $rule_list[$i];
+	}
+    }
+    croak "ERROR: file index too large or merging rule too small\n";
+}
 sub sum
 {
     my $sum = 0;
