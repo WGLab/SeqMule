@@ -64,5 +64,6 @@ close HEADER;
 
 #output, different from mergeBAMOneRG, here we use samtools' own merge function, which probably is faster
 warn "NOTICE: Start merging BAM files, readgroup IDs will remain intact.\n";
-!system("$samtools merge -@ $threads -h $sam_for_header $out @bam") or die "ERROR: failed to merge @bam into $out: $!\n";
+#overwrite target BAM with -f option
+!system("$samtools merge -@ $threads -f -h $sam_for_header $out @bam") or die "ERROR: failed to merge @bam into $out: $!\n";
 unlink $sam_for_header or warn "NOTICE: $sam_for_header cannot be cleaned ($!)\n";

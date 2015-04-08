@@ -13,15 +13,15 @@ my $samtools=shift @ARGV;
 my $firstbam=shift @ARGV;
 my @bam=@ARGV;
 
-for (@bam)
+for my $i(@bam)
 {
     &SeqMule::Utils::compareChr
 	({
 		type1=>'bam',
 		file1=>$firstbam,
 		type2=>'bam',
-		file2=>$_,
+		file2=>$i,
 		samtools=>$samtools,
-	    }) !=1 or die "ERROR: Different values from \@SQ tags in $_ and $firstbam.\n"
+	    }) ==1 or die "ERROR: Different values from \@SQ tags in $i and $firstbam.\n"
 }
 warn "@bam have same \@SQ tags.\n";

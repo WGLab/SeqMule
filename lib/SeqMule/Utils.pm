@@ -12,6 +12,29 @@ use Carp qw/carp croak/;
 no warnings 'File::Find';
 
 
+	    sub get_rank_by_mergingrule
+	    {
+		#given index for sample, index for file, and merging rule
+		#return rank of that file in all files belonging to that sample
+		my $i = shift;
+		my $j = shift;
+		my @mergingrule = @_;
+		my $return = $j-&sum(@mergingrule[0..$i-1]);
+		$return = 0 unless $return;
+		return $return;
+	    }
+sub gen_idx_range_by_mergingrule
+{
+    #given index of sample and merging rule
+    #return range of file indexes for that sample
+    my $i = shift;
+    my @mergingrule = @_;
+    my $idx_start = &sum(@mergingrule[0..$i-1]);
+    $idx_start = 0 unless $idx_start;
+    my @range = $idx_start..($idx_start+$mergingrule[$i]-1);
+
+    return @range;
+}
 sub getFQprefix
 {
     my $filename = shift;
@@ -1233,9 +1256,11 @@ sub compareChr
 		}
 		if (exists $fa_contig{$contig})
 		{
+		    warn "inconsistent with chr: $contig and $fa_contig{$contig}\n";
 		    $code=2;
 		} else
 		{
+		    warn "inconsistent: $contig and $fa_contig{$contig}\n";
 		    $code=0;
 		    last;
 		}
@@ -1361,7 +1386,7 @@ sub checkOrCreateTmpdir
     if($tmpdir)
     {
 	mkdir $tmpdir or croak "Failed to create $tmpdir: $!\n" unless -d $tmpdir;
-    	return 1;
+	return 1;
     } else
     {
 	croak "ERROR: No tmpdir specified\n";
@@ -1754,7 +1779,7 @@ sub parseMendelFix
     open IN,'<',$in or croak "ERROR: failed to read $in ($!)\n";
     while(<IN>)
     {
-	    #example
+	#example
 #ID	NCALL1	CR1	FATHER	FOCALL	FOIBS0	FOIBS1	FOIBS2	FOERROR	MOTHER	MOCALL	MOIBS0	MOIBS1	MOIBS2	MOERROR	TRIOCALL	ADI	PADI	ADO	PADO	NERROR	PPCERROR	NFIX	NCALL2	CR2
 #son	45285	0.999	father	45242	533	19804	24905	1.178109e-02	mother	44994	509	20122	24363	1.131262e-02	44559	215	4.825063e-03	853	1.914316e-02	1068	2.396822e-02	899	44759	0.988
 	if($.==1)
