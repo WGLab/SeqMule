@@ -12,6 +12,73 @@ use Carp qw/carp croak/;
 no warnings 'File::Find';
 
 
+	    sub get_rank_by_mergingrule
+	    {
+		#given index for sample, index for file, and merging rule
+		#return rank of that file in all files belonging to that sample
+		my $i = shift;
+		my $j = shift;
+		my @mergingrule = @_;
+		my $return = $j-&sum(@mergingrule[0..$i-1]);
+		$return = 0 unless $return;
+		return $return;
+	    }
+sub gen_idx_range_by_mergingrule
+{
+    #given index of sample and merging rule
+    #return range of file indexes for that sample
+    my $i = shift;
+    my @mergingrule = @_;
+    my $idx_start = &sum(@mergingrule[0..$i-1]);
+    $idx_start = 0 unless $idx_start;
+    my @range = $idx_start..($idx_start+$mergingrule[$i]-1);
+
+    return @range;
+}
+sub getFQprefix
+{
+    my $filename = shift;
+    if($filename =~ /(.*?)(\.1|\.2)?(_phred33)?\.(fq|fastq|fastq\.gz|fq\.gz)/i)
+    {
+	return $1;
+    } else
+    {
+	croak "ERROR: regex matching failed for $filename\n";
+    }
+}
+sub file_idx2prefix_idx
+{
+    #given a file index, return corresponding prefix index
+    #the rule_list specifies how many files each prefix correspond to.
+    #assume file_idx begins at 0
+    my $file_idx = shift;
+    my @rule_list = @_;
+
+    if(grep {$_ <= 0} (@rule_list) or $file_idx < 0)
+    {
+	croak "ERROR: merging rule list cannot be smaller than 1 (0 for file index)\n";
+    }
+    for my $i(0..$#rule_list)
+    {
+	if($file_idx < $rule_list[$i])
+	{
+	    return $i;
+	} else
+	{
+	    $file_idx -= $rule_list[$i];
+	}
+    }
+    croak "ERROR: file index too large or merging rule too small\n";
+}
+sub sum
+{
+    my $sum = 0;
+    for my $i(@_)
+    {
+	$sum += $i;
+    }
+    return $sum;
+}
 sub abs_path_failsafe
 {
     my $result = abs_path $_[0];
@@ -1219,9 +1286,11 @@ sub compareChr
 		}
 		if (exists $fa_contig{$contig})
 		{
+		    warn "inconsistent with chr: $contig and $fa_contig{$contig}\n";
 		    $code=2;
 		} else
 		{
+		    warn "inconsistent: $contig and $fa_contig{$contig}\n";
 		    $code=0;
 		    last;
 		}
@@ -1347,7 +1416,7 @@ sub checkOrCreateTmpdir
     if($tmpdir)
     {
 	mkdir $tmpdir or croak "Failed to create $tmpdir: $!\n" unless -d $tmpdir;
-    	return 1;
+	return 1;
     } else
     {
 	croak "ERROR: No tmpdir specified\n";
@@ -1740,7 +1809,7 @@ sub parseMendelFix
     open IN,'<',$in or croak "ERROR: failed to read $in ($!)\n";
     while(<IN>)
     {
-	    #example
+	#example
 #ID	NCALL1	CR1	FATHER	FOCALL	FOIBS0	FOIBS1	FOIBS2	FOERROR	MOTHER	MOCALL	MOIBS0	MOIBS1	MOIBS2	MOERROR	TRIOCALL	ADI	PADI	ADO	PADO	NERROR	PPCERROR	NFIX	NCALL2	CR2
 #son	45285	0.999	father	45242	533	19804	24905	1.178109e-02	mother	44994	509	20122	24363	1.131262e-02	44559	215	4.825063e-03	853	1.914316e-02	1068	2.396822e-02	899	44759	0.988
 	if($.==1)

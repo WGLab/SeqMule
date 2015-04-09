@@ -41,7 +41,7 @@ for my $q("","-quick")
     for my $j(@config_files)
     {
 	#for my $ms("","-ms","-merge")
-	for my $ms("-merge")
+	for my $ms("")
 	{
 	    next if $ms eq '-ms';
 		my @cmd;
