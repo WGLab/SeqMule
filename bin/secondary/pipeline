@@ -3116,7 +3116,7 @@ Options:
 	--merge,-m		  merge FASTQ or BAM files before analysis
 	--mergingrule <TEXT>	  comma-delimited numbers for how many files merged for each sample.
 				  Default: equal number of files for each samples.
-	-ms			  do multiple-sample variant calling (only valid for GATK VarScan and SAMtools)
+	-ms			  do multiple-sample variant calling (only valid for GATK,VarScan and SAMtools)
 
 	-N <INT>		  if more than one set of variants are generated, extract variants shared by at least INT VCF output
 	--build <hg18,hg19>	  genome build. Default is hg19.
@@ -3190,6 +3190,17 @@ Options:
 
 	#analyze gzipped FASTQ files (.fq.gz) and unzipped files (.fq). Gzipped files will be unpacked temporarily and be removed after analysis.
 	seqmule pipeline -a sample1.1.fq.gz,sample2.1.fq -b sample1.2.fq.gz,sample2.2.fq -e -prefix sample1,sample2 -capture default
+
+	#merge multiple pairs of FASTQ files and do multiple sample variant calling
+	#--forceOneRG must be used along with -rg to assign same @RG tag to input files
+	#input files belonging to same sample have same @RG tag
+	#--mergingrule 1,1,2 means sample1 has 1 (pair of) input file, sample2 has 1 (pair of) input file, sample3 has 2 (pairs of) input files.
+        seqmule pipeline -a sample1.1.1.fastq,sample2.1.1.fastq,sample3.1.1.fastq,sample3.2.1.fastq -b sample1.1.2.fastq,sample2.1.2.fastq,sample3.1.2.fastq,sample3.2.2.fastq -p sample1o3,sample2o3,sample3o3 -g -merge --forceOneRG -rg READGROUP --mergingrule 1,1,2 -ms
+	
+	#merge with default method
+	#if 4 (pairs of) input files are given for 2 samples, each sample gets 2 by default
+	#here multi-sample variant calling is not enabled
+        seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
 
 
 =head1 OPTIONS
