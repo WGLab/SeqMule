@@ -692,17 +692,47 @@ sub readBED
     return @out;
 }
 
+sub readFastaIdx
+{
+    my $fai=shift;
+    my %return;
+    open IN,"<",$fai or (carp "Failed to read $fai: $!\n" and return undef);
+    while (<IN>)
+    {
+	my @f=split /\t/;
+	die "5 fields expected at line $. of $fai: $_\n" unless @f==5;
+	my ($id,$len,$offset,$nchar_ln,$nbyte_ln)=@f;
+
+	$return{$id}={
+	    length=>$len, #length of contig
+	    offset=>$offset, #offset where first character in that contig appears
+	    nchar_ln=>$nchar_ln, #number of characters per line
+	    nbyte_ln=>$nbyte_ln, #number of bytes per line
+	};
+    }
+    close IN;
+    return %return;
+}
 sub getFastaContig
 {
     my $fa=shift;
+    my $idx = "$fa.fai";
     my @out;
-    open IN,'<',$fa or die "ERROR: failed to read $fa: $!\n";
-    while(<IN>)
+    if( -f &abs_path_failsafe($idx))
     {
-	next unless /^>(\S+)/;
-	push @out,$1;
+	my %contig=&readFastaIdx($idx);
+	@out = keys %contig;
     }
-    close IN;
+    if(@out == 0)
+    {#when failed to read index, read FASTA instead
+	open IN,'<',$fa or die "ERROR: failed to read $fa: $!\n";
+	while(<IN>)
+	{
+	    next unless /^>(\S+)/;
+	    push @out,$1;
+	}
+	close IN;
+    }
     return @out;
 }
 
