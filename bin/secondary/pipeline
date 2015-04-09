@@ -2733,11 +2733,13 @@ sub genStat
 	my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 	my $seqmule=File::Spec->catfile($install_dir,"bin","seqmule");
 	my $sample_in_bam;
-	if ($fq_toggle)
+	if ($fq_toggle or $merge)
 	{
 	    $sample_in_bam=$sample;
 	} else
 	{
+	     #when merging is enabled, original BAMs have been replaced by merged BAMs,
+		#which will be generated in execution phase
 	    $sample_in_bam=&SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
 	}
 

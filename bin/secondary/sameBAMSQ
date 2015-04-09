@@ -7,15 +7,17 @@ use FindBin qw/$RealBin/;
 use lib File::Spec->catdir($RealBin,"..","..","lib");
 use SeqMule::Utils;
 
-die "Usage: $0 <samtools> <1.bam 2.bam ...> \n" unless @ARGV>=3;
+die "Usage: $0 <samtools> <1.bam 2.bam ...> \n" unless @ARGV>=2;
 
 my $samtools=shift @ARGV;
 my $firstbam=shift @ARGV;
 my @bam=@ARGV;
 
-for my $i(@bam)
+if(@bam > 0)
 {
-    &SeqMule::Utils::compareChr
+    for my $i(@bam)
+    {
+	&SeqMule::Utils::compareChr
 	({
 		type1=>'bam',
 		file1=>$firstbam,
@@ -23,5 +25,6 @@ for my $i(@bam)
 		file2=>$i,
 		samtools=>$samtools,
 	    }) ==1 or die "ERROR: Different values from \@SQ tags in $i and $firstbam.\n"
+    }
 }
 warn "@bam have same \@SQ tags.\n";
