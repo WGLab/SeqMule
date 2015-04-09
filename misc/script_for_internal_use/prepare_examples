@@ -1,0 +1,4 @@
+#prepare example data sets for merging
+#3 samples, fa,mo,son, each will split into two pairs of FASTQ
+perl -we '@a = glob "/home/yunfeiguo/projects/SeqMule/paper/*.fq.gz";for $i(@a){($out)=$i=~/(.*?)\.gz/;!system("gunzip -vc $i > $out") or die "$!";}'
+mysplit 2 /home/yunfeiguo/projects/SeqMule/paper/*.fq

@@ -311,7 +311,8 @@ sub readScript
     my $script=shift;
     my @out;
     open IN,'<',$script or die "Cannot read $script: $!";
-    flock IN,LOCK_EX or die "Failed to lock $script: $!";
+    #temporarily remove locking step
+    #flock IN,LOCK_EX or die "Failed to lock $script: $!";
 
     while(<IN>)
     {
@@ -320,7 +321,7 @@ sub readScript
 	next unless @f==7;
 	push @out,[@f];
     }
-    flock IN,LOCK_UN;
+    #flock IN,LOCK_UN;
     close IN;
     return @out;
 }
