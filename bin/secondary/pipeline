@@ -3080,11 +3080,15 @@ Options:
 
 	--prefix,-p		  comma-delimited list of sample names, will be used for @RG tag, output file naming.
 				  Mandatory for BAM input with merge enabled, or for FASTQ input.
-	-a <FASTQ>             	  1st FASTQ file (or comma-delimited list)
-	-b <FASTQ>             	  2nd FASTQ file (or comma-delimited list)
-	--bam <BAM>		  BAM file (or comma-delimited list). Exclusive of -a,-b options.
+	-a <FASTQ>             	  1st FASTQ file (or comma-delimited list) (from normal tissue).
+	-b <FASTQ>             	  2nd FASTQ file (or comma-delimited list) (from normal tissue).
+	--bam <BAM>		  BAM file (or comma-delimited list) (from normal tissue). Exclusive of FASTQ input.
 	--merge,-m		  merge all FASTQ or BAM files before analysis
 	-ms			  do multiple-sample variant calling (only valid for GATK VarScan and SAMtools)
+
+	-a2 <FASTQ>            	  1st FASTQ file (or comma-delimited list) from tumor tissue.
+	-b2 <FASTQ>            	  2nd FASTQ file (or comma-delimited list) from tumor tissue.
+	--bam2 <BAM>		  BAM file (or comma-delimited list) from tumor tissue. Exclusive of FASTQ input.
 
 	-N <INT>		  if more than one set of variants are generated, extract variants shared by at least INT VCF output
 	--build <hg18,hg19>	  genome build. Default is hg19.
