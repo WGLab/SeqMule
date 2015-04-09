@@ -729,28 +729,40 @@ sub coverage_plot
     x\$V9=as.numeric(sub('%','',x\$V9))/100
     coverage=subset(x,select=c(3,9))
     names(coverage)=c(\"Coverage\",\"Cumulative fraction\")
+    width = 5
+    height = 5
 
     xlim = c(max(coverage[[1]]),1)
     ylim = c(0,1)
     xtick.pos = c(10000,1000,100,20,10,5,1)
     ytick.pos = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
 
+    length_above01 = length(coverage[[1]][coverage[[2]]>=0.1])
+    xlim2 = ylim2 = ytick.pos2 = NULL
+    #take care of the situation where reads cover <10% of region
+    if(length_above01>0) {
     xlim2 = c(max(coverage[[1]][coverage[[2]]>=0.1]),1)
     ylim2 = c(0.1,1)
     ytick.pos2 = c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+    #make room for 2nd plot
+    height = 10
+    }
 
-    print(xlim2);
 
-    jpeg(\"$jpg\",width=5,height=10,units='in',res=500)
+    jpeg(\"$jpg\",width=width,height=height,units='in',res=500)
+    if(length_above01>0) {
     par(mfrow = c(2,1))
+    }
     suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim,ylim=ylim,axes=FALSE))
     axis(side=1,at=xtick.pos)
     axis(side=2,at=ytick.pos)
     box()
+    if(length_above01>0) {
     suppressWarnings(plot(coverage,log=\'x\',pch=1,col=\'blue\',xlim=xlim2,ylim=ylim2,axes=FALSE))
     axis(side=1,at=xtick.pos)
     axis(side=2,at=ytick.pos2)
     box()
+    }
     garbage <- dev.off()
     ";
     &SeqMule::Utils::write2outfile($code,$source);

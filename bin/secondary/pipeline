@@ -411,24 +411,29 @@ sub bwa_mem
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $no(0..$#fq1_list)
+    for my $i(0..$#prefix_list)
     {
-	my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	my $sample=($merge? $prefix_list[&SeqMule::Utils::file_idx2prefix_idx($no,@merging_rule_list)] : $prefix_list[$no]);
-	my @local_fq;
-	my $local_bam="${local_prefix}_bwamem.sort.bam"; push @removable,$local_bam;
-	my $cmd;
+	#for my $no(0..$#fq1_list)
+	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
+	{
+	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
+	    #my $sample=($merge? $prefix_list[&SeqMule::Utils::file_idx2prefix_idx($no,@merging_rule_list)] : $prefix_list[$no]);
+	    my $sample=$prefix_list[$i];
+	    my @local_fq;
+	    my $local_bam="${local_prefix}_bwamem.sort.bam"; push @removable,$local_bam;
+	    my $cmd;
 
-	push @local_fq,$fq1_list[$no];
-	push @local_fq,$fq2_list[$no] if $paired;
+	    push @local_fq,$fq1_list[$no];
+	    push @local_fq,$fq2_list[$no] if $paired;
 
 
-	$cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$no] -sample $sample -pl $platform[$no] -lb $library[$no] ";
-	$cmd .= " -tmpdir $TMPDIR";
-	$cmd.=" @local_fq";
+	    $cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
+	    $cmd .= " -tmpdir $TMPDIR";
+	    $cmd.=" @local_fq";
 
-	push @commands,[$threads,"BWA alignment",$cmd];$cmd="";
-	push @bam_files,$local_bam;
+	    push @commands,[$threads,"BWA alignment",$cmd];$cmd="";
+	    push @bam_files,$local_bam;
+	}
     }
 }
 
@@ -715,7 +720,7 @@ sub samtools
 			#e.g. merging rule: 2,2,3
 			#no = 2
 			#then we need fq from 4 to 6
-	                my @fq_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($no,@merging_rule_list);
+			my @fq_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($no,@merging_rule_list);
 			for my $local_fq(@fq1_list[@fq_idx_range])
 			{
 			    my $fq_prefix = &SeqMule::Utils::getFQprefix($local_fq);
@@ -727,9 +732,15 @@ sub samtools
 			}
 		    }
 
-		    push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]",
-			"$exe merge -f $onebam @one_aligner_sample_bam ".($threads>=2? " -@ $threads":"")
-		    ];
+		    if(@one_aligner_sample_bam == 1)
+		    {
+			push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]","cp $one_aligner_sample_bam[0] $onebam"];
+		    } else
+		    {
+			push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]",
+			    "$exe merge -f $onebam @one_aligner_sample_bam ".($threads>=2? " -@ $threads":"")
+			];
+		    }
 		    push @merged_bam,$onebam; push @removable,$onebam;
 		}
 	    }
