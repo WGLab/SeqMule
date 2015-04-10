@@ -36,7 +36,7 @@ my $TMPDIR = $ENV{TMPDIR} || "/tmp";
 
 #cmd opt
 my (
-    $prefix,$fq1,$fq2,$bam,$merge,$mergingrule,$multi_sample_calling,$minN,
+    $prefix,$input_fq1,$input_fq2,$input_tumorfq1,$input_tumorfq2,$input_bam,$input_tumorbam,$merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
     $threads, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
     $no_resolve_conflict,
@@ -53,7 +53,8 @@ my $analysis_prefix; #used for report folder, script name etc
 my %original_input;
 my @fq1_list;
 my @fq2_list;
-my @bam_list;
+my @normal_bam_list;
+my @tumor_bam_list;
 my @merging_rule_list;
 
 #readgroup information
@@ -79,7 +80,7 @@ my @small_bed;
 #files for calculating statistics only
 my @bam_for_aln_stat;
 
-my ($paired,$fq_toggle)=(0,0);
+my ($paired,$fq_toggle,$somatic_toggle)=(0,0,0);
 my $script_file;
 my $log;
 my @commands;
@@ -99,9 +100,12 @@ my @script_unlink_list; #list consiting of temporarily generated file, should be
 GetOptions(
     #input and output
     'prefix|p=s'	=>	\$prefix,
-    'a=s'	        =>	\$fq1,
-    'b=s'	        =>	\$fq2,
-    'bam=s'		=>	\$bam,
+    'a=s'	        =>	\$input_fq1,
+    'b=s'	        =>	\$input_fq2,
+    'bam=s'		=>	\$input_bam,
+    'a2=s'	        =>	\$input_tumorfq1,
+    'b2=s'	        =>	\$input_tumorfq2,
+    'bam2=s'		=>	\$input_tumorbam,
     'merge|m'		=>	\$merge,
     'mergingrule=s'	=>	\$mergingrule,
     'ms'		=>	\$multi_sample_calling,
@@ -146,22 +150,32 @@ GetOptions(
 ) or pod2usage({-exitval => 2});
 $help||@ARGV and pod2usage ({-verbose=>1});
 
+!!!when somatic calling enabled
+a,b,bam
+a2,b2,bam2
+go through exactly the same analysis before variant calling
+let a,b,bam be analyzed first, then tumor data
+at variant calling step for tumor data, do somatic calling
+stats gen for FQ,BAM,VCF should be adjusted
+results are saved to samplename_result/samplename_normal_result/ and samplename_result/samplename_tumor_result/, respectively
 
-#option check
-&optCheck();
-&advanceConfFileCheck(); 
-&prefixCheck() if $prefix;
-&parseGlobalConf(); #all configurations are stored in global vars
-&confOptCheck(); #check again after options are deteremined
-&checkMerge(); #check if merging rule is reasonable based on number of samples and files, this must be done even if merging is not enabled
-#internally, SeqMule does not completely differentiate between merging and non-merging
-&procFQ() if $fq1;
-&procBAM() if $bam;
-&checkForSplit() if $quick;
-&genAnalysisPrefix();
-&reportParam();
-#script generation and running and stats
-&genScript();
+#before any analysis, we have to figure out 
+#whether somatic calling is needed
+if($input_tumorfq1 || $input_tumorbam)
+{ #when second set of input files are specified,
+    #seqmule considers them as data from tumor
+    #somatic variant calling is therefore enabled
+    $somatic_toggle = 1;
+}
+my @normal_bam_list = &prepare_analysis({fq1=>$input_fq1,fq2=>$input_fq2,bam=>$input_bam,istumor=>0});
+my @tumor_bam_list = &prepare_analysis({fq1=>$input_tumorfq1,fq2=>$input_tumorfq2,bam=>$input_tumorbam,istumor=>1}) if $somatic_toggle;
+    &reportParam();
+    &writeLog;
+#output venn, align stats, variant stats, fastqc stats
+    &genStat() unless $nostat;
+    #generate analysis script
+    &writeScript();
+
 #execution
 warn "To execute it, execute 'seqmule run $script_file'\n" and exit 0 if $norun;
 #don't add die for the following command, it will die itself upon failure
@@ -169,6 +183,81 @@ exec File::Spec->catfile($install_dir,"bin","seqmule"),"run",$script_file;
 
 #-----------------------------------subroutines--------------------------------------------
 #
+sub prepare_analysis
+{#go through all stages of analysis
+#option check
+    my $opt = shift @ARGV;
+    my $fq1 = $opt->{fq1};
+    my $fq2 = $opt->{fq2};
+    my $bam = $opt->{bam};
+    my $istumor = $opt->{istumor};
+
+my @prefix_list;
+my $analysis_prefix; #used for report folder, script name etc
+my %original_input;
+my @fq1_list;
+my @fq2_list;
+my @normal_bam_list;
+my @tumor_bam_list;
+my @merging_rule_list;
+
+my @bam_files; #intermediate BAM files
+my @original_bam_files; #initial BAM files from aligners
+my @soapaln_file;
+my @vcf_files;
+my @consensus_vcf;
+my @presplit_bam;
+my @presplit_original_bam; #original BAM files prior to splitting
+my %original_bam_toggle;
+my @aligners;
+my @callers; #lowercase, variant callers, including gatklite, gatk_ug, gatk_hc,samtools,snver,freebayes,varscan, soapsnp
+my %soapaln_sample;
+my @symlink;
+my @small_bed;
+
+#files for calculating statistics only
+my @bam_for_aln_stat;
+
+    &optCheck();
+    &advanceConfFileCheck(); 
+    &prefixCheck() if $prefix;
+    &parseGlobalConf(); #all configurations are stored in global vars
+    &confOptCheck(); #check again after options are deteremined
+    &checkMerge(); #check if merging rule is reasonable based on number of samples and files, this must be done even if merging is not enabled
+#internally, SeqMule does not completely differentiate between merging and non-merging
+    &procFQ() if $fq1;
+    &procBAM() if $bam;
+    &checkForSplit() if $quick;
+    &genAnalysisPrefix();
+#script generation and running and stats
+    &genScript();
+
+    return @bam_list;
+}
+sub get_result_folder
+{
+    my $sample = shift;
+    my $istumor = shift;
+    my $result_folder="${sample}_result";
+    mkdir $result_folder unless -d $result_folder;
+    if($somatic_toggle)
+    {
+	my $normal_result_folder=File::Spec->catdir($result_folder,"${sample}_normal_result");
+	mkdir $normal_result_folder unless -d $normal_result_folder;
+	my $tumor_result_folder=File::Spec->catdir($result_folder,"${sample}_tumor_result");
+	mkdir $tumor_result_folder unless -d $tumor_result_folder;
+	if($istumor)
+	{
+	    return $tumor_result_folder;
+	} else
+	{
+	    return $normal_result_folder;
+	}
+    } else
+    {
+	return $result_folder;
+    }
+}
 sub checkMerge
 {
     my $file_count = $fq_toggle? @fq1_list:@bam_list;
@@ -2141,18 +2230,17 @@ sub optCheck
 	#die "No prefix. Use -p option.\n" unless $prefix;
 	if ($fq1 || $fq2)
 	{
-	    die "ERROR: FASTQ and BAM files cannot be used together (-a or -b cannot work with -bam).\n" if $bam;
-	    die "ERROR: first reads must be supplied together with second reads\n" if ($fq2 && !$fq1);
+	    die "ERROR: FASTQ and BAM files cannot be used together (-a[-a2] or -b[-b2] cannot work with -bam[-bam2]).\n" if $bam;
+	    die "ERROR: first reads must be supplied together with second reads for paired end data\n" if ($fq2 && !$fq1);
 	    die "ERROR: No prefix given while FASTQ is supplied\n" unless $prefix;
 	} else
 	{
 	    die "ERROR: No prefix given while merging files\n" if ($merge && !$prefix);
 	}
-
     } else
     {
 	#no input
-	die "ERROR: no input files while merge is enabled\n" if $merge;
+	die "ERROR: no input files while merging is enabled\n" if $merge;
 	die "ERROR: No input while advanced_config is specified\n" if $advanced;
 	die "No input, exit\n" unless (defined $advanced); #argument of -advanced is optional
     }
@@ -2679,8 +2767,6 @@ sub genScript
 
     &getConsensusCall();
 
-#output venn, align stats, variant stats, fastqc stats
-    &genStat() unless $nostat;
 #copy all results of each individual sample to one folder
 
     unless ($noremove)
@@ -2694,11 +2780,8 @@ sub genScript
 	push @commands,[$threads,"Remove temporary files","rm -rf @script_unlink_list"];
     }
 
-    &writeLog;
     &genReport() unless ($nostat);
 
-    #generate analysis script
-    &writeScript();
 }
 
 
