@@ -10,6 +10,7 @@ use File::Basename qw/basename/;
 use Cwd qw/cwd abs_path/;
 use Carp qw/carp croak/;
 no warnings 'File::Find';
+use SeqMule::SeqUtils;
 
 
 sub get_rank_by_mergingrule
@@ -1483,7 +1484,8 @@ sub checkDuplicateRGID
 #prepare @RG
     for my $bam(@bam)
     {
-	my %onebam_rg=&getRG($samtools,$bam);
+	#here BAM is an object
+	my %onebam_rg=&getRG($samtools,$bam->file());
 	for my $id(keys %onebam_rg)
 	{
 	    warn "WARNING: Duplicate readgroup ID found: $id.\n" and return 1 if defined $rgid{$id};

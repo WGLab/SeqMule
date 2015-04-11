@@ -24,6 +24,7 @@ use SeqMule::Parallel;
 use SeqMule::SeqUtils;
 
 #CONSTANTS
+my $PHRED_SCORE_CHECK_LINECOUNT = 1000;
 my $HG18REF="human_b36_both.fasta";
 my $HG19REF="human_g1k_v37.fasta";
 my $GATKLITE_HARD_FILTER_BAM_SIZE=1_000_000_000; #in bytes, BAM files smaller than it will be subject to SNP hard filtering instead of VQSR
@@ -63,6 +64,7 @@ my @library;
 my @platform;
 
 #intermediate files
+my @obj_list;
 my @bam_files; #intermediate BAM files
 my @original_bam_files; #initial BAM files from aligners
 my @soapaln_file;
@@ -74,7 +76,6 @@ my %original_bam_toggle;
 my @aligners;
 my @callers; #lowercase, variant callers, including gatklite, gatk_ug, gatk_hc,samtools,snver,freebayes,varscan, soapsnp
 my %soapaln_sample;
-my @symlink;
 my @small_bed;
 
 #files for calculating statistics only
@@ -232,6 +233,7 @@ sub cmd_gen
     warn "***Preparing $program\n\n" if $verbose;
     $program=lc $program;
 
+    !!!
     if ($program eq 'fastqc') 
     {
 	return &fastqc(@_);
@@ -315,18 +317,21 @@ sub fastqc
 
     warn "FastQC executable: $exe\n" if $verbose;
 
-    if ($fq_toggle)
+    for $i(@obj_list)
     {
+	if ($i->filetype() eq 'FASTQ')
+	{
 	    #if @aligners is populated, then BAM has been generated
 	    push @commands, [$threads,"QC assesment on FASTQ files",
-		"$exe --extract".
-		($threads >=2 ? " -t $threads":"").
-		" @fq1_list ".(@fq2_list ? "@fq2_list":"")];
-    } else 
-    {
-	# @bam_list comes from user input (possibly after merge)
-	push @commands, [$threads,"QC assesment on BAM files","$exe --extract".($threads >= 2 ? " -t $threads" : "")." @bam_list"];
-    } 
+		"$exe --extract ".
+		($threads >=2 ? " -t $threads ":" ").
+		$i->file() ];
+	} elsif ($i->filetype() eq 'BAM') 
+	{
+	    # @bam_list comes from user input (possibly after merge)
+	    push @commands, [$threads,"QC assesment on BAM files","$exe --extract".($threads >= 2 ? " -t $threads " : " ").$i->file()];
+	} 
+    }
 }
 
 sub bwa
@@ -340,6 +345,7 @@ sub bwa
     my $java="java"; 
     my $runbwa=File::Spec->catfile($install_dir,"bin","secondary","runBWA");
     my $local_ref;
+    my $suffix = "bwa";
 
     if ($ref) 
     {
@@ -356,32 +362,54 @@ sub bwa
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $i(0..$#prefix_list)
+    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my @sai;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$suffix.sort.bam";
+	my $cmd;
+
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
+
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+
+	push @sai,map {"${local_prefix}_$suffix.$_.sai"; } (0..$#local_fq_obj);
+	push @script_unlink_list,@sai;
+
+	$cmd = "$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem".
+	" -sortsam $sortsam -ref $local_ref -bam ".
+	$local_bam.
+	" -threads $threads ".
+	" -rg ".$i->rg().
+	" -sample ".$i->$sample.
+	" -pl ".$i->pl().
+	" -lb ".$i->lb().
+	" -tmpdir $TMPDIR";
+	map {$cmd.=" -fq $_ ";} @local_fq;
+	map {$cmd.=" -sai $_ ";} @sai;
+
+
+	push @commands,[$threads,"BWA-BACKTRACK alignment",$cmd];
+	$i = $local_bam_obj;
+	push @removable,$local_bam;
+    }
+    !!!!DON'T remove FASTQ here, bowtie, and other programs will use them
+    #remove remaining FASTQ
+    my @idx_to_rm;
+    for my $i(0..$#obj_list)
+    {
+	my $obj = $obj_list[$i];
+	if($obj->filetype eq 'FASTQ' and $obj->rank != 0)
 	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my @local_fq;
-	    my @sai;
-	    my $local_bam="${local_prefix}_bwa.sort.bam";
-	    my $cmd;
-
-	    push @local_fq,$fq1_list[$no];
-	    push @local_fq,$fq2_list[$no] if $paired;
-	    push @sai,"${local_prefix}_bwa.1.sai";
-	    push @sai,"${local_prefix}_bwa.2.sai" if $paired;
-	    push @script_unlink_list,@sai;
-
-	    $cmd="$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    map {$cmd.=" -fq $_ ";} @local_fq;
-	    map {$cmd.=" -sai $_ ";} @sai;
-
-	    push @commands,[$threads,"BWA-BACKTRACK alignment",$cmd]; $cmd="";
-	    push @bam_files,$local_bam;push @removable,$local_bam;
+	    push @idx_to_rm,$i;
 	}
     }
+    map { splice @obj_list,$_,1 } @idx_to_rm;
 }
 
 sub bwa_mem
@@ -2162,7 +2190,6 @@ sub optCheck
     die "ERROR: -capture should NOT be used with -wgs/-g option. If you already have VCF files and want to calculate coverage statistics or extract variants in certain regions, please use 'seqmule stats -capture <BED> -vcf <VCF>'.\n" if $capture && $wgs;
     die "ERROR: -g -e cannot be specified together\n" if ($wes && $wgs);
     die "ERROR: '-capture <BED>' must specified for exome/captured data. Alternatively, you can use '-capture default' to analyze with default exome region definition.\nAll steps except alignment are done solely for the specified region.\nSome popular BED files can be downloaded by 'seqmule download -bed'.\n" if ($wes && !$capture);
-    die "ERROR: at least 2 threads required for quick analysis.\n" if ($quick && $threads<2);
     warn "CAUTION: You used your own reference file or index file, there is no guarantee that it will work with all programs.\n" if ($ref || $index_prefix || $bowtie_index_prefix || $bowtie2_index_prefix || $soap_index_prefix);
     warn "CAUTION: You used your own variant database, there is no guarantee that it will work with all programs.\n" if ($dbsnp || $kg || $hapmap);
     warn "Entering verbose mode...\n" if $verbose;
@@ -2315,118 +2342,137 @@ sub procFQ
     if ($paired && $#fq1_list != $#fq2_list);
 
 
-    #PL/LB/RG should be unique for each FASTQ
-    #get @RG info
-    if ($pl =~ /,/)
-    {
-	    @platform=split /,/,$pl;
-	    die "ERROR: number of platforms does NOT equal number of samples\n" unless @platform == @prefix_list;
-    } else
-    {
-	@platform=map { $pl } @prefix_list;
-    }
-
-    if ($lb =~ /,/)
-    {
-	    @library=split /,/,$lb;
-	    die "ERROR: number of libraries does NOT equal number of samples\n" unless @library == @prefix_list;
-    } else
-    {
-	@library=map {$lb} @prefix_list;
-    }
-
-    #make sure every sample has a RG/PL/LB
-    #in principle, we need to specify RG/PL/LB for every input file
-    #for now, we just make sure every sample have its own tags
-    if ($rg =~ /,/)
-    {
-	@readgroup=split /,/,$rg;
-	die "ERROR: number of read groups does NOT equal number of samples\n" unless @readgroup == @prefix_list;
-    } else
-    {
-	#when only one RG is specified
-	#automatically generate a uniq RG for each sample
-	@readgroup=map {"${rg}_$prefix_list[$_]"} (0..$#prefix_list);
-	$rg=join ',',@readgroup;
-    }
 
     for my $i(0..$#prefix_list)
     {
 	#create symlinks such that all corresponding output have consistent prefix
 	#this step is critical for fastqc processing
-		    my $result_folder = &get_result_folder($prefix_list[$i]);
+	my $result_folder = &get_result_folder($prefix_list[$i]);
 	#generate a symbolic link for each fastq file
 	#place all fastq files belonging to the same sample under sample_result folder
 	#we also need to check if the links already exist
 	my @fq_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
 	for my $j(@fq_idx_range)
 	{
-	    my $basename = $prefix_list[$i].
-	    ($merge? ".".&SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list):"").
-	    ".1.fastq".
-	    ($fq1_list[$j]=~/\.gz/i ? ".gz":"");
-	    my $newfq = &gen_input_symlink({
-		folder=>$result_folder,
-		basename=>$basename,
-		original=>$fq1_list[$j],
-	    });
-	    $original_input{$newfq}=basename $fq1_list[$j];
-	    $fq1_list[$j]=$newfq;
-	    push @symlink,$newfq;
-	}
-	for my $j(@fq_idx_range)
-	{
-	    my $basename = $prefix_list[$i].
-	    ($merge? ".".&SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list):"").
-	    ".2.fastq".
-	    ($fq2_list[$j]=~/\.gz/i ? ".gz":"");
-	    my $newfq = &gen_input_symlink( {
-		folder=>$result_folder,
-		basename=>$basename,
-		original=>$fq2_list[$j],
-	    });
-	    $original_input{$newfq}=basename $fq2_list[$j];
-	    $fq2_list[$j]=$newfq;
-	    push @symlink,$newfq;
+	    my @rank = (0,1);
+	    my @paired_obj = @rank;
+	    for my $k(@rank) #are we dealing with first or second fastq in a pair?
+	    {
+		my $file = ($k == 0? $fq1_list[$j] : $fq2_list[$j]);
+		my $fq = SeqMule::SeqUtils->new( 	
+		    'file'	=> $file,
+		    'filetype'	=> 'FASTQ',
+		    'sample'	=> $prefix_list[$i],
+		    'rgid'	=> $readgroup[$i],
+		    'lb'	=> $library[$i],
+		    'pl'    	=> $platform[$i],
+		    'rank'	=> $k,
+		);
+		$fq->ancestor($fq);
+		my $newfq = $fq->gen_symlink(
+		    File::Spec->catfile(
+			$result_folder,
+			#here I used a trick for join
+			#join will ignore an empty list ()
+			#undef will still cause join to add another separator, though
+			join(".",$fq->sample(),
+			    ($merge? &SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list) : ()),
+			    $fq->rank(),
+			    "fastq",
+			    ($fq->file()=~/\.gz$/i ? "gz" : ()), 
+			)
+		    ));
+		$paired_obj[$newfq->rank()] = $newfq;
+	    }
+	    $paired_obj[0]->sibling($paired_obj[1]);
+	    $paired_obj[1]->sibling($paired_obj[0]);
+	    push @obj_list,@paired_obj;
 	}
     }
 #examine first 1000 reads, count bases in ASCII code 33-58 for phred33 and 80-104 for phred64
-    $phred=&SeqMule::Utils::phred_score_check(1000,@fq1_list,@fq2_list) if ($fq1 && $phred==1);
+    $phred=&SeqMule::Utils::phred_score_check($PHRED_SCORE_CHECK_LINECOUNT,(map{$_->file() if $_->filetype() eq 'FASTQ'} @obj_list)) if ($fq_toggle && $phred==1);
 }
 
-sub gen_input_symlink
-{
-    my $opt = shift;
-    my $folder = $opt->{'folder'};
-    my $basename = $opt->{'basename'};
-    my $original = $opt->{'original'};
-
-    my $new=File::Spec->catfile($folder,$basename);
-    if (-e $new #-e dosenot return true for symbolic links, weird thing!
-	    or -l $new)
-    {
-	if ( (&SeqMule::Utils::abs_path_failsafe($new)) ne (&SeqMule::Utils::abs_path_failsafe($original)))
-	{
-	    die "ERROR: $new exists, and it links to another file, please use another prefix or delete it.\n";
-	}
-    }
-
-    symlink $original,$new unless -e $new or -l $new;
-    return $new;
-}
 sub procBAM
 {
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-    if (grep { $_ !~ /\.bam$/i } @bam_list)
+    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
+    if (grep { $_ !~ /\.bam$/ } @bam_list)
     {
 	die "ERROR: All BAM files must have suffix .bam\n";
     }
+
+    if ($merge)
+    {
+	for my $i(0..$#prefix_list)
+	{
+	    my $result_folder = &get_result_folder($prefix_list[$i]);
+	    my $onebam = SeqMule::SeqUtils->new(
+		'file'		=> File::Spec->catfile($result_folder,$prefix_list[$i].".merge.bam"),
+		'filetype'	=> 'BAM',
+		'sample'	=> $prefix_list[$i],
+	    );
+	    my @bam_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
+	    my @one_sample_input_bam;
+	    for my $j(@bam_idx_range)
+	    {
+		my $obj = SeqMule::SeqUtils->new( 	
+		    'file'	=> $bam_list[$j],
+		    'filetype'	=> 'BAM',
+		    'sample'	=> $prefix_list[$i],
+		);
+		push @one_sample_input_bam,$obj;
+	    }
+    	    $onebam->rg($readgroup[$i]) if ($force_one_rg);
+
+	    #ancestor will be set by merge_bam
+	    &merge_bam($onebam,@one_sample_input_bam);
+	    #replace BAMs-to-be-merged with merged BAM
+	    push @obj_list,$onebam;
+	}
+    } else
+    {
+	if($prefix)
+	{
+	    $#bam_list==$#prefix_list 
+		or die "ERROR: Prefixes for BAM files are optional.\nIf specified, they must equal to BAM files unless merging is used.\n";
+	} else
+	{
+	    @prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} (split /,/,$bam); #in case the file is symbolic link
+	    die "ERROR: Duplicate BAM file name found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
+	}
+
+	for my $i(0..$#prefix_list)
+	{
+	    my $result_folder = &get_result_folder($prefix_list[$i]);
+	    my $original_bam = SeqMule::SeqUtils->new( 	
+		'file'	=> $bam_list[$i],
+		'filetype'	=> 'BAM',
+		'sample'	=> $prefix_list[$i],
+	    );
+	    $original_bam->ancestor($original_bam);
+	    my $newbam = $original_bam->gen_symlink(
+		File::Spec->catfile(
+		    $result_folder,$original_bam->sample().".bam"
+		));
+	    push @obj_list,$newbam;
+	}
+
+	&checkBAMSample($samtools,@obj_list);
+    }
     #check contig, try to resolve inconsistency
-    for my $local_bam(@bam_list)
+    for my $local_bam_obj(grep {$_->filetype() eq 'BAM'} @obj_list)
     {
 	#compare chromosome name in ref and BED, complain if they don't match
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-	my $chr_compare=&SeqMule::Utils::compareChr({samtools=>$samtools,type1=>'fasta', file1=>$local_ref, type2=>'bam', file2=>$local_bam, });
+	my $local_bam = $local_bam_obj->file();
+	my $chr_compare=&SeqMule::Utils::compareChr({
+		samtools=>$samtools,
+		type1=>'fasta',
+		file1=>$local_ref,
+		type2=>'bam',
+		file2=>$local_bam, 
+	    });
 	if ($chr_compare==0)
 	{
 	    die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
@@ -2442,14 +2488,19 @@ sub procBAM
 	    } else
 	    {
 		#try remove or add 'chr'
+		#check @SQ tags, try to fix inconsistent tags
 		warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
-		my $newbam=$local_bam;
-		$newbam=~s/\.bam/.chrmod.bam/;
-		warn "WARNING: $newbam will be overwritten.\n" if -e $newbam;
-		&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam);
-		$original_input{$newbam}=$original_input{$local_bam};
-		delete $original_input{$local_bam};
-		$local_bam=$newbam;
+		my $newbam_obj = $local_bam_obj->clone();
+		my $newbam_file = $local_bam_obj->file();
+		$newbam_file =~ s/\.bam/.chrmod.bam/;
+		$newbam_obj->file($newbam_file);
+		$newbam_obj->parent($local_bam_obj);
+		$local_bam_obj->child($newbam_obj);
+
+		warn "WARNING: $newbam_file will be overwritten.\n" if -e $newbam_file or -l $newbam_file;
+		&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam_file);
+
+		$local_bam_obj=$newbam_obj;
 	    }
 	} else
 	{
@@ -2457,89 +2508,27 @@ sub procBAM
 	}
     }
 
-    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
-    if ($merge)
-    {
-	for my $i(0..$#prefix_list)
-	{
-	    my $result_folder = &get_result_folder($prefix_list[$i]);
-	    my $onebam=File::Spec->catfile($result_folder,$prefix_list[$i].".merge.bam");
-	    my @bam_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
-	    my @one_sample_input_bam = @bam_list[@bam_idx_range];
-
-	    #force single sample in each BAM
-	    &checkBAMSample($samtools,@one_sample_input_bam);
-	    #check BAM @SQ header
-	    push @commands, [$threads,"Check BAM header before merging", "$header_check $samtools @one_sample_input_bam"];
-
-	    if ($force_one_rg)
-	    {
-		my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
-		push @commands, [$threads,"Merge BAM into one readgroup","$exe $samtools $threads $rg $onebam $TMPDIR @one_sample_input_bam"];
-	    } elsif ($union_rg)
-	    {
-		my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
-		#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-		push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam $TMPDIR @one_sample_input_bam"];
-	    } else
-	    {
-		#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-		if (&SeqMule::Utils::checkDuplicateRGID($samtools,@one_sample_input_bam)) 
-		{
-		    die "ERROR: SeqMule cannot decide how to merge BAM files with duplicate readgroup IDs. Please use '--forceOneRG' or '--unionRG' option.\n";
-		} else 
-		{
-		    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
-		    push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam $TMPDIR @one_sample_input_bam"];
-		}
-	    }
-	    $original_input{$onebam}=join(",",map {basename $_} @one_sample_input_bam);
-	    #replace BAMs-to-be-merged with merged BAM
-	    splice @bam_list,$bam_idx_range[0],(scalar @bam_idx_range),$onebam;
-	}
-    }
-    if(!$merge)
-    {
-	&checkBAMSample($samtools,@bam_list);
-	if($prefix)
-	{
-	    $#bam_list==$#prefix_list 
-		or die "ERROR: Prefixes for BAM files are optional.\nIf specified, they must equal to BAM files unless merging is used.\n";
-	} else
-	{
-	    @prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} (split /,/,$bam); #in case the file is symbolic link
-	    die "ERROR: Duplicate BAM file name found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
-	}
-	for my $i(0..$#prefix_list)
-	{
-	    my $result_folder = &get_result_folder($prefix_list[$i]);
-	    my $newbam = &gen_input_symlink({
-		folder=>$result_folder,
-		basename=>$prefix_list[$i].".bam",
-		original=>$bam_list[$i],
-	    });
-	    $original_input{$newbam}=basename $bam_list[$i];
-	    $bam_list[$i]=$newbam;
-	    push @symlink,$newbam;
-	}
-    }
-
-#check @SQ tags, try to fix inconsistent tags
     #sort all BAMs as we cannot assume they are aligned
-    for my $local_bam(@bam_list)
+    for my $local_bam_obj(grep {$_->filetype() eq 'BAM'} @obj_list)
     {
-	my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
+	my $local_bam = $local_bam_obj->file();
+	my ($local_prefix)= $local_bam=~/(.*)\.bam$/;
 	die "ERROR: $local_bam must have *.bam as file name\n" unless defined $local_prefix;
-	my $newbam="$local_prefix.sort.bam";
+	my $newbam_obj = $local_bam_obj->clone();
+	my $newbam_file="$local_prefix.sort.bam";
 	my $newbam_prefix="$local_prefix.sort";
+	#we need to write dependency info before command is generated
+	#as we need file dependency to resolve command dependency
+	$newbam_obj->file($newbam_file);
+	$newbam_obj->parent($local_bam_obj);
+	$local_bam_obj->child($newbam_obj);
+
 	push @commands, [$threads,
 	    "Sort BAM input assuming it is not sorted",
 	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads $local_bam $newbam_prefix"];
-	#whenever bam_list is changed, original_input should be changed accordingly
-	$original_input{$newbam}=$original_input{$local_bam};
-	delete $original_input{$local_bam};
-	$local_bam=$newbam; 
-	push @removable,$newbam;
+	
+	$local_bam_obj = $newbam_obj; 
+	push @removable,$newbam_obj->file();
     }
 }
 
@@ -2548,7 +2537,7 @@ sub confOptCheck
 #check global options
     if ($buildver !~ /^(hg18|hg19)$/ )
     {
-	die "ERROR: Illegal build version: use hg18 or hg19: $buildver\n";
+	die "ERROR: Illegal build version $buildver, use hg18 or hg19\n";
     }  #standardize build version
     die "Only support ILLUMINA and IONTORRENT.\n" unless ($pl =~ /illumina|iontorrent/i);
     if ($fq1)
@@ -2556,19 +2545,20 @@ sub confOptCheck
 	die "ERROR: Illegal Phred score scheme: use 1 (auto-detect), 33 or 64\n" 
 	unless ($phred==1 or $phred==33 or $phred==64);
     }
-    die "ERROR: use integers for threads option: $threads\n" unless $threads=~/\d+/;
-    die "ERROR: use integers for GATK threads option: $gatk_nt\n" unless $gatk_nt=~/\d+/;
+    die "ERROR: use integers for threads option: $threads\n" unless $threads=~/^\d+$/;
+    die "ERROR: use integers for GATK threads option: $gatk_nt\n" unless $gatk_nt=~/^\d+$/;
     die "ERROR: at least 2 threads required for QUICK mode" if $threads<2 && $quick;
 
     #check capture file
-    if ($capture && $capture=~/default/i)
+    if ($capture && $capture=~/^default$/i)
     {
 	#see if we should modify default capture file to match custom reference
-	warn "NOTICE: use default BED file: ${buildver}_exome.bed\n";
+	warn "NOTICE: use default BED file ${buildver}_exome.bed\n";
 	$capture=File::Spec->catfile($install_dir,"misc","${buildver}_exome.bed"); #make sure buildver is assigned a value
     }
     if ($capture)
     {
+	$capture = &SeqMule::Utils::abs_path_failsafe($capture);
 	die "ERROR: $capture must have .bed suffix.\n" unless $capture=~/\.bed$/;
 	die "ERROR: $capture does NOT exist or is empty\n" if !-f $capture or -s $capture <=0;
 	#compare chromosome name in ref and BED, complain if they don't match
@@ -2617,12 +2607,12 @@ sub confOptCheck
     {
 	#remove overlapping regions in BED, generate a new BED if necessary
 	warn "NOTICE: SeqMule now tries to resolve overlapping regions in BED file.\n";
-	my $tmp=basename $capture; 
-	$tmp=~s/\.bed$/.nooverlap.bed/;#fix the naming to avoid generating new file each run
+	my $tmp = basename $capture; 
+	$tmp =~ s/\.bed$/.nooverlap.bed/;#fix the naming to avoid generating new file each run
 	warn "NOTICE: $tmp will be used to replace $capture.\n";
-	if (-e $tmp && &SeqMule::Utils::checkOverlapBED($tmp))
+	if ((-e $tmp || -l $tmp) && &SeqMule::Utils::checkOverlapBED($tmp))
 	{
-	    die "ERROR: SeqMule tries to create $tmp for you, but target exists and its content differs from what SeqMule expects.\nPlease remove or rename it.\n";
+	    die "ERROR: SeqMule tries to create $tmp for you, but target exists and it contains overlapping regions.\nPlease remove or rename it.\n";
 	} else
 	{
 	    $capture=&SeqMule::Utils::rmOverlapBED($capture,$tmp);
@@ -2630,6 +2620,40 @@ sub confOptCheck
     }
 
     warn "NOTICE: Input BED file detected, only variants in corresponding regions will be generated.\n" if $capture;
+    #get @RG info
+    #
+    if ($pl =~ /,/)
+    {
+	    @platform=split /,/,$pl;
+	    die "ERROR: when over 1 platforms are specified, number of platforms must equal number of samples\n" unless @platform == @prefix_list;
+    } else
+    {
+	@platform=map { $pl } @prefix_list;
+    }
+
+    if ($lb =~ /,/)
+    {
+	    @library=split /,/,$lb;
+	    die "ERROR: when over 1 libraries are specified, number of libraries must equal number of samples\n"  unless @library == @prefix_list;
+    } else
+    {
+	@library=map {$lb} @prefix_list;
+    }
+
+    #make sure every sample has a RG/PL/LB
+    #in principle, we need to specify RG/PL/LB for every input file
+    #for now, we just make sure every sample have its own tags
+    if ($rg =~ /,/)
+    {
+	@readgroup=split /,/,$rg;
+	die "ERROR: when over 1 readgroup IDs are specified, number of readgroup IDs must equal number of samples\n"   unless @readgroup == @prefix_list;
+    } else
+    {
+	#when only one RG is specified
+	#automatically generate a uniq RG for each sample
+	@readgroup=map {"${rg}_$prefix_list[$_]"} (0..$#prefix_list);
+	$rg=join ',',@readgroup;
+    }
 }
 sub checkForSplit
 {
@@ -2657,13 +2681,16 @@ sub genScript
 	#remove temp BED files after analysis is done
 	push @script_unlink_list,@small_bed;
     }
+    #the following code should no longer be useful
+=head
     if (!$fq_toggle)
     {
 	#assign to intermediate files
-	@bam_files=@bam_list ; #bam_list comes from command line
+	@bam_files=@bam_list; #bam_list comes from command line
 	@original_bam_files=@bam_list;
 	@bam_for_aln_stat=@bam_list;
     }
+=cut
 #convert phred64 to phred33, only effective for FQ input
     &convert64to33() if $fq_toggle;
 
@@ -2969,7 +2996,7 @@ sub parsePipeline
 {
     my @advanced_config_lines=&SeqMule::Utils::parsePipeline($advanced);
     $advanced="$analysis_prefix.config";
-    warn "NOTICE: Analysis configuration log will be overwritten: $advanced\n" if -f $advanced;
+    warn "NOTICE: Analysis configuration log will be overwritten: $advanced\n" if -f $advanced or -l $advanced;
     open OUT,'>',$advanced or die "Failed to write to $advanced: $!\n";
     print OUT "#This file is ONLY for LOGGING purposes, so do NOT run SeqMule with it.\n";
 
@@ -2978,7 +3005,6 @@ sub parsePipeline
     for (0..$#advanced_config_lines)
     {
 	my ($program,$subprogram,$option_ref)=@{$advanced_config_lines[$_]};
-
 
 	if ($program=~/^samtools$/i && $subprogram=~/rmdup/i && $capture && $wes)
 	{
@@ -3025,37 +3051,20 @@ sub writeScript
 sub convert64to33
 {
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
-    if ($phred==64 && $fq_toggle)
+    if ($phred==64)
     {
-	if (@fq1_list)
+	for my $i(grep {$_->filetype() eq 'FASTQ'} @obj_list)
 	{
-	    my @out;
-	    for (@fq1_list)
-	    {
-		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
-		$original_input{$file}=$original_input{$_};
-		delete $original_input{$_};
-		push @out,$file;
-	    }
-	    push @commands,[$threads,"Convert phred64 to phred33","$exe @fq1_list @out"];
-	    @fq1_list=@out;
-	    push @script_unlink_list,@out;
-	}
-	if (@fq2_list)
-	{
-	    my @out;
-	    for (@fq2_list)
-	    {
-		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
-		$original_input{$file}=$original_input{$_};
-		delete $original_input{$_};
-		push @out,$file;
-	    }
-	    push @commands,[$threads,"Convert phred64 to phred33","$exe @fq2_list @out"];
-	    @fq2_list=@out;
-	    push @script_unlink_list,@out;
+	    my $newobj = $i->clone();
+	    my $file=$i->file();
+	    $file =~ s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
+	    $newobj->file($file);
+	    $newobj->parent($i);
+	    $i->child($newobj);
+
+	    push @commands,[$threads,"Convert phred64 to phred33",join(" ",$exe,$i->file(),$newobj->file())];
+	    $i = $newobj;
+	    push @script_unlink_list,$newobj->file();
 	}
 	$phred=33;
     }
@@ -3100,16 +3109,63 @@ sub get_gatk_nt
 sub checkBAMSample
 {
     my $samtools=shift;
-    my @bam=@_;
+    my @bam_obj=@_;
     my $first_sample;
 
     warn "NOTICE: Checking sample names in BAM...\n";
-    for (@bam)
+    for (@bam_obj)
     {
-	my @local_sample=&SeqMule::Utils::getBAMSample($samtools,$_);
+	my @local_sample=&SeqMule::Utils::getBAMSample($samtools,$_->file());
 	die "ERROR: One and only one sample allowed in each BAM, found @local_sample.\n" if @local_sample!=1;
 	$first_sample=$local_sample[0] unless defined $first_sample;
 	die "ERROR: Found two different sample names in BAM input when merging is enabled: $local_sample[0] $first_sample\n" if (defined $first_sample && $first_sample ne $local_sample[0] && $merge);
+    }
+}
+sub merge_bam
+{
+    my $onebam_obj = shift;
+    my @other_bam_obj = @_;
+    my @other_bam_file = map {$_->file()} @other_bam_obj;
+    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
+    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
+
+    $onebam_obj->ancestor(@other_bam_obj);
+    $onebam_obj->parent(@other_bam_obj);
+    map { $_->child($onebam_obj) } @other_bam_obj;
+
+    #force single sample in each BAM
+    &checkBAMSample($samtools,@other_bam_file);
+    #check BAM @SQ header
+    push @commands, [$threads,"Check BAM header before merging", "$header_check $samtools ".join(" ",@other_bam_file)];
+
+    if ($force_one_rg)
+    {
+	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
+	push @commands, [$threads,
+	    "Merge BAM into one readgroup",
+	    #readgroup has been changed before calling &merge_bam
+	    #so no need to change it here
+	    "$exe $samtools $threads ".$onebam_obj->rg()." ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+    } elsif ($union_rg)
+    {
+	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
+	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
+	push @commands, [$threads,
+	    "Merge BAM without changing readgroup",
+	    "$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+    } else
+    {
+	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
+	if (&SeqMule::Utils::checkDuplicateRGID($samtools,@other_bam_obj)) 
+	{
+	    die "ERROR: SeqMule cannot decide how to merge BAM files with duplicate readgroup IDs. Please use '--forceOneRG' or '--unionRG' option.\n";
+	} else 
+	{
+	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
+	    push @commands, [$threads,
+		"Merge BAM without changing readgroup",
+		"$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+	}
     }
 }
 

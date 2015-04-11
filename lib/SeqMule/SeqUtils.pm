@@ -2,7 +2,9 @@ package SeqMule::SeqUtils;
 
 use strict;
 use warnings;
+use Storable 'dclone';
 use Carp;
+use SeqMule::Utils;
 
 #allowed filetypes
 my %FILETYPE = (BAM=>1,FASTQ=>1,VCF=>1);
@@ -12,20 +14,52 @@ sub new
 
     $arg{'filetype'} =~ /FASTQ|BAM|VCF/ or croak ("filetype: FASTQ|BAM|VCF\n");
 
+    #here, by using parent/child, we create a doubly linked list for each set of files
+    #ancestor is the head
+    #there can be multiple ancestors for each file, and for each analysis
     return bless {
 	'file'		=>$arg{'file'} || croak ("No file path\n"),
 	'filetype'	=>$arg{'filetype'} || croak ("No file type\n"),
 	'sample'	=>$arg{'sample'}	|| croak ("No sample\n"), 
-	'parent'	=>$arg{'parent'}, #allow no parent for FASTQ
-	'istumor'	=>$arg{'istumor'}	|| croak ("No istumor flag\n"),
-	'ancestor'	=>$arg{'ancestor'}	|| 
-	croak ("No ancestor\n"), #if no ancestor exists, set to itself
-	'rgid'		=>$arg{'rgid'} || croak("No RG ID\n"), 
-	'lb'		=>$arg{'lb'} || croak("No Library\n"),
-	'pl'    	=>$arg{'pl'} || croak ("No Platform\n"),
+	'parent'	=>$arg{'parent'} || [], #allow no parent for FASTQ
+	'child'		=>$arg{'child'} || [], #allow no parent for FASTQ
+	'istumor'	=>$arg{'istumor'} || 0, #allow no istumor flag
+	'ancestor'	=>$arg{'ancestor'} || [],	#if no ancestor exists
+	'sibling'	=>$arg{'sibling'} || [], #siblings of this object, for example, two fastq in PE seq are siblings, but two files belonging to same sample are NOT siblings, their connections are weaker, and can be analyzed independently
+	'rgid'		=>$arg{'rgid'} || 'READGROUP',
+	'lb'		=>$arg{'lb'} || 'LIBRARY',
+	'pl'    	=>$arg{'pl'} || 'PLATFORM',
+	'rank'		=>$arg{'rank'} || 0, #rank in siblings
+	#'ready'		=>$arg{'ready'} || 0, #is this file ready for further analysis??
     }, $class;
 }
 
+sub rank
+{
+    #get or set pl obj
+    my $self = shift;
+    my $rank = shift;
+    if(defined $rank)
+    {
+	$self->{rank} = $rank;
+    } else
+    {
+	return $self->{rank};
+    }
+}
+sub ready
+{
+    #get or set pl obj
+    my $self = shift;
+    my $ready = shift;
+    if(defined $ready)
+    {
+	$self->{ready} = $ready;
+    } else
+    {
+	return $self->{ready};
+    }
+}
 sub pl
 {
     #get or set pl obj
@@ -67,15 +101,28 @@ sub rgid
 }
 sub ancestor
 {
-    #get or set ancestor obj
+    #get or set ancestor (where current obj comes from)
     my $self = shift;
-    my $ancestor = shift;
-    if(defined $ancestor)
+    my @ancestor = @_;
+    if(@ancestor > 0)
     {
-	$self->{ancestor} = $ancestor;
+	push @{$self->{ancestor}},@ancestor;
     } else
     {
-	return $self->{ancestor};
+	return @{$self->{ancestor}};
+    }
+}
+sub sibling
+{
+    #get or set sibling (where current obj comes from)
+    my $self = shift;
+    my @sibling = @_;
+    if(@sibling > 0)
+    {
+	push @{$self->{sibling}},@sibling;
+    } else
+    {
+	return @{$self->{sibling}};
     }
 }
 sub istumor
@@ -95,13 +142,26 @@ sub parent
 {
     #get or set parent (where current obj comes from)
     my $self = shift;
-    my $parent = shift;
-    if(defined $parent)
+    my @parent = @_;
+    if(@parent > 0)
     {
-	$self->{parent} = $parent;
+	push @{$self->{parent}},@parent;
     } else
     {
-	return $self->{parent};
+	return @{$self->{parent}};
+    }
+}
+sub child
+{
+    #get or set child (where current obj comes from)
+    my $self = shift;
+    my @child = @_;
+    if(@child > 0)
+    {
+	push @{$self->{child}},@child;
+    } else
+    {
+	return @{$self->{child}};
     }
 }
 sub sample
@@ -149,6 +209,44 @@ sub file
 	return $self->{file};
     }
 }
+sub clone
+{
+    #create a new obj same attributes as self
+    #use dclone to implement deep clone, ie, copy reference structure
+    #replace dclone with Clone.pm in the future
+    my $self = shift;
+    #my $copy = bless dclone({%$self}), ref $self;
+    my $copy = bless dclone({%$self}), ref $self;
+
+    #do a shallow copy here, we don't dereference the obj list in parent/child/ancestor
+    $copy->parent([@{$self->parent()}]) if defined $self->parent();
+    $copy->child([@{$self->child()}]) if defined $self->child();
+    $copy->ancestor([@{$self->ancestor()}]) if defined $self->ancestor();
+    return $copy;
+}
+sub gen_symlink
+{
+    my $self = shift;
+    my $new = shift;
+    my $original = $self->file();
+
+    if (-e $new #-e dosenot return true for symbolic links, weird thing!
+	    or -l $new)
+    {
+	if ( (&SeqMule::Utils::abs_path_failsafe($new)) ne (&SeqMule::Utils::abs_path_failsafe($original)))
+	{
+	    die "ERROR: $new exists, and it links to another file, please use another prefix or delete it.\n";
+	}
+    }
+
+    symlink $original,$new unless -e $new or -l $new;
+
+    my $newobj = $self->clone();
+    $newobj->file($new);
+    $newobj->parent($self);
+    $self->child($newobj);
+    return $newobj;
+}
 1;
 
 =head1 Control
@@ -159,17 +257,18 @@ Control: package for managing jobs, reporting errors, and returning results
 
 use SeqMule::SeqUtils;
 
-my $obj = SeqMule::SeqUtils->new( {	
+my $obj = SeqMule::SeqUtils->new( 	
 	'file'		=>'/home/user/data/1.bam',
 	'filetype'	=>'BAM',
 	'sample'	=>'mysample',
-	'parent'	=>$obj_for_fastq,
+	'parent'	=>[$obj_for_fastq],
+	'child'		=>[$obj_for_vcf],
 	'istumor'	=>0,
-	'ancestor'	=>$obj_for_fastq,
+	'ancestor'	=>[$obj_for_fastq],
 	'rgid'		=>'READGROUP',
 	'lb'		=>'LIBRARY',
 	'pl'    	=>'PLATFORM',
-});
+);
 
 $obj->file(); #we obtain file path
 
