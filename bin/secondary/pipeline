@@ -374,6 +374,7 @@ sub bwa
 
 	$local_bam_obj->file($local_bam);
 	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
 	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
 	push @local_fq,map {$_->file()} (@local_fq_obj);
@@ -382,8 +383,7 @@ sub bwa
 	push @script_unlink_list,@sai;
 
 	$cmd = "$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem".
-	" -sortsam $sortsam -ref $local_ref -bam ".
-	$local_bam.
+	" -sortsam $sortsam -ref $local_ref -bam $local_bam ".
 	" -threads $threads ".
 	" -rg ".$i->rg().
 	" -sample ".$i->$sample.
@@ -395,21 +395,9 @@ sub bwa
 
 
 	push @commands,[$threads,"BWA-BACKTRACK alignment",$cmd];
-	$i = $local_bam_obj;
+	push @obj_list,$local_bam_obj;
 	push @removable,$local_bam;
     }
-    !!!!DON'T remove FASTQ here, bowtie, and other programs will use them
-    #remove remaining FASTQ
-    my @idx_to_rm;
-    for my $i(0..$#obj_list)
-    {
-	my $obj = $obj_list[$i];
-	if($obj->filetype eq 'FASTQ' and $obj->rank != 0)
-	{
-	    push @idx_to_rm,$i;
-	}
-    }
-    map { splice @obj_list,$_,1 } @idx_to_rm;
 }
 
 sub bwa_mem
@@ -425,6 +413,7 @@ sub bwa_mem
     my $java="java"; 
     my $runBwamemCMD=File::Spec->catfile($install_dir,"bin","secondary","runBWA-MEM");
     my $local_ref;
+    my $suffix = "bwamem";
 
     die "ERROR: BWA-MEM cannot handle Phred 64 base quality score\n" if $phred == 64;
 
@@ -443,28 +432,36 @@ sub bwa_mem
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $i(0..$#prefix_list)
+    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
     {
-	#for my $no(0..$#fq1_list)
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my @local_fq;
-	    my $local_bam="${local_prefix}_bwamem.sort.bam"; push @removable,$local_bam;
-	    my $cmd;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$suffix.sort.bam";
+	my $cmd;
 
-	    push @local_fq,$fq1_list[$no];
-	    push @local_fq,$fq2_list[$no] if $paired;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
 
-	    $cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    $cmd.=" @local_fq";
+	$cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools ".
+	" -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -tmpdir $TMPDIR".
+	" @local_fq";
 
-	    push @commands,[$threads,"BWA alignment",$cmd];$cmd="";
-	    push @bam_files,$local_bam;
-	}
+	push @commands,[$threads,"BWA alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 
@@ -480,6 +477,7 @@ sub snap
     my $runSnapCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNAP");
     my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
     my $local_ref;
+    my $suffix = "snap";
 
     die "ERROR: SNAP cannot handle Phred+64 score\n" if $phred == 64;
 
@@ -498,30 +496,37 @@ sub snap
 
     #this part can be improved
     #SNAP can run multiple alignments without reloading index
-    for my $i(0..$#prefix_list)
+    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
     {
-	#for my $no(0..$#fq1_list)
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my @local_fq;
-	    my $local_bam="${local_prefix}_snap.sort.bam"; 
-	    push @removable,$local_bam;
-	    my $cmd;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$suffix.sort.bam";
+	my $cmd;
 
-	    push @local_fq,$fq1_list[$no];
-	    push @local_fq,$fq2_list[$no] if $paired;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    $cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd.=" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME);
-	    $cmd .= " -tmpdir $TMPDIR";
-	    $cmd .= " -interleave_fq $interleave_fq ";
-	    $cmd.=" @local_fq";
+	$cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools ".
+	" -ref $local_ref ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME).
+	" -tmpdir $TMPDIR".
+	" -interleave_fq $interleave_fq ".
+	" @local_fq";
 
-	    push @commands,[$threads,"SNAP alignment",$cmd];$cmd="";
-	    push @bam_files,$local_bam;
-	}
+	push @commands,[$threads,"SNAP alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 sub bowtie
@@ -535,6 +540,7 @@ sub bowtie
     my $java="java"; 
     my $runBowtieCMD=File::Spec->catfile($install_dir,"bin","secondary","runBOWTIE");
     my $local_real_index;
+    my $suffix = "bowtie";
 
 
     #check if all indexes exist; keep the real name of the indexes
@@ -568,27 +574,36 @@ sub bowtie
     } 
     die "ERROR: No bowtie indexe files (prefix.1.ebwt etc.) found\n" unless $local_real_index;
 
-    for my $i(0..$#prefix_list)
+    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my $local_bam="${local_prefix}_bowtie.sort.bam"; push @removable,$local_bam;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$suffix.sort.bam";
+	my $cmd;
 
-	    my $cmd="$runBowtieCMD -advanced $advanced -n $n -bowtie $bowtie -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_real_index -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    if ($paired)
-	    {   
-		$cmd.=" $fq1_list[$no] $fq2_list[$no]";
-	    } else 
-	    {  
-		$cmd.=" $fq1_list[$no]";
-	    }
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    push @commands,[$threads,"Bowtie alignment",$cmd];
-	    push @bam_files,$local_bam;
-	}
+	my $cmd="$runBowtieCMD -advanced $advanced -n $n -bowtie $bowtie ".
+	" -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam ".
+	" -ref $local_real_index ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -tmpdir $TMPDIR".
+	" @local_fq";
+
+	push @commands,[$threads,"Bowtie alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 
@@ -602,6 +617,7 @@ sub bowtie2
     my $java="java"; 
     my $runBowtie2CMD=File::Spec->catfile($install_dir,"bin","secondary","runBOWTIE2");
     my $local_real_index;
+    my $suffix = "bowtie2";
 
     #check if all indexes exist; keep the real name of the indexes
     if ($bowtie2_index_prefix)
@@ -634,28 +650,36 @@ sub bowtie2
     } 
     die "No index files ({prefix}.1.bt2 etc.) found\n" unless $local_real_index;
 
-    for my $i(0..$#prefix_list)
+    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my $local_bam="${local_prefix}_bowtie2.sort.bam";
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$suffix.sort.bam";
+	my $cmd;
 
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    my $cmd="$runBowtie2CMD -advanced $advanced -n $n -bowtie2 $bowtie2 -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_real_index -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    if ($paired==1) 
-	    {
-		$cmd.=" $fq1_list[$no] $fq2_list[$no]";
-	    } else 
-	    {  
-		$cmd.=" $fq1_list[$no]";
-	    }
+	my $cmd="$runBowtie2CMD -advanced $advanced -n $n -bowtie2 $bowtie2 ".
+	" -samtools $samtools -java $java -jmem $java_mem ".
+	" -sortsam $sortsam -ref $local_real_index ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -tmpdir $TMPDIR".
+	" @local_fq";
 
-	    push @commands,[$threads,"BOWTIE2 alignment",$cmd];
-	    push @bam_files,$local_bam; push @removable,$local_bam;
-	}
+	push @commands,[$threads,"Bowtie2 alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 sub soap
@@ -669,7 +693,7 @@ sub soap
     my $sortsam=&getExe("SortSam.jar"); 
     my $java="java"; 
     my $local_real_index;
-
+    my $suffix = "soap";
 
     if ($soap_index_prefix) 
     {
@@ -690,51 +714,59 @@ sub soap
     } 
     die "ERROR: No SOAP index files ({prefix}.amb etc.) found\n" unless $local_real_index;
     #generate command for multiple input files
-    for my $i(0..$#prefix_list)
+    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my $local_sam="${local_prefix}_soap.sam";
-	    my $local_bam="${local_prefix}_soap.sort.bam";
-	    my $unpaired="${local_prefix}_soap_unpaired.soapout";
-	    my $unmapped="${local_prefix}_soap_unmapped.soapout";
-	    my $alnfile="${local_prefix}_soap.soapaln";
-	    my $cmd;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my $local_sam="${local_prefix}_$suffix.sam";
+	my $local_bam="${local_prefix}_${suffix}.sort.bam";
+	my $unpaired="${local_prefix}_${suffix}_unpaired.soapout";
+	my $unmapped="${local_prefix}_${suffix}_unmapped.soapout";
+	my $alnfile="${local_prefix}_${suffix}.soapaln";
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $cmd;
 
-	    $soapaln_sample{$alnfile}=$sample;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
+	$soapaln_sample{$alnfile}=$local_bam_obj->sample();
 
-	    $cmd.=" $runsoap ";
-	    $cmd.=" -soap $exe ";
-	    $cmd.=" -index $local_real_index ";
-	    $cmd.=" -n $n -advanced $advanced ";
-	    $cmd.=" -rg $readgroup[$i] ";
-	    $cmd.=" -sample $sample ";
-	    $cmd.=" -lb $library[$i] ";
-	    $cmd.=" -pl $platform[$i] ";
-	    $cmd.=" -sam $local_sam ";
-	    $cmd.=" -bam $local_bam ";
-	    $cmd.=" -sortsam $sortsam ";
-	    $cmd.=" -java $java -jmem $java_mem ";
-	    $cmd.=" -samtools $samtools ";
-	    $cmd.=" -soap2sam $exe_soap2sam ";
-	    $cmd.=" -threads $threads";
-	    $cmd.=" -unmapped $unmapped";
-	    if ($paired) 
-	    {    
-		$cmd.=" -fq $fq1_list[$no] -fq $fq2_list[$no] -soapaln $alnfile -unpaired $unpaired";
-	    }
-	    else 
-	    {
-		$cmd.="-fq $fq1_list[$no] -soapaln $alnfile";
-	    }
-	    push @commands,[$threads,"SOAP alignment",$cmd];$cmd="";
-
-	    push @soapaln_file,$alnfile;
-	    push @script_unlink_list,$local_sam;
-	    push @bam_files,$local_bam; push @removable,$local_bam;
+	$cmd.=" $runsoap ";
+	$cmd.=" -soap $exe ";
+	$cmd.=" -index $local_real_index ";
+	$cmd.=" -n $n -advanced $advanced ".
+	" -bam ".$local_bam_obj->file().
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb();
+	$cmd.=" -sam $local_sam ";
+	$cmd.=" -sortsam $sortsam ";
+	$cmd.=" -java $java -jmem $java_mem ";
+	$cmd.=" -samtools $samtools ";
+	$cmd.=" -soap2sam $exe_soap2sam ";
+	$cmd.=" -threads $threads";
+	$cmd.=" -unmapped $unmapped";
+	if (@local_fq == 2) 
+	{    
+	    $cmd.=" -fq $local_fq[0] -fq $local_fq[1] -soapaln $alnfile -unpaired $unpaired";
 	}
+	else 
+	{
+	    $cmd.="-fq $local_fq[0] -soapaln $alnfile";
+	}
+	push @commands,[$threads,"SOAP2 alignment",$cmd];
+
+	#for sOAP alignment output, we will keep it in a list
+	#instead of an obj as analysis on it is pretty simple
+	#only SOAPsnp can handle it.
+	push @soapaln_file,$alnfile;
+	push @script_unlink_list,$local_sam;
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 } 
 sub samtools
