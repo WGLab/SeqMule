@@ -32,20 +32,49 @@ sub new
 	'parent'	=>[], 
 	'child'		=>[],
 	'ancestor'	=>[],
-	'sibling'	=>[], #siblings of this object, for example, two fastq in PE seq are siblings, but two files belonging to same sample are NOT siblings, their connections are weaker, and can be analyzed independently
-	#scalar list
+	'sibling'	=>[], #siblings of this object, for example, two fastq in PE seq are siblings, two VCFs covering chr1 and chr2, respectively, are also siblings, but two files belonging to same sample are NOT necessarily siblings, their connections are weaker, and can be analyzed independently
+	#scalars
 	#can only accessed by method, too
-	'aligner'	=>[],
-	'caller'	=>[],
+	#we don't set it to undef because we are unsure
+	#behaviour for undef in some cases 
+	'aligner'	=>'',
+	'caller'	=>'',
 	#YES/NO attributes
 	'istumor'	=>$arg{'istumor'} || 0, #allow no istumor flag
 	'rank'		=>$arg{'rank'} || 0, #rank in siblings
 	'realn'		=>$arg{'realn'} || 0, #realigned by GATK??
 	'recal'		=>$arg{'recal'} || 0, #recalibrated by GATK??
+	'istmp'		=>$arg{'istmp'} || 0, #is file held at a temporary location, e.g. /tmp on a compute node?
 	#'ready'		=>$arg{'ready'} || 0, #is this file ready for further analysis??
     }, $class;
 }
 
+sub aligner
+{
+    #get or set pl obj
+    my $self = shift;
+    my $aligner = shift;
+    if(defined $aligner)
+    {
+	$self->{aligner} = $aligner;
+    } else
+    {
+	return $self->{aligner};
+    }
+}
+sub caller
+{
+    #get or set pl obj
+    my $self = shift;
+    my $caller = shift;
+    if(defined $caller)
+    {
+	$self->{caller} = $caller;
+    } else
+    {
+	return $self->{caller};
+    }
+}
 sub id
 {
     #get or set pl obj
@@ -182,34 +211,6 @@ sub rmArrayDup
     @newarray = grep {defined $_ } @newarray;
 
     $self->_setAttr($attr,@newarray);
-}
-sub aligner
-{
-    #get or set aligner (where current obj comes from)
-    my $self = shift;
-    my @aligner = @_;
-    $self->rmArrayDup('aligner');
-    if(@aligner > 0)
-    {
-	push @{$self->{aligner}},@aligner;
-    } else
-    {
-	return @{$self->{aligner}};
-    }
-}
-sub caller
-{
-    #get or set caller (where current obj comes from)
-    my $self = shift;
-    my @caller = @_;
-    $self->rmArrayDup('caller');
-    if(@caller > 0)
-    {
-	push @{$self->{caller}},@caller;
-    } else
-    {
-	return @{$self->{caller}};
-    }
 }
 sub ancestor
 {

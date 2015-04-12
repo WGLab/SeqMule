@@ -362,8 +362,9 @@ sub bwa
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
+    for my $i(@obj_list)
     {
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my @local_fq_obj = ($i,$i->sibling());
 	my @local_fq;
@@ -432,8 +433,9 @@ sub bwa_mem
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
+    for my $i(@obj_list)
     {
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0 ;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my @local_fq_obj = ($i,$i->sibling());
 	my @local_fq;
@@ -496,8 +498,9 @@ sub snap
 
     #this part can be improved
     #SNAP can run multiple alignments without reloading index
-    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
+    for my $i(@obj_list)
     {
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my @local_fq_obj = ($i,$i->sibling());
 	my @local_fq;
@@ -574,8 +577,9 @@ sub bowtie
     } 
     die "ERROR: No bowtie indexe files (prefix.1.ebwt etc.) found\n" unless $local_real_index;
 
-    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
+    for my $i(@obj_list)
     {
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my @local_fq_obj = ($i,$i->sibling());
 	my @local_fq;
@@ -650,8 +654,9 @@ sub bowtie2
     } 
     die "No index files ({prefix}.1.bt2 etc.) found\n" unless $local_real_index;
 
-    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
+    for my $i(@obj_list)
     {
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my @local_fq_obj = ($i,$i->sibling());
 	my @local_fq;
@@ -714,8 +719,9 @@ sub soap
     } 
     die "ERROR: No SOAP index files ({prefix}.amb etc.) found\n" unless $local_real_index;
     #generate command for multiple input files
-    for my $i(grep {$_->filetype eq 'FASTQ' and $_->rank == 0 } @obj_list)
+    for my $i(@obj_list)
     {
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my $local_sam="${local_prefix}_$suffix.sam";
 	my $local_bam="${local_prefix}_${suffix}.sort.bam";
@@ -798,8 +804,9 @@ sub samtools
 			push @one_aligner_sample_bam,$local_bam_obj;
 			#remove the unmerged BAM from obj_list
 			#they will no longer be processed
-			splice @obj_list,$k,1;
+			$obj_list[$k] = undef;
 		    }
+		    @obj_list = grep {defined $_} @obj_list;
 		    my $onebam_obj = $one_aligner_sample_bam[0]->clone();
 		    $onebam_obj->parent(@one_aligner_sample_bam);
 		    $onebam_obj->file($onebam);
@@ -829,8 +836,9 @@ sub samtools
     } elsif($subprogram=~/filter/i)
     {
 	my $readfilter=File::Spec->catfile($install_dir,"bin","secondary","readFilter");
-	for my $i(grep {$_->filetype() eq 'BAM'} @obj_list)
+	for my $i(@obj_list)
 	{
+	    next unless $i->filetype eq 'BAM';
 	    my $bam = $i->file();
 	    my ($local_prefix)= $bam=~/(.*?)\.bam$/i or die "ERROR: expect .bam suffix: $bam\n";
 	    my $new_obj = $i->clone();
@@ -854,60 +862,50 @@ sub samtools
 
 	my $exe_bcftools=&getExe("bcftools");
 	my $exe_vcfutils=&getExe("vcfutils.pl");
-	my @target_bam_files;
+	my @target_obj;
 
 	if ($options{'originalBAM'})
 	{
 	    #this step is to make sure we use BAM files without realn or recal if users want to
-	    @target_bam_files = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
+	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
 	    $original_bam_toggle{$caller}=1;
 	} else
 	{
-	    @target_bam_files=@bam_files;
+	    @target_obj = @obj_list;
 	}
 
-
-	if ($multi_sample_calling)
+	#previously we have to treat BAMs differently depending on
+	#whether they come from FASTQ files
+	#now we solely depend on aligner of each BAM
+	#if it comes from FASTQ, it has an non-empty string denoting the aligner
+	#otherwise its aligner attribute is an empty string ''
+	for my $i(&get_all_aligner(@obj_list))
 	{
-	    if ($fq_toggle)
-	    {
-		#original input is fq
-		#consider aligner
-		for my $aligner(@aligners)
-		{
-		    #do multi-sample calling for bam files from the same aligner
-		    if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		    {
-			&samtools_variant('multi',$n,\%options,@one_aligner_bam);
-		    }
-		}
-	    } else
-	    {
-		#original input is bam
-		#directly do multi-sample calling
-		&samtools_variant('multi',$n,\%options,@target_bam_files);
-	    }
-	} else
-	{
-	    #do snp calling for each bam
-	    &samtools_variant('single',$n,\%options,@target_bam_files);
+	    #do multi-sample calling for bam files from the same aligner
+	    &samtools_variant(
+		($multi_sample_calling?'multi':'single'),
+		$n, \%options,
+		(grep {$_->aligner() eq $i} @target_obj),
+	    );
 	}
     } elsif ($subprogram=~/rmdup/i)
     {
-	for my $local_bam(@bam_files) 
+	for my $i(@obj_list)
 	{
-	    my $cmd;
-	    my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
-	    my $newbam="$local_prefix.rmdup.bam";
-	    #only mark duplicates, do not really remove them from BAM
-	    $cmd.="$exe rmdup ";
-	    $cmd.=" $local_bam $newbam";
-	    push @commands,[$threads,"Remove duplicates",$cmd];$cmd="";
-	    $local_bam=$newbam; push @removable,$newbam;
-	}
-	@original_bam_files=@bam_files;
-	@bam_for_aln_stat=@bam_files;
+	    next unless $i->filetype() eq 'BAM';
+	    my $bam = $i->file();
+	    my ($local_prefix)= $bam=~/(.*?)\.bam$/i or die "ERROR: expect .bam suffix: $bam\n";
+	    my $new_obj = $i->clone();
+	    my $out = "$local_prefix.rmdup.bam";
+	    $new_obj->parent($i);
+	    $new_obj->file($out);
+	    $i->child($new_obj);
 
+	    my $cmd.="$exe rmdup $bam $out";
+	    push @commands,[$threads,"Remove duplicates in $bam",$cmd];
+	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
+	    $i = $new_obj;
+	}
     }else {die "ERROR: Unrecognized subprogram for SAMtools: $subprogram\n"}
 }
 sub samtools_variant
@@ -915,7 +913,8 @@ sub samtools_variant
     my $mode=shift;
     my $n=shift;
     my %options=%{shift @_};
-    my @bam=@_;
+    my @obj = @_;
+    my @bam_obj = grep {$_->filetype eq 'BAM'} @obj;
     my $bcftools=&getExe("bcftools");
     my $vcfutils=&getExe("vcfutils.pl");
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
@@ -931,32 +930,57 @@ sub samtools_variant
 
     if ($mode eq 'multi')
     {
-	die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
+	die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam_obj >= 2;
 	if ($quick)
 	{
-	    for my $i(1..$threads)
+	    my @sibling_vcf_filter;
+	    for my $i(0..($threads-1))
 	    {
-		my $bed=$small_bed[$i-1];
-		my ($local_prefix)=$bam[0]=~/(.*)\.bam$/i;
-		$local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		my $local_vcf="${local_prefix}_samtools.vcf";  
-		my $local_vcf_filter="${local_prefix}_samtools.filter.vcf"; 
-		my $cmd=$cmd_common;
+		my $bed = $small_bed[$i];
+		my ($local_prefix) = ($bam_obj[0]->file() =~ /(.*)\.bam$/i);
+		$local_prefix = File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
+		my $local_vcf = "${local_prefix}_samtools.vcf";  
+		my $local_vcf_filter = "${local_prefix}_samtools.filter.vcf"; 
+		my $new_vcf_filter_obj = $bam_obj[0]->clone();
+		$new_vcf_filter_obj->file($local_vcf_filter);
+		$new_vcf_filter_obj->filetype('VCF');
+		$new_vcf_filter_obj->parent(@bam_obj);
+		$new_vcf_filter_obj->caller('samtools');
+		$new_vcf_filter_obj->rank($i);
+		map {$_->child ($new_vcf_filter_obj) } @bam_obj;
+
+		my $cmd = $cmd_common;
 
 		$cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
 		$cmd.=" -bed $bed " if $bed;
-		map {$cmd.=" -bam $_ ";} @bam;
-		for (@bam)
+		map {$cmd.=" -bam ".$_->file()} @bam_obj;
+		for my $j(@bam_obj[1..$#bam_obj])
 		{
-		    my ($new_prefix)= /^(.*)\.bam$/i;
-		    $new_prefix=File::Spec->catfile((dirname $new_prefix),"_${i}_.".(basename $new_prefix));
+		    my ($new_prefix)= $j =~ /^(.*)\.bam$/i;
+		    $new_prefix = File::Spec->catfile((dirname $new_prefix),"_${i}_.".(basename $new_prefix));
 		    my $out_filter="${new_prefix}_samtools.multi-call.filter.vcf";
 		    #the runSamtoolsCMD will make a copy of final vcf for each prefix (samplename)
 		    push @vcf_files,$out_filter;
+		my $new_vcf_filter_obj = $bam_obj[0]->clone();
+		$new_vcf_filter_obj->file($local_vcf_filter);
+		$new_vcf_filter_obj->filetype('VCF');
+		$new_vcf_filter_obj->parent(@bam_obj);
+		$new_vcf_filter_obj->caller('samtools');
+		$new_vcf_filter_obj->rank($i);
+		map {$_->child ($new_vcf_filter_obj) } @bam_obj;
+
 		}
-		push @commands,[$local_threads,"SAMtools multi-sample variant calling",$cmd];$cmd="";
+		push @commands,[$local_threads,"SAMtools multi-sample variant calling",$cmd];
+
+		push @sibling_vcf_filter,$new_vcf_filter_obj;
 		push @script_unlink_list,$local_vcf;
 		push @script_unlink_list,$local_vcf_filter;
+	    }
+	    for my $i(0..$#sibling_vcf_filter)
+	    {
+		my @sibling_to_add = @sibling_vcf_filter;
+		splice @sibling_to_add,$i,1;
+		$sibling_vcf_filter[$i]->sibling(@sibling_to_add);
 	    }
 	} else
 	{
@@ -1024,6 +1048,14 @@ sub samtools_variant
     }
 
 }
+	sub get_all_aligner
+	{
+	    return &SeqMule::Utils::uniq(map {$_->aligner()} @_);
+	}
+	sub get_all_sample
+	{
+	    return &SeqMule::Utils::uniq(map {$_->sample()} @_);
+	}
 
 sub freebayes
 {
@@ -2496,8 +2528,9 @@ sub procBAM
 	&checkBAMSample($samtools,@obj_list);
     }
     #check contig, try to resolve inconsistency
-    for my $local_bam_obj(grep {$_->filetype() eq 'BAM'} @obj_list)
+    for my $local_bam_obj(@obj_list)
     {
+	next unless $local_bam_obj->filetype() eq 'BAM';
 	#compare chromosome name in ref and BED, complain if they don't match
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 	my $local_bam = $local_bam_obj->file();
@@ -2544,8 +2577,9 @@ sub procBAM
     }
 
     #sort all BAMs as we cannot assume they are aligned
-    for my $local_bam_obj(grep {$_->filetype() eq 'BAM'} @obj_list)
+    for my $local_bam_obj(@obj_list)
     {
+	next unless $local_bam_obj->filetype() eq 'BAM';
 	my $local_bam = $local_bam_obj->file();
 	my ($local_prefix)= $local_bam=~/(.*)\.bam$/;
 	die "ERROR: $local_bam must have *.bam as file name\n" unless defined $local_prefix;
@@ -2561,7 +2595,7 @@ sub procBAM
 	push @commands, [$threads,
 	    "Sort BAM input assuming it is not sorted",
 	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads $local_bam $newbam_prefix"];
-	
+
 	$local_bam_obj = $newbam_obj; 
 	push @removable,$newbam_obj->file();
     }
@@ -3088,8 +3122,9 @@ sub convert64to33
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
     if ($phred==64)
     {
-	for my $i(grep {$_->filetype() eq 'FASTQ'} @obj_list)
+	for my $i(@obj_list)
 	{
+	next unless $i->filetype() eq 'FASTQ';
 	    my $newobj = $i->clone();
 	    my $file=$i->file();
 	    $file =~ s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
