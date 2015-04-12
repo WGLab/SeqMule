@@ -780,67 +780,70 @@ sub samtools
     {
 	if ($fq_toggle && $merge)
 	{
-	    my @merged_bam;
-	    #merge by aligner
+	    #merge by aligner, sample combination
 	    for my $i(@aligners)
 	    {
-		for my $no(0..$#prefix_list)
+		for my $j(0..$#prefix_list)
 		{
-		    my $result_folder = &get_result_folder($prefix_list[$no]);
-		    my $onebam=File::Spec->catfile($result_folder,$prefix_list[$no]."_$i.merge.bam");
+		    my $sample = $prefix_list[$j];
+		    my $result_folder = &get_result_folder($sample);
+		    my $onebam=File::Spec->catfile($result_folder,$sample."_$i.merge.bam");
 		    my @one_aligner_sample_bam;
-		    for my $local_bam(grep { /_$i/i} @bam_files)
+		    for my $k(0..$#obj_list)
 		    {
-			#bam_files names follow fq-prefix_alignerXXXX format
-			#e.g. merging rule: 2,2,3
-			#no = 2
-			#then we need fq from 4 to 6
-			my @fq_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($no,@merging_rule_list);
-			for my $local_fq(@fq1_list[@fq_idx_range])
-			{
-			    my $fq_prefix = &SeqMule::Utils::getFQprefix($local_fq);
-			    #local_bam uses fq's prefix (instead of sample prefix)
-			    if($local_bam =~ /$fq_prefix/)
-			    {
-				push @one_aligner_sample_bam,$local_bam;
-			    }
-			}
+			my $local_bam_obj = $obj_list[$k];
+			if( $local_bam_obj->file() =~ /_$i/i && 
+			    $local_bam_obj->filetype eq 'BAM' &&
+			    $local_bam_obj->sample() eq $sample)
+			push @one_aligner_sample_bam,$local_bam_obj;
+			#remove the unmerged BAM from obj_list
+			#they will no longer be processed
+			splice @obj_list,$k,1;
 		    }
+		    my $onebam_obj = $one_aligner_sample_bam[0]->clone();
+		    $onebam_obj->parent(@one_aligner_sample_bam);
+		    $onebam_obj->file($onebam);
+		    map {$_->child($onebam_obj) } @one_aligner_sample_bam;
 
 		    if(@one_aligner_sample_bam == 1)
 		    {
-			push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]","cp $one_aligner_sample_bam[0] $onebam"];
+			push @commands, [$threads,"Merge BAM for $i and $sample",join(" ","cp",$one_aligner_sample_bam[0]->file(),$onebam_obj->file())];
 		    } else
 		    {
-			push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]",
-			    "$exe merge -f $onebam @one_aligner_sample_bam ".($threads>=2? " -@ $threads":"")
+			push @commands, [$threads,"Merge BAM for $i and $sample",
+			    "$exe merge -f ".
+			    $onebam_obj->file().' '.
+			    join(' ',map{$_->file()} @one_aligner_sample_bam).
+			    ($threads>=2? " -@ $threads ":" ")
 			];
 		    }
-		    push @merged_bam,$onebam; push @removable,$onebam;
+		    #save merged obj in obj_list
+		    push @obj_list,$onebam_obj; 
+		    push @removable,$onebam_obj->file();
 		}
 	    }
-		@bam_files=@merged_bam;
 	}
 
-	map { push @commands, [$threads,"Index BAM file","$exe index $_"] } (@bam_files);
+	map { push @commands, [$threads,"Index BAM file","$exe index ".$_->file()] } (grep {$_->filetype() eq 'BAM'} @obj_list);
 
-	#keep the original_bam_files updated before they can be used towards variant calling
-	@original_bam_files=@bam_files;
-	@bam_for_aln_stat=@bam_files; #this step is mandatory, so it guarrantees that we have some BAM for calculating statistics
     } elsif($subprogram=~/filter/i)
     {
 	my $readfilter=File::Spec->catfile($install_dir,"bin","secondary","readFilter");
-	for my $bam(@bam_files)
+	for my $i(grep {$_->filetype() eq 'BAM'} @obj_list)
 	{
+	    my $bam = $i->file();
 	    my ($local_prefix)= $bam=~/(.*?)\.bam$/i or die "ERROR: expect .bam suffix: $bam\n";
+	    my $new_obj = $i->clone();
 	    my $out="$local_prefix.readfiltered.bam";
+	    $new_obj->parent($i);
+	    $new_obj->file($out);
+	    $i->child($new_obj);
+
 	    my $cmd="$readfilter -samtools $exe -bam $bam -out $out -threads $threads -n $n -advanced $advanced ";
 	    push @commands, [$threads,"Filter BAM file",$cmd];
 	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
-	    $bam=$out;
+	    $i=$new_obj;
 	}
-	#keep the original_bam_files updated before they can be used towards variant calling
-	@original_bam_files=@bam_files;
     }elsif ($subprogram=~/mpileup/i) 
     {
 	my $caller='samtools';
@@ -856,7 +859,7 @@ sub samtools
 	if ($options{'originalBAM'})
 	{
 	    #this step is to make sure we use BAM files without realn or recal if users want to
-	    @target_bam_files=@original_bam_files;
+	    @target_bam_files = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
 	    $original_bam_toggle{$caller}=1;
 	} else
 	{

@@ -8,6 +8,7 @@ use SeqMule::Utils;
 
 #allowed filetypes
 my %FILETYPE = (BAM=>1,FASTQ=>1,VCF=>1);
+my $id = 0;
 sub new
 {
     my ($class,%arg)=@_;
@@ -21,19 +22,63 @@ sub new
 	'file'		=>$arg{'file'} || croak ("No file path\n"),
 	'filetype'	=>$arg{'filetype'} || croak ("No file type\n"),
 	'sample'	=>$arg{'sample'}	|| croak ("No sample\n"), 
-	'parent'	=>$arg{'parent'} || [], #allow no parent for FASTQ
-	'child'		=>$arg{'child'} || [], #allow no parent for FASTQ
-	'istumor'	=>$arg{'istumor'} || 0, #allow no istumor flag
-	'ancestor'	=>$arg{'ancestor'} || [],	#if no ancestor exists
-	'sibling'	=>$arg{'sibling'} || [], #siblings of this object, for example, two fastq in PE seq are siblings, but two files belonging to same sample are NOT siblings, their connections are weaker, and can be analyzed independently
 	'rgid'		=>$arg{'rgid'} || 'READGROUP',
 	'lb'		=>$arg{'lb'} || 'LIBRARY',
 	'pl'    	=>$arg{'pl'} || 'PLATFORM',
+	#ID attribute
+	'id'		=>$id++, #each object has a unique ID, this is to compensate for inability to compare obj in Perl
+	#reference list
+	#this list cannot be set by user, by must modified by corresponding method
+	'parent'	=>[], 
+	'child'		=>[],
+	'ancestor'	=>[],
+	'sibling'	=>[], #siblings of this object, for example, two fastq in PE seq are siblings, but two files belonging to same sample are NOT siblings, their connections are weaker, and can be analyzed independently
+	#scalar list
+	#can only accessed by method, too
+	'aligner'	=>[],
+	'caller'	=>[],
+	#YES/NO attributes
+	'istumor'	=>$arg{'istumor'} || 0, #allow no istumor flag
 	'rank'		=>$arg{'rank'} || 0, #rank in siblings
+	'realn'		=>$arg{'realn'} || 0, #realigned by GATK??
+	'recal'		=>$arg{'recal'} || 0, #recalibrated by GATK??
 	#'ready'		=>$arg{'ready'} || 0, #is this file ready for further analysis??
     }, $class;
 }
 
+sub id
+{
+    #get or set pl obj
+    my $self = shift;
+    #ID cannot be modified by users
+    return $self->{id};
+}
+sub recal
+{
+    #get or set pl obj
+    my $self = shift;
+    my $recal = shift;
+    if(defined $recal)
+    {
+	$self->{recal} = $recal;
+    } else
+    {
+	return $self->{recal};
+    }
+}
+sub realn
+{
+    #get or set pl obj
+    my $self = shift;
+    my $realn = shift;
+    if(defined $realn)
+    {
+	$self->{realn} = $realn;
+    } else
+    {
+	return $self->{realn};
+    }
+}
 sub rank
 {
     #get or set pl obj
@@ -99,11 +144,79 @@ sub rgid
 	return $self->{rgid};
     }
 }
+sub rmObjArrayDup
+{
+    my $self = shift;
+    my $attr = shift;
+    my @newarray = @{$self->{$attr}};
+    my %seen;
+
+    for my $i(0..$#newarray)
+    {
+	my $obj = $newarray[$i];
+	if($seen{$obj->id()}) {
+	    $newarray[$i] = undef;
+	} else {
+	    $seen{$obj->id()} = 1;
+	}
+    }
+    @newarray = grep {defined $_ } @newarray;
+
+    $self->_setAttr($attr,@newarray);
+}
+sub rmArrayDup
+{
+    my $self = shift;
+    my $attr = shift;
+    my @newarray = @{$self->{$attr}};
+    my %seen;
+
+    for my $i(@newarray)
+    {
+	if($seen{$i}) {
+	    $i = undef;
+	} else {
+	    $seen{$i} = 1;
+	}
+    }
+    @newarray = grep {defined $_ } @newarray;
+
+    $self->_setAttr($attr,@newarray);
+}
+sub aligner
+{
+    #get or set aligner (where current obj comes from)
+    my $self = shift;
+    my @aligner = @_;
+    $self->rmArrayDup('aligner');
+    if(@aligner > 0)
+    {
+	push @{$self->{aligner}},@aligner;
+    } else
+    {
+	return @{$self->{aligner}};
+    }
+}
+sub caller
+{
+    #get or set caller (where current obj comes from)
+    my $self = shift;
+    my @caller = @_;
+    $self->rmArrayDup('caller');
+    if(@caller > 0)
+    {
+	push @{$self->{caller}},@caller;
+    } else
+    {
+	return @{$self->{caller}};
+    }
+}
 sub ancestor
 {
     #get or set ancestor (where current obj comes from)
     my $self = shift;
     my @ancestor = @_;
+    $self->rmObjArrayDup('ancestor');
     if(@ancestor > 0)
     {
 	push @{$self->{ancestor}},@ancestor;
@@ -117,6 +230,7 @@ sub sibling
     #get or set sibling (where current obj comes from)
     my $self = shift;
     my @sibling = @_;
+    $self->rmObjArrayDup('sibling');
     if(@sibling > 0)
     {
 	push @{$self->{sibling}},@sibling;
@@ -125,24 +239,12 @@ sub sibling
 	return @{$self->{sibling}};
     }
 }
-sub istumor
-{
-    #get or set tumor flag
-    my $self = shift;
-    my $istumor = shift;
-    if(defined $istumor)
-    {
-	$self->{istumor} = $istumor;
-    } else
-    {
-	return $self->{istumor};
-    }
-}
 sub parent
 {
     #get or set parent (where current obj comes from)
     my $self = shift;
     my @parent = @_;
+    $self->rmObjArrayDup('parent');
     if(@parent > 0)
     {
 	push @{$self->{parent}},@parent;
@@ -156,12 +258,33 @@ sub child
     #get or set child (where current obj comes from)
     my $self = shift;
     my @child = @_;
+    $self->rmObjArrayDup('child');
     if(@child > 0)
     {
 	push @{$self->{child}},@child;
     } else
     {
 	return @{$self->{child}};
+    }
+}
+sub _setAttr
+{
+    #get or set parent (where current obj comes from)
+    my $self = shift;
+    my $attr = shift;
+    $self->{$attr} = [@_];
+}
+sub istumor
+{
+    #get or set tumor flag
+    my $self = shift;
+    my $istumor = shift;
+    if(defined $istumor)
+    {
+	$self->{istumor} = $istumor;
+    } else
+    {
+	return $self->{istumor};
     }
 }
 sub sample
@@ -218,11 +341,24 @@ sub clone
     #my $copy = bless dclone({%$self}), ref $self;
     my $copy = bless dclone({%$self}), ref $self;
 
-    #do a shallow copy here, we don't dereference the obj list in parent/child/ancestor
-    $copy->parent([@{$self->parent()}]) if defined $self->parent();
-    $copy->child([@{$self->child()}]) if defined $self->child();
-    $copy->ancestor([@{$self->ancestor()}]) if defined $self->ancestor();
+    #do a shallow copy here, we don't dereference the obj list in parent/child/ancestor/sibling
+    $copy->_setAttr('parent',$self->parent());
+    $copy->_setAttr('child',$self->child());
+    $copy->_setAttr('ancestor',$self->ancestor());
+    $copy->_setAttr('sibling',$self->sibling());
+
+    $copy->rank(0);
+    $copy->_modID($id++);
     return $copy;
+}
+sub _modID
+{
+    my $self = shift;
+    my $id_value = shift;
+    if(defined $id_value)
+    {
+	$self->{id} = $id_value;
+    }
 }
 sub gen_symlink
 {
