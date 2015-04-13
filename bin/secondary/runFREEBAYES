@@ -24,7 +24,7 @@ GetOptions(
     'samtools=s'	=>	\$samtools,
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
-    'vcf=s'		=>	\$vcf_filter,
+    'vcf-filter=s'	=>	\$vcf_filter,
     'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
@@ -96,7 +96,7 @@ Options:
     'freebayes=s'	=>	\$freebayes,
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
-    'vcf=s'		=>	\$vcf_filter,
+    'vcf-filter=s'	=>	\$vcf_filter,
     'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
