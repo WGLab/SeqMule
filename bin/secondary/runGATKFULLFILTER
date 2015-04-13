@@ -194,6 +194,7 @@ if ($options{filter}==1)
     push @cmd,"$java_opt -T CombineVariants -R $ref --genotypemergeoption UNSORTED --variant $snp_filter --variant $indel_filter -o $vcf_filter".($capture? " -L $capture":"");
 }
 
+=head
 #make a copy of final_vcf for each sample, with "multi-call" keyword
 if (@bam>1)
 {
@@ -207,6 +208,7 @@ if (@bam>1)
 	push @cmd,"cp $final_vcf $out";
     }
 }
+=cut
 
 #generate shell script and run
 my $script=&SeqMule::Parallel::genTempScript(@cmd);

@@ -29,6 +29,9 @@ sub new
 	'id'		=>$id++, #each object has a unique ID, this is to compensate for inability to compare obj in Perl
 	#reference list
 	#this list cannot be set by user, by must modified by corresponding method
+	#these lists keep track of dependency relationships among files
+	#parent/child are solely used for figuring out task dependency in scheduling stage
+	#parent/child must be set before creating corresponding task
 	'parent'	=>[], 
 	'child'		=>[],
 	'ancestor'	=>[],
@@ -173,6 +176,23 @@ sub rgid
 	return $self->{rgid};
     }
 }
+sub rmSelf
+{
+    my $self = shift;
+    my $attr = shift;
+    my @newarray = @{$self->{$attr}};
+    
+    for my $i(0..$#newarray)
+    {
+	my $obj = $newarray[$i];
+	if($obj->id() == $self->id()) {
+	    $newarray[$i] = undef;
+	} 
+    }
+    @newarray = grep {defined $_ } @newarray;
+
+    $self->_setAttr($attr,@newarray);
+}
 sub rmObjArrayDup
 {
     my $self = shift;
@@ -228,10 +248,12 @@ sub ancestor
 }
 sub sibling
 {
+    #siblings cannot include the obj calling sibling method itself
     #get or set sibling (where current obj comes from)
     my $self = shift;
     my @sibling = @_;
     $self->rmObjArrayDup('sibling');
+    $self->rmSelf('sibling');
     if(@sibling > 0)
     {
 	push @{$self->{sibling}},@sibling;

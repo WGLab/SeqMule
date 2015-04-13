@@ -55,6 +55,7 @@ $cmd.=" | $vcf_sort -tmpdir $tmpdir -contig-bed $contig_bed > $vcf_filter ";
 
 push @cmd,$cmd;$cmd="";
 
+=head
 if (@bam>1) #multi-sample calling
 {
     for (@bam)
@@ -69,6 +70,7 @@ if (@bam>1) #multi-sample calling
 	push @cmd,"cp $vcf_filter $out_filter";
     }
 }
+=cut
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;

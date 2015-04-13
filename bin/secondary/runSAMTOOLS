@@ -60,6 +60,8 @@ $cmd.=" $options{FILTERadditional} " if $options{FILTERadditional} ne '';
 $cmd.=" $vcf | $^X -p -e 's/([^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t)\\./\$1PASS/' > $vcf_filter";
 push @cmd,$cmd;$cmd="";
 
+#we don't need this any more, the main program will take care of copying
+=head
 if (@bam>1) #multi-sample calling
 {
     for (@bam)
@@ -74,6 +76,7 @@ if (@bam>1) #multi-sample calling
 	push @cmd,"cp $vcf_filter $out_filter";
     }
 }
+=cut
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
