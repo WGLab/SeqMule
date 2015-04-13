@@ -14,6 +14,7 @@ use Getopt::Long qw/GetOptions/;
 my ($advanced,$n,$help,
     $bed,$freebayes,$samtools,
     $vcf_sort,$ref,$vcf_filter,$tmpdir,);
+my @bam;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
@@ -24,6 +25,7 @@ GetOptions(
     'samtools=s'	=>	\$samtools,
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
+    'bam=s'		=>	\@bam,
     'vcf-filter=s'	=>	\$vcf_filter,
     'tmpdir=s'		=>	\$tmpdir,
     #other
@@ -32,7 +34,6 @@ GetOptions(
 $help and pod2usage ({-verbose=>1});
 
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
-my @bam=@ARGV;
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
