@@ -176,8 +176,27 @@ sub rgid
 	return $self->{rgid};
     }
 }
+sub rmObjFromArray
+{ #remove obj in target from obj in all
+    my ($class,%opt) = @_;
+    my $target = $opt{target};
+    my $all = $opt{all};
+
+    for my $i(@$target)
+    {
+	for my $j(@$all)
+	{
+	    if($i->id() == $j->id())
+	    {
+		$j = undef;
+	    }
+	}
+    }
+    @$all = grep {defined $_} @$all;
+}
 sub rmSelf
 {
+    #remove self obj from attribute array
     my $self = shift;
     my $attr = shift;
     my @newarray = @{$self->{$attr}};
@@ -195,6 +214,7 @@ sub rmSelf
 }
 sub rmObjArrayDup
 {
+    #remove duplicate objects from attribute array
     my $self = shift;
     my $attr = shift;
     my @newarray = @{$self->{$attr}};
@@ -215,6 +235,7 @@ sub rmObjArrayDup
 }
 sub rmArrayDup
 {
+    #remove duplicate element(not reference) from attribute array
     my $self = shift;
     my $attr = shift;
     my @newarray = @{$self->{$attr}};
