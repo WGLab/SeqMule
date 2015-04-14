@@ -1061,8 +1061,33 @@ sub gatk
     elsif ($subprogram=~/variant/) 
     {
 	my $caller='gatklite';
+	my $mode;
+	my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+	my $exe_java="java";
+	my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEFILTER");
+	my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITECALL");
+
+	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+	my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
+	my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
+	my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
+	my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
+
+	my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+	#sanity check for filter expression
+	for my $i($options{indelfilters}, $options{snpfilters})
+	{
+	    for my $filter(split ';',$i)
+	    {
+		my ($filtername,$filterexp)=split ',',$filter;
+		die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
+	    }
+	}
+	my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+	my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
 	warn "CAUTION: GATKLite variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } &get_all_aligner(@obj_list));
+	
 	my @target_obj;
 
 	if ($options{'originalBAM'})
@@ -1082,386 +1107,19 @@ sub gatk
 	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
 	    @bam_obj = grep {$_->aligner eq $i} @target_obj;
 
-	    !!!!&gen_gatk_variant_call_cmd($mode,$caller,$cmd_common,@bam_obj);
+	    &gen_variant_call_cmd({
+		    mode		=>	$mode,
+		    caller		=>	$caller,
+		    callcmd		=>	$cmd_common_call,
+		    filtercmd		=>	$options{filter} ? $cmd_common_filter: undef,
+		    bam			=>	\@bam_obj,
+		});
 	}
     }
     else
     { 
 	die "ERROR: Unrecognized subprogram $subprogram for GATKLite.\n";
     }
-}
-
-sub gatk_variant
-{
-    my $mode=shift;
-    my $n=shift;
-    my %options=%{shift @_};
-    my @bam=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
-    my $exe_java="java";
-    my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEFILTER");
-    my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITECALL");
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
-    my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
-    my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    #sanity check for filter expression
-    for my $i($options{indelfilters}, $options{snpfilters})
-    {
-	for my $filter(split ';',$i)
-	{
-	    my ($filtername,$filterexp)=split ',',$filter;
-	    die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
-	}
-    }
-    my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
-    my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-
-    if ($mode ne 'multi' and $mode ne 'single')
-    {
-	die "ERROR: unrecognized mode for GATKLite variant calling.\n";
-    }
-
-    my $number_of_parallel_proc=1;
-    $number_of_parallel_proc=$threads if ($quick);
-
-    for my $local_bam(@bam)
-    {
-	my @vcf_part;
-	for my $i(1..$number_of_parallel_proc)
-	{
-	    my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	    my $bed=$capture if $wes;
-	    $bed=$small_bed[$i-1] if $quick;
-	    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix)) if $quick;
-	    my $local_vcf="${local_prefix}_gatklite.vcf"; 
-	    my $cmd=$cmd_common_call;
-
-	    if ($mode eq 'multi')
-	    {
-		map {$cmd.=" -bam $_ ";} @bam;
-	    } else
-	    {
-		$cmd.=" -bam $local_bam ";
-	    }
-
-	    $cmd.=" -vcf $local_vcf ";
-	    $cmd.=" -capture $bed" if $bed;
-
-	    push @commands,[$local_threads,"GATKLite".($mode eq 'multi'? ' multi-sample ':' ')."variant calling",$cmd];
-	    if ($quick)
-	    {
-		push @script_unlink_list,$local_vcf;
-		push @vcf_part,$local_vcf;
-	    }
-	}
-	my $bed=$capture if $wes;
-	my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	my $local_vcf="${local_prefix}_gatklite.vcf"; 
-	my $local_vcf_filter="${local_prefix}_gatklite.filter.vcf";
-	my $indel="${local_prefix}_gatklite.indel.vcf";
-	my $indel_filter="${local_prefix}_gatklite.indel.filter.vcf";
-	my $snp="${local_prefix}_gatklite.snp.vcf";
-	my $snp_filter="${local_prefix}_gatklite.snp.filter.vcf";
-	my $indel_tranches="${local_prefix}_gatklite.indel.tranches";
-	my $indel_recal_file="${local_prefix}_gatklite.indel_recal"; 
-	my $indel_plots="${local_prefix}_gatklite.indel.plots.R"; 
-	my $tranches="${local_prefix}_gatklite.tranches";
-	my $recal_file="${local_prefix}_gatklite.snp_recal";
-	my $plots="${local_prefix}_gatklite.plots.R";
-
-	my $cmd=$cmd_common_filter;
-	if ($mode eq 'multi')
-	{
-	    die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	    map {$cmd.=" -bam $_ "} @bam;
-	} else
-	{
-	    $cmd.=" -bam $local_bam ";
-	}
-	$cmd.=" -indel $indel";
-	$cmd.=" -indel-filter $indel_filter ";
-	$cmd.=" -snp $snp ";
-	$cmd.=" -snp-filter $snp_filter ";
-	$cmd.=" -vcf $local_vcf ";
-	$cmd.=" -vcf-filter $local_vcf_filter ";
-	$cmd.=" -indel-tranches $indel_tranches ";
-	$cmd.=" -indel-recal-file $indel_recal_file ";
-	$cmd.=" -indel-plots $indel_plots ";
-	$cmd.=" -tranches $tranches ";
-	$cmd.=" -recal-file $recal_file ";
-	$cmd.=" -plots $plots ";
-	$cmd.=" -capture $bed" if $bed;
-	map {$cmd.=" -vcf-part $_ "} @vcf_part;
-
-	push @commands,[$threads,"GATKLite variant filtering",$cmd];
-	push @script_unlink_list,$indel;
-	push @script_unlink_list,$indel_filter;
-	push @script_unlink_list,$snp;
-	push @script_unlink_list,$snp_filter;
-	push @script_unlink_list,$indel_tranches;
-	push @script_unlink_list,$indel_recal_file;
-	push @script_unlink_list,$indel_plots;
-	push @script_unlink_list,$tranches;
-	push @script_unlink_list,$recal_file;
-	push @script_unlink_list,$plots;
-	if ($mode eq 'multi')
-	{
-	    #make a copy of final vcf for each sample, with "multi-call" keyword
-	    for (@bam)
-	    {
-		my ($local_prefix)= /^(.*)\.bam$/i;
-		my $out="${local_prefix}_gatklite.multi-call".($options{filter} ? ".filter":"").".vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out;
-	    }
-	    push @script_unlink_list,$local_vcf;
-	    push @script_unlink_list,$local_vcf_filter;
-	    last;
-	} else
-	{
-	    if ($options{filter})
-	    {
-		push @vcf_files,$local_vcf_filter;
-		push @script_unlink_list,$local_vcf;
-	    } else
-	    {
-		push @vcf_files,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	}
-    }
-}
-!!!!this subroutine can be combined into gen_variant_call_cmd
-as most of the code is identical except that calling and fitlering
-are separate in GATK
-sub gen_gatk_variant_call_cmd
-{
-    #generate variant calling cmd for
-    #varscan, samtools and freebayes
-    my $mode = shift;
-    my $caller = shift;
-    my $cmd_common_call = shift;
-    my $cmd_common_filter = shift;
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    my @bam_obj = @_;
-
-    for my $local_bam(@bam)
-    {
-	my @vcf_part;
-	for my $i(1..$number_of_parallel_proc)
-	{
-	    my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	    my $bed=$capture if $wes;
-	    $bed=$small_bed[$i-1] if $quick;
-	    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix)) if $quick;
-	    my $local_vcf="${local_prefix}_gatklite.vcf"; 
-	    my $cmd=$cmd_common_call;
-
-	    if ($mode eq 'multi')
-	    {
-		map {$cmd.=" -bam $_ ";} @bam;
-	    } else
-	    {
-		$cmd.=" -bam $local_bam ";
-	    }
-
-	    $cmd.=" -vcf $local_vcf ";
-	    $cmd.=" -capture $bed" if $bed;
-
-	    push @commands,[$local_threads,"GATKLite".($mode eq 'multi'? ' multi-sample ':' ')."variant calling",$cmd];
-	    if ($quick)
-	    {
-		push @script_unlink_list,$local_vcf;
-		push @vcf_part,$local_vcf;
-	    }
-	}
-	my $bed=$capture if $wes;
-	my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	my $local_vcf="${local_prefix}_gatklite.vcf"; 
-	my $local_vcf_filter="${local_prefix}_gatklite.filter.vcf";
-	my $indel="${local_prefix}_gatklite.indel.vcf";
-	my $indel_filter="${local_prefix}_gatklite.indel.filter.vcf";
-	my $snp="${local_prefix}_gatklite.snp.vcf";
-	my $snp_filter="${local_prefix}_gatklite.snp.filter.vcf";
-	my $indel_tranches="${local_prefix}_gatklite.indel.tranches";
-	my $indel_recal_file="${local_prefix}_gatklite.indel_recal"; 
-	my $indel_plots="${local_prefix}_gatklite.indel.plots.R"; 
-	my $tranches="${local_prefix}_gatklite.tranches";
-	my $recal_file="${local_prefix}_gatklite.snp_recal";
-	my $plots="${local_prefix}_gatklite.plots.R";
-
-	my $cmd=$cmd_common_filter;
-	if ($mode eq 'multi')
-	{
-	    die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	    map {$cmd.=" -bam $_ "} @bam;
-	} else
-	{
-	    $cmd.=" -bam $local_bam ";
-	}
-	$cmd.=" -indel $indel";
-	$cmd.=" -indel-filter $indel_filter ";
-	$cmd.=" -snp $snp ";
-	$cmd.=" -snp-filter $snp_filter ";
-	$cmd.=" -vcf $local_vcf ";
-	$cmd.=" -vcf-filter $local_vcf_filter ";
-	$cmd.=" -indel-tranches $indel_tranches ";
-	$cmd.=" -indel-recal-file $indel_recal_file ";
-	$cmd.=" -indel-plots $indel_plots ";
-	$cmd.=" -tranches $tranches ";
-	$cmd.=" -recal-file $recal_file ";
-	$cmd.=" -plots $plots ";
-	$cmd.=" -capture $bed" if $bed;
-	map {$cmd.=" -vcf-part $_ "} @vcf_part;
-
-	push @commands,[$threads,"GATKLite variant filtering",$cmd];
-	push @script_unlink_list,$indel;
-	push @script_unlink_list,$indel_filter;
-	push @script_unlink_list,$snp;
-	push @script_unlink_list,$snp_filter;
-	push @script_unlink_list,$indel_tranches;
-	push @script_unlink_list,$indel_recal_file;
-	push @script_unlink_list,$indel_plots;
-	push @script_unlink_list,$tranches;
-	push @script_unlink_list,$recal_file;
-	push @script_unlink_list,$plots;
-	if ($mode eq 'multi')
-	{
-	    #make a copy of final vcf for each sample, with "multi-call" keyword
-	    for (@bam)
-	    {
-		my ($local_prefix)= /^(.*)\.bam$/i;
-		my $out="${local_prefix}_gatklite.multi-call".($options{filter} ? ".filter":"").".vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out;
-	    }
-	    push @script_unlink_list,$local_vcf;
-	    push @script_unlink_list,$local_vcf_filter;
-	    last;
-	} else
-	{
-	    if ($options{filter})
-	    {
-		push @vcf_files,$local_vcf_filter;
-		push @script_unlink_list,$local_vcf;
-	    } else
-	    {
-		push @vcf_files,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	}
-    }
-    while(@bam_obj) {
-	#number of tasks, when quick is enabled, equal to number of threads
-	my $ntask = $quick ? $threads : 1;
-	my @sibling_vcf_filter;
-	for my $i(0..($ntask-1)) {
-	    my @bam_obj_for_this_task;
-	    my $suffix;
-	    #after we process a BAM, we remove it from the list to be processed
-	    if($mode eq 'multi') {
-		@bam_obj_for_this_task = @bam_obj;
-		@bam_obj = ();
-		die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam_obj_for_this_task >= 2;
-		$suffix = $caller.".multi-call";
-	    } elsif ($mode eq 'single') {
-		@bam_obj_for_this_task = shift @bam_obj;
-		$suffix = $caller;
-	    } elsif ($mode eq 'somatic') {
-		die "ERROR: Freebayes doesn't support somatic variant calling\n" if $caller eq 'freebayes';
-		$suffix = $caller.".somatic-call";
-		#for somatic calling, we need a pair of BAM, normal and tumor
-		my $random_obj = shift @bam_obj;
-		my @same_sample_obj = grep { $_->sample() eq $random_obj->sample() } @bam_obj;
-
-		if(@same_sample_obj == 1) {
-		    #here we try to put normal first, tumor second
-		    if($random_obj->istumor() == 0 && $same_sample_obj[0]->istumor() == 1) {
-			push @bam_obj_for_this_task,$random_obj,$same_sample_obj[0];
-		    } elsif ($random_obj->istumor() == 1 && $same_sample_obj[0]->istumor() == 0) {
-			push @bam_obj_for_this_task,$same_sample_obj[0],$random_obj;
-		    }
-		    SeqMule::SeqUtils->rmObjFromArray(
-			target=>\@same_sample_obj,
-			    all=>\@bam_obj
-			);
-		} elsif(@same_sample_obj == 0) {
-		    die "ERROR: only found one BAM file for sample ".$random_obj->sample()."\n".
-		    "Somatic mutation calling cannot be performed\n";
-		} else {
-		    die "ERROR: Right now SeqMule can only handle 2 BAM files for one sample in\n".
-		    "somatic calling mode, we found ".(scalar @same_sample_obj+1)."\n";
-		}
-	    } else    {
-		die "ERROR: unrecognized mode ($mode) for samtools variant.\n";
-	    }
-
-	    my $bed = $quick? $small_bed[$i]:$capture;
-	    #the empty array ref will be used to store VCF files for all VCF obj
-	    #generated by one task
-	    @sibling_vcf_filter = [] x (scalar @bam_obj_for_this_task);
-
-	    for my $j(0..$#bam_obj_for_this_task)
-	    {
-		my ($local_prefix) = ($bam_obj_for_this_task[$j]->file() =~ /(.*)\.bam$/i);
-		$local_prefix = $local_prefix.".$i";
-		my $local_vcf = "${local_prefix}_$suffix.vcf";  
-		my $local_vcf_filter = "${local_prefix}_$suffix.filter.vcf"; 
-
-		#we create a VCF object for each BAM
-		#but only use the first one in analysis
-		#the rest are just copies
-
-		my $new_vcf_filter_obj = $bam_obj_for_this_task[$j]->clone();
-		$new_vcf_filter_obj->file($local_vcf_filter);
-		$new_vcf_filter_obj->filetype('VCF');
-		$new_vcf_filter_obj->caller($caller);
-		$new_vcf_filter_obj->rank($i);
-
-		if($j==0) {
-		    my $cmd = $cmd_common;
-		    $cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
-		    $cmd.=" -bed $bed " if $bed;
-		    map {$cmd.=" -bam ".$_->file()} @bam_obj_for_this_task;
-		    push @commands,[$local_threads,"$caller multi-sample variant calling",$cmd];
-		    #only the first one is child of BAM input
-		    $new_vcf_filter_obj->parent(@bam_obj_for_this_task);
-		    map { $_->child($new_vcf_filter_obj) } @bam_obj_for_this_task;
-		} else
-		{
-		    #for each BAM, variants are only called once
-		    #the rest of VCFs are generated by copy if two VCFs share same input
-		    my $vcf_template = $sibling_vcf_filter[0][$i];
-		    $new_vcf_filter_obj->parent($vcf_template);
-		    $vcf_template->child($new_vcf_filter_obj);
-		    #this step is necessary because result for each sample is supposed to be standalone
-		    push @commands,[$local_threads,"Copy results to other samples","cp ".$vcf_template->file()." ".$new_vcf_filter_obj->file()];
-		}
-
-		#note the index here is BAMidx then task idx
-		#VCFs of same BAM idx will be siblings/merged
-		@sibling_vcf_filter[$j][$i] = $new_vcf_filter_obj;
-		push @obj_list,$new_vcf_filter_obj;
-
-		#prepare for removal of intermediate files
-		push @script_unlink_list,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	}
-	#VCF generated in each task is a sibling
-	#to VCFs generated in all other tasks given that sample/input BAM is same
-	#later all VCFs which are siblings to each will be merged
-	for my $i(0..$#sibling_vcf_filter) {
-	    for my $j(@{$sibling_vcf_filter[$i]}) {
-		$j->sibling(@{$sibling_vcf_filter[$i]});
-	    }
-	}
-    } 
 }
 
 sub gatk_recal
