@@ -180,7 +180,7 @@ sub checkMerge
 	@merging_rule_list = split /,/,$mergingrule;
     } else
     { #by default, seqmule tries to assign the files evenly among samples
-	    @merging_rule_list = (int ($file_count/@prefix_list)) x @prefix_list;
+	@merging_rule_list = (int ($file_count/@prefix_list)) x @prefix_list;
     }
     if(&SeqMule::Utils::sum(@merging_rule_list) != $file_count)
     {
@@ -285,7 +285,6 @@ sub cmd_gen
     {
 	return &picard(@_);
     }
-    !!!
     elsif ($program eq 'gatklite') 
     {
 	return &gatk(@_);
@@ -302,6 +301,7 @@ sub cmd_gen
     {
 	return &snver(@_);
     }
+    !!!
     elsif ($program eq 'soapsnp')
     {
 	return &soapsnp(@_);
@@ -894,7 +894,7 @@ sub samtools
 	{
 	    #do multi-sample calling for bam files from the same aligner
 	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
-	    @bam_obj = grep {$_->aligner eq $i} @target_obj;
+	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
 	    &gen_variant_call_cmd({
 		    mode=>$mode,
 		    caller=>$caller,
@@ -959,7 +959,7 @@ sub freebayes
     {
 	#do multi-sample calling for bam files from the same aligner
 	my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
-	@bam_obj = grep {$_->aligner eq $i} @target_obj;
+	@bam_obj = grep {$_->aligner eq $i} @bam_obj;
 	&gen_variant_call_cmd({
 		mode=>$mode,
 		caller=>$caller,
@@ -1086,7 +1086,7 @@ sub gatk
 	my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
 	warn "CAUTION: GATKLite variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } &get_all_aligner(@obj_list));
-	
+
 	my @target_obj;
 
 	if ($options{'originalBAM'})
@@ -1104,7 +1104,7 @@ sub gatk
 	{
 	    #do multi-sample calling for bam files from the same aligner
 	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
-	    @bam_obj = grep {$_->aligner eq $i} @target_obj;
+	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
 
 	    &gen_variant_call_cmd({
 		    mode		=>	$mode,
@@ -1134,7 +1134,7 @@ sub gen_gatk_realign_recal_cmd
     my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
     my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
     my $run_gatk;
-    
+
     if($verson eq 'gatklite') {
 	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatklite"));
 	if($operation eq 'realn') {
@@ -1216,223 +1216,68 @@ sub gatk_full
     } 
     elsif ($subprogram eq 'unifiedgenotyper' || $subprogram eq 'haplotypecaller')
     {
+	my $mode;
+	my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
+	my $exe_java="java";
+	my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLCALL");
+	my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLFILTER");
+
+	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+	my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
+	my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
+	my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
+	my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
+
+	my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+
+	#sanity check for filter expression
+	for my $i($options{indelfilters}, $options{snpfilters})
+	{
+	    for my $filter(split ';',$i)
+	    {
+		my ($filtername,$filterexp)=split ',',$filter;
+		die "Missing filter name or expression for GATK indel/SNP filtering.\n" unless ($filtername && $filterexp);
+	    }
+	}
+
+	my $cmd_common_call="$runGATKCMDCALL -internal-caller $internal_caller -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+	my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $internal_caller -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+
 	warn "CAUTION: GATK variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK UnifiedGenotyper.\n" and sleep 1 if (grep { /soap/ } @aligners);
-	my @target_bam_files;
+	my @target_obj;
 	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
 
-	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 
 	if ($options{'originalBAM'})
 	{
-	    @target_bam_files=@original_bam_files;
-	    $original_bam_toggle{$caller}=1;
+	    #this step is to make sure we use BAM files without realn or recal if users want to
+	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
+	    $original_bam_toggle{$caller} = 1;
 	} else
 	{
-	    @target_bam_files=@bam_files;
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	}
 
-	if ($multi_sample_calling)
+	$mode = ($multi_sample_calling? 'multi':'single');
+
+	for my $i(&get_all_aligner(@obj_list))
 	{
-	    if ($fq1)
-	    {
-		#original input is fq
-		#consider aligner
-		for my $aligner(@aligners)
-		{
-		    #do multi-sample calling for bam files from the same aligner
-		    if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		    {
-			&gatk_full_variant('multi',$subprogram,$n,\%options,@one_aligner_bam);
-		    }
-		}
-	    } else
-	    {
-		#original input is bam
-		#directly do multi-sample calling
-		&gatk_full_variant('multi',$subprogram,$n,\%options,@target_bam_files);
-	    }
-	} else
-	{
-	    #do snp calling for each bam
-	    &gatk_full_variant('single',$subprogram,$n,\%options,@target_bam_files);
+	    #do multi-sample calling for bam files from the same aligner
+	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
+	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
+
+	    &gen_variant_call_cmd({
+		    mode		=>	$mode,
+		    caller		=>	$caller,
+		    callcmd		=>	$cmd_common_call,
+		    filtercmd		=>	$options{filter} ? $cmd_common_filter: undef,
+		    bam			=>	\@bam_obj,
+		});
 	}
     } else
     { 
 	die "ERROR: Unrecognized subprogram $subprogram for GATK\n";
-    }
-}
-
-sub gatk_full_variant
-{
-    my $mode=shift;
-    my $internal_caller=shift;
-    my $n=shift;
-    my %options=%{shift @_};
-
-    if ($internal_caller eq 'haplotypecaller')
-    {
-	push @callers,'gatk_hc';
-    } elsif ($internal_caller eq 'unifiedgenotyper')
-    {
-	push @callers,'gatk_ug';
-    } else
-    {
-	die "ERROR: Unrecognized internal caller for GATK: $internal_caller.\n";
-    }
-
-    my @bam=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-    my $exe_java="java";
-    my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLCALL");
-    my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLFILTER");
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
-    my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
-    my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-
-    #sanity check for filter expression
-    for my $i($options{indelfilters}, $options{snpfilters})
-    {
-	for my $filter(split ';',$i)
-	{
-	    my ($filtername,$filterexp)=split ',',$filter;
-	    die "Missing filter name or expression for GATK indel/SNP filtering.\n" unless ($filtername && $filterexp);
-	}
-    }
-    my $cmd_common_call="$runGATKCMDCALL -internal-caller $internal_caller -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-    my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $internal_caller -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
-
-
-    if ($mode ne 'multi' and $mode ne 'single')
-    {
-	die "ERROR: unrecognized mode for GATK variant calling.\n";
-    }
-
-    my $number_of_parallel_proc=1;
-    $number_of_parallel_proc=$threads if ($quick);
-
-    for my $local_bam(@bam)
-    {
-	my @vcf_part;
-	for my $i(1..$number_of_parallel_proc)
-	{
-	    my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	    my $bed=$capture if $wes;
-	    $bed=$small_bed[$i-1] if $quick;
-	    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix)) if $quick;
-	    my $local_vcf=$internal_caller eq 'haplotypecaller' ? "${local_prefix}_gatkhc.vcf":"${local_prefix}_gatkug.vcf"; 
-	    my $cmd=$cmd_common_call;
-
-	    if ($mode eq 'multi')
-	    {
-		die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-		map {$cmd.=" -bam $_ ";} @bam;
-	    } else
-	    {
-		$cmd.=" -bam $local_bam ";
-	    }
-
-	    $cmd.=" -vcf $local_vcf ";
-	    $cmd.=" -capture $bed" if $bed;
-
-	    push @commands,[$local_threads,
-		"GATK ".($internal_caller eq 'haplotypecaller'? 'HaplotypeCaller':'UnifiedGenotyper').
-		($mode eq 'multi'? ' multi-sample ':' ')."variant calling", $cmd];
-	    if ($quick)
-	    {
-		push @script_unlink_list,$local_vcf;
-		push @vcf_part,$local_vcf;
-	    }
-	}
-	my $bed=$capture if $wes;
-	my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	my $local_vcf="${local_prefix}_gatkug.vcf"; 
-	my $local_vcf_filter="${local_prefix}_gatkug.filter.vcf";
-	my $indel="${local_prefix}_gatkug.indel.vcf";
-	my $indel_filter="${local_prefix}_gatkug.indel.filter.vcf";
-	my $snp="${local_prefix}_gatkug.snp.vcf";
-	my $snp_filter="${local_prefix}_gatkug.snp.filter.vcf";
-	my $indel_tranches="${local_prefix}_gatkug.indel.tranches";
-	my $indel_recal_file="${local_prefix}_gatkug.indel_recal"; 
-	my $indel_plots="${local_prefix}_gatkug.indel.plots.R"; 
-	my $tranches="${local_prefix}_gatkug.tranches";
-	my $recal_file="${local_prefix}_gatkug.snp_recal";
-	my $plots="${local_prefix}_gatkug.plots.R";
-
-	if ($internal_caller eq 'haplotypecaller')
-	{
-	    map { s/_gatkug/_gatkhc/; } ($local_vcf,$indel,$indel_filter,$snp,$snp_filter,$local_vcf_filter,$indel_tranches,$indel_recal_file,$indel_plots,
-		$tranches,$recal_file,$plots);
-	}
-	my $cmd=$cmd_common_filter;
-	if ($mode eq 'multi')
-	{
-	    die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	    map {$cmd.=" -bam $_ "} @bam;
-	} else
-	{
-	    $cmd.=" -bam $local_bam ";
-	}
-	$cmd.=" -indel $indel";
-	$cmd.=" -indel-filter $indel_filter ";
-	$cmd.=" -snp $snp ";
-	$cmd.=" -snp-filter $snp_filter ";
-	$cmd.=" -vcf $local_vcf ";
-	$cmd.=" -vcf-filter $local_vcf_filter ";
-	$cmd.=" -indel-tranches $indel_tranches ";
-	$cmd.=" -indel-recal-file $indel_recal_file ";
-	$cmd.=" -indel-plots $indel_plots ";
-	$cmd.=" -tranches $tranches ";
-	$cmd.=" -recal-file $recal_file ";
-	$cmd.=" -plots $plots ";
-	$cmd.=" -capture $bed" if $bed;
-	map {$cmd.=" -vcf-part $_ "} @vcf_part;
-
-	push @commands,[$threads,"GATK variant filtering",$cmd];
-	push @script_unlink_list,$indel;
-	push @script_unlink_list,$indel_filter;
-	push @script_unlink_list,$snp;
-	push @script_unlink_list,$snp_filter;
-	push @script_unlink_list,$indel_tranches;
-	push @script_unlink_list,$indel_recal_file;
-	push @script_unlink_list,$indel_plots;
-	push @script_unlink_list,$tranches;
-	push @script_unlink_list,$recal_file;
-	push @script_unlink_list,$plots;
-	if ($mode eq 'multi')
-	{
-	    #make a copy of final vcf for each sample, with "multi-call" keyword
-	    for (@bam)
-	    {
-		my ($local_prefix)= /^(.*)\.bam$/i;
-		my $out="${local_prefix}".
-		($internal_caller eq 'haplotypecaller'? '_gatkhc':'_gatkug').
-		".multi-call".
-		($options{filter} ? ".filter":"").
-		".vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out;
-	    }
-	    push @script_unlink_list,$local_vcf;
-	    push @script_unlink_list,$local_vcf_filter;
-	    last;
-	} else
-	{
-	    if ($options{filter})
-	    {
-		push @vcf_files,$local_vcf_filter;
-		push @script_unlink_list,$local_vcf;
-	    } else
-	    {
-		push @vcf_files,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	}
     }
 }
 
@@ -1501,7 +1346,7 @@ sub varscan
     {
 	#do multi-sample calling for bam files from the same aligner
 	my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
-	@bam_obj = grep {$_->aligner eq $i} @target_obj;
+	@bam_obj = grep {$_->aligner eq $i} @bam_obj;
 	&gen_variant_call_cmd({
 		mode=>$mode,
 		caller=>$caller,
@@ -2046,7 +1891,7 @@ sub writeLog
 
     for my $sample(@prefix_list)
     {
-		    my $result_folder = &get_result_folder($sample);
+	my $result_folder = &get_result_folder($sample);
 
 	print LOG "###################################################\n";
 	print LOG "FINAL OUTPUT for $sample:\n";
@@ -2161,7 +2006,7 @@ sub procBAM
 		);
 		push @one_sample_input_bam,$obj;
 	    }
-    	    $onebam->rg($readgroup[$i]) if ($force_one_rg);
+	    $onebam->rg($readgroup[$i]) if ($force_one_rg);
 
 	    #ancestor will be set by merge_bam
 	    &merge_bam($onebam,@one_sample_input_bam);
@@ -2364,8 +2209,8 @@ sub confOptCheck
     #
     if ($pl =~ /,/)
     {
-	    @platform=split /,/,$pl;
-	    die "ERROR: when over 1 platforms are specified, number of platforms must equal number of samples\n" unless @platform == @prefix_list;
+	@platform=split /,/,$pl;
+	die "ERROR: when over 1 platforms are specified, number of platforms must equal number of samples\n" unless @platform == @prefix_list;
     } else
     {
 	@platform=map { $pl } @prefix_list;
@@ -2373,8 +2218,8 @@ sub confOptCheck
 
     if ($lb =~ /,/)
     {
-	    @library=split /,/,$lb;
-	    die "ERROR: when over 1 libraries are specified, number of libraries must equal number of samples\n"  unless @library == @prefix_list;
+	@library=split /,/,$lb;
+	die "ERROR: when over 1 libraries are specified, number of libraries must equal number of samples\n"  unless @library == @prefix_list;
     } else
     {
 	@library=map {$lb} @prefix_list;
@@ -2516,7 +2361,7 @@ sub genStat
     for my $i(0..$#prefix_list)
     {
 	my $sample=$prefix_list[$i];
-	    my $result_folder = &get_result_folder($sample);
+	my $result_folder = &get_result_folder($sample);
 	my ($qcstat,$stat_prefix);
 	$qcstat=File::Spec->catfile($result_folder,"${sample}_qc_stat.txt");
 	$stat_prefix=File::Spec->catfile($result_folder,$sample);
@@ -2528,8 +2373,8 @@ sub genStat
 	    $sample_in_bam=$sample;
 	} else
 	{
-	     #when merging is enabled, original BAMs have been replaced by merged BAMs,
-		#which will be generated in execution phase
+	    #when merging is enabled, original BAMs have been replaced by merged BAMs,
+	    #which will be generated in execution phase
 	    $sample_in_bam=&SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
 	}
 
@@ -2795,7 +2640,7 @@ sub convert64to33
     {
 	for my $i(@obj_list)
 	{
-	next unless $i->filetype() eq 'FASTQ';
+	    next unless $i->filetype() eq 'FASTQ';
 	    my $newobj = $i->clone();
 	    my $file=$i->file();
 	    $file =~ s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
@@ -3045,12 +2890,12 @@ Options:
 	#--forceOneRG must be used along with -rg to assign same @RG tag to input files
 	#input files belonging to same sample have same @RG tag
 	#--mergingrule 1,1,2 means sample1 has 1 (pair of) input file, sample2 has 1 (pair of) input file, sample3 has 2 (pairs of) input files.
-        seqmule pipeline -a sample1.1.1.fastq,sample2.1.1.fastq,sample3.1.1.fastq,sample3.2.1.fastq -b sample1.1.2.fastq,sample2.1.2.fastq,sample3.1.2.fastq,sample3.2.2.fastq -p sample1o3,sample2o3,sample3o3 -g -merge --forceOneRG -rg READGROUP --mergingrule 1,1,2 -ms
-	
+	seqmule pipeline -a sample1.1.1.fastq,sample2.1.1.fastq,sample3.1.1.fastq,sample3.2.1.fastq -b sample1.1.2.fastq,sample2.1.2.fastq,sample3.1.2.fastq,sample3.2.2.fastq -p sample1o3,sample2o3,sample3o3 -g -merge --forceOneRG -rg READGROUP --mergingrule 1,1,2 -ms
+
 	#merge with default method
 	#if 4 (pairs of) input files are given for 2 samples, each sample gets 2 by default
 	#here multi-sample variant calling is not enabled
-        seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
+	seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
 
 
 =head1 OPTIONS
