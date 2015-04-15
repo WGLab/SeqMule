@@ -51,6 +51,14 @@ sub new
     }, $class;
 }
 
+sub get_attr_enum
+{
+    #add get_attr_enum method for obtaining all different values of a particular
+    #attribute across all objects
+    my ($class,$attr,@obj) = @_;
+
+    return &SeqMule::Utils::uniq(map {$_->{$attr}} @obj);
+}
 sub aligner
 {
     #get or set pl obj
