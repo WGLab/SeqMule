@@ -13,8 +13,9 @@ use Getopt::Long qw/GetOptions/;
 
 my (
     $capture,   $java,    $java_mem,    $gatk,
-    $ref,    $dbsnp,$threads,    $gatk_nt, 
+    $ref,    $threads,    $gatk_nt, 
     $bam,$out,
+    $pl,$goldindel,$dbsnp,$kg,$hapmap,
     $help,$advanced,    $n,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
 
@@ -24,8 +25,15 @@ GetOptions(
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
+
+    'pl=s'		=>	\$pl,
+
     'ref=s'		=>	\$ref,
     'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg,
+    'hapmap=s'		=>	\$hapmap,
+    'goldindel=s'	=>	\$goldindel,
+
     'threads=i'		=>	\$threads,
     'gatk-nt=i'		=>	\$gatk_nt,
     'bam=s'		=>	\$bam, #specify it multiple times
@@ -55,12 +63,13 @@ my @cov=split ',',$options{covariates};
 my $cmd;
 
 $cmd .= $java_opt;
-$cmd .= " -T BaseRecalibrator -R $ref ";
-$cmd .= " -knownSites $dbsnp " if $dbsnp;
-$cmd .= " --disable_indel_quals "; #rf BadCigar to skip bad reads
-map {$cmd.=" -cov $_" } @cov;
-$cmd.=" -I $bam -o $grp_file";
-$cmd.=" -L $capture" if $capture;
+$cmd .= " -T BaseRecalibrator -R $ref --disable_indel_quals "; #rf BadCigar to skip bad reads
+$cmd.=" -knownSites $dbsnp " if $dbsnp;
+$cmd.=" -knownSites $goldindel " if $goldindel;
+$cmd.=" -nct $threads " if $threads>=2;
+$cmd.=" -I $bam -o $grp_file ";
+$cmd.=" --default_platform $pl " if $pl; #in case RG tag doesn't have platform info
+$cmd.=" -L $capture " if $capture;
 $cmd.=" $options{additional} " if $options{additional} ne '';
 push @cmd,$cmd;
 $cmd = "";

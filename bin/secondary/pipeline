@@ -881,7 +881,7 @@ sub samtools
 	    $original_bam_toggle{$caller}=1;
 	} else
 	{
-	    @target_obj = @obj_list;
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	}
 
 	$mode = ($multi_sample_calling? 'multi':'single');
@@ -946,7 +946,7 @@ sub freebayes
 	$original_bam_toggle{$caller}=1;
     } else
     {
-	@target_obj = @obj_list;
+	@target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
     }
 
     $mode = ($multi_sample_calling? 'multi':'single');
@@ -1037,8 +1037,7 @@ sub snver
     }
 }
 
-
-#gatklite
+########################gatklite################################
 sub gatk
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
@@ -1048,7 +1047,7 @@ sub gatk
     {
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } @aligners);
 
-	&gatk_realign($n,\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatklite","realn",\%options);
     } 
     elsif ($subprogram=~/recal/i) 
     {
@@ -1056,7 +1055,7 @@ sub gatk
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } @aligners);
 	die "ERROR: No covariates for base quality recalibration\n" if $options{covariates} eq "";
 
-	&gatk_recal($n,\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatklite","recal",\%options);
     } 
     elsif ($subprogram=~/variant/) 
     {
@@ -1097,7 +1096,7 @@ sub gatk
 	    $original_bam_toggle{$caller} = 1;
 	} else
 	{
-	    @target_obj = @obj_list;
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	}
 	$mode = ($multi_sample_calling? 'multi':'single');
 
@@ -1122,53 +1121,47 @@ sub gatk
     }
 }
 
-sub gatk_recal
+sub gen_gatk_realign_recal_cmd
 {
     my $n = shift;
+    my $version = shift; #gatklite vs gatkfull?
+    my $operation = shift; #realn vs recal
     my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+    my $exe;
     my $exe_java="java";
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
     my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
+    my $run_gatk;
+    
+    if($verson eq 'gatklite') {
+	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+	if($operation eq 'realn') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEREALN");
+	} elsif ($operation eq 'recal') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITERECAL");
+	} else {
+	    die "ERROR: unknown GATK operation: $operation\n";
+	}
+    } elsif ($version eq 'gatkfull') {
+	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatk"));
+	if($operation eq 'realn') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLREALN");
 
-    my $run_gatklite_recal = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITERECAL");
-    my $cmd_common ="$run_gatklite_recal -advanced $advanced -n $n -ref $local_ref -dbsnp $local_dbsnp -java $exe_java -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-    $cmd_common .= " -capture $capture" if $wes;
-
-    for my $local_bam_obj(@obj_list) 
-    {
-	next unless $local_bam_obj->filetype() eq 'BAM';
-	my $local_bam = $local_bam_obj->file();
-	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $newbam_obj = $local_bam_obj->clone();
-	my $newbam = "${local_prefix}.recal.bam"; 
-	my $cmd = $cmd_common;
-
-	$newbam_obj->recal(1);
-	$newbam_obj->file($newbam);
-	$newbam_obj->parent($local_bam_obj);
-	$local_bam_obj->child($newbam_obj);
-
-	$cmd .= " -bam $local_bam -out $newbam ";
-	push @commands,[$threads,"GATKLite base quality recalibration",$cmd];
-	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
-
-	$local_bam_obj = $newbam_obj; 
-	push @removable,$newbam;
+	} elsif ($operation eq 'recal') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLRECAL");
+	} else {
+	    die "ERROR: unknown GATK operation: $operation\n";
+	}
+    } else {
+	die "ERROR: unknown GATK version: $version\n";
     }
-}
-sub gatk_realign
-{
-    my $n = shift;
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $run_gatklite_realn = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEREALN");
-    my $cmd_common ="$run_gatklite_realn -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-    $cmd_common .= " -capture $capture" if $wes;
+
+    my $cmd_common ="$run_gatk -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+    $cmd_common .= " -bed $capture" if $wes;
+    $cmd_common .= " -goldindel $local_indel " if $local_indel;
+    $cmd_common .= " -dbsnp $local_dbsnp " if $local_dbsnp;
 
     for my $local_bam_obj(@obj_list) 
     {
@@ -1176,26 +1169,31 @@ sub gatk_realign
 	my $local_bam = $local_bam_obj->file();
 	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
 	my $newbam_obj = $local_bam_obj->clone();
-	my $newbam = "${local_prefix}.realn.bam";
+	my $newbam = "${local_prefix}.$operation.bam";
 	my $cmd = $cmd_common;
 
-	$newbam_obj->realn(1);
+	$cmd .= " -pl ".$local_bam_obj->pl()." " if $local_bam_obj->pl();
+	if($operation eq 'realn') {
+	    $newbam_obj->realn(1);
+	} elsif ($operation eq 'recal') {
+	    $newbam_obj->recal(1);
+	}
 	$newbam_obj->file($newbam);
 	$newbam_obj->parent($local_bam_obj);
 	$local_bam_obj->child($newbam_obj);
 
 	$cmd .= " -bam $local_bam -out $newbam ";
-	push @commands,[$threads,"GATKLite realignment",$cmd];
+	push @commands,[$threads,"$version $operation",$cmd];
 	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
-
-	$local_bam_obj = $newbam_obj; 
+	#it's possible that some variant callers will use non-recal non-realn BAM
+	#so we still keep the old BAM in @obj_list
+	#$local_bam_obj = $newbam_obj; 
 	push @removable,$newbam;
     }
 }
 #############end of gatklite#############
 
-#gatk full version
-
+#################################gatk full version###########################
 sub gatk_full
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
@@ -1206,7 +1204,7 @@ sub gatk_full
     {
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK\n" and sleep 1 if (grep { /soap/ } @aligners);
 
-	&gatk_full_realign(\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatkfull","realn",\%options);
     } 
     elsif ($subprogram eq 'recal') 
     {
@@ -1214,7 +1212,7 @@ sub gatk_full
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK\n" and sleep 1 if (grep { /soap/ } @aligners);
 	die "ERROR: No covariates for base quality recalibration\n" if $options{covariates} eq "";
 
-	&gatk_full_recal(\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatkfull","recal",\%options);
     } 
     elsif ($subprogram eq 'unifiedgenotyper' || $subprogram eq 'haplotypecaller')
     {
@@ -1222,6 +1220,8 @@ sub gatk_full
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK UnifiedGenotyper.\n" and sleep 1 if (grep { /soap/ } @aligners);
 	my @target_bam_files;
 	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
+
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 
 	if ($options{'originalBAM'})
 	{
@@ -1436,92 +1436,6 @@ sub gatk_full_variant
     }
 }
 
-sub gatk_full_recal
-{
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    for my $local_bam(@bam_files) 
-    {
-	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $grp="${local_prefix}.grp";push @removable,$grp;
-	my $newbam="${local_prefix}.recal.bam"; 
-	my @cov=split ',',$options{covariates};
-	my $cmd;
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref";
-	$cmd.=" -knownSites $local_dbsnp";
-	$cmd.=" -knownSites $local_indel";
-	$cmd.=" -nct $threads" if $threads>=2;
-	$cmd.=" -I $local_bam -o $grp";
-	$cmd.=" --default_platform $pl" if $pl; #in case RG tag doesn't have platform info
-	$cmd.=" -L $capture" if $wes;
-	$cmd.=" $options{additional} " if $options{additional} ne '';
-
-	push @commands,[$threads,"GATK base quality recalibration",$cmd];
-
-	$cmd="";
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
-	$cmd.=" -L $capture" if $wes;
-	push @commands,[$threads,"Apply base quality recalibration",$cmd];$cmd="";
-	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
-
-	$local_bam=$newbam; push @removable,$newbam;
-    }
-}
-sub gatk_full_realign
-{
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    for my $local_bam(@bam_files) 
-    {
-	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $interval_file="${local_prefix}.intervals";push @removable,$interval_file;
-	my $newbam="${local_prefix}.realn.bam";
-	my $cmd;
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
-	$cmd.=" -known $local_indel" if $local_indel;
-	$cmd.=" -nt $threads" if $threads>=2;
-	$cmd.=" -L $capture" if $wes;
-	push @commands,[$threads,"GATK realignment",$cmd];$cmd="";
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
-	$cmd.=" -maxInMemory $options{maxInMemory}" if $options{maxInMemory};
-	$cmd.=" -rf NotPrimaryAlignment"; #remove secondary alignments
-	$cmd.=" -known $local_indel" if $local_indel;
-	$cmd.=" -LOD $options{LOD}" if $options{LOD};
-	$cmd.=" -L $capture" if $wes;
-	$cmd.=" $options{additional} " if $options{additional} ne '';
-	push @commands,[$threads,"Apply realignment",$cmd];$cmd="";
-
-	$cmd.="$exe_samtools index $newbam";
-	push @commands,[$threads,"Index BAM files",$cmd];$cmd="";
-
-	$local_bam=$newbam; push @removable,$newbam;
-    }
-}
 ############end of gatk full version##########
 
 sub picard
@@ -1579,7 +1493,7 @@ sub varscan
 	$original_bam_toggle{$caller} = 1;
     } else
     {
-	@target_obj = @obj_list;
+	@target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
     }
     $mode = ($multi_sample_calling? 'multi':'single');
 

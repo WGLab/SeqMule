@@ -20,7 +20,7 @@ my (
 
 GetOptions(
     #input and output
-    'capture=s'		=>	\$capture,
+    'bed=s'		=>	\$capture,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,

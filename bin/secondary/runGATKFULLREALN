@@ -13,8 +13,9 @@ use Getopt::Long qw/GetOptions/;
 
 my (
     $capture,   $java,    $java_mem,    $gatk,
-    $ref,    $dbsnp,$threads,    $gatk_nt, 
-    $bam,$out,
+    $ref,    $threads,    $gatk_nt, 
+    $bam,$out, 
+    $pl, $dbsnp,$kg,$hapmap,$goldindel,
     $help,$advanced,    $n,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
 
@@ -24,8 +25,15 @@ GetOptions(
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
+
+    'pl=s'		=>	\$pl, #platform
+
     'ref=s'		=>	\$ref,
     'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg, #1000 genomes database
+    'hapmap=s'		=>	\$hapmap, #hapmap database
+    'goldindel=s'	=>	\$goldindel, #mills golden indel database
+
     'threads=i'		=>	\$threads,
     'gatk-nt=i'		=>	\$gatk_nt,
     'bam=s'		=>	\$bam, #specify it multiple times
@@ -45,34 +53,37 @@ my %options=%{ $steps[$n-1][2] };
 my $nt = &SeqMule::Utils::get_gatk_nt($threads,$gatk_nt);
 my @cmd;
 my $java_opt = "$java -Xmx$java_mem  -Djava.io.tmpdir=$tmpdir -jar $gatk ";
-my $grp_file = rand($$).".tmp.grp";
+my $interval_file = rand($$).".tmp.intervals";
 
 if($tmpdir) {
-    $grp_file = File::Spec->catfile($tmpdir,$grp_file);
+    $interval_file = File::Spec->catfile($tmpdir,$interval_file);
 }
 
-my @cov=split ',',$options{covariates};
-my $cmd;
-
-$cmd .= $java_opt;
-$cmd .= " -T BaseRecalibrator -R $ref ";
-$cmd .= " -knownSites $dbsnp " if $dbsnp;
-$cmd .= " --disable_indel_quals "; #rf BadCigar to skip bad reads
-map {$cmd.=" -cov $_" } @cov;
-$cmd.=" -I $bam -o $grp_file";
+#generate intervals
+my $cmd = $java_opt;
+$cmd .= " -T RealignerTargetCreator -I $bam -R $ref -o $interval_file";
+$cmd.=" -known $goldindel " if $goldindel;
+$cmd .= " -nt $threads" if $threads>=2;
 $cmd.=" -L $capture" if $capture;
-$cmd.=" $options{additional} " if $options{additional} ne '';
 push @cmd,$cmd;
 $cmd = "";
 
-$cmd .= "$java_opt -T PrintReads -R $ref -I $bam -BQSR $grp_file -o $out";
-$cmd .= " -L $capture" if $capture;
+#apply realignment intervals
+$cmd.= $java_opt;
+$cmd .= " -T IndelRealigner -I $bam -R $ref -targetIntervals $interval_file --out $out";
+$cmd.=" -maxInMemory $options{maxInMemory}" if $options{maxInMemory};
+$cmd .= " -rf NotPrimaryAlignment "; #remove secondary alignments
+$cmd.=" -known $goldindel " if $goldindel;
+$cmd.=" -LOD $options{LOD}" if $options{LOD};
+$cmd.=" -L $capture" if $capture;
+$cmd.=" $options{additional} " if $options{additional} ne '';
 push @cmd,$cmd;
 
-push @cmd,"rm $grp_file";
+push @cmd,"rm $interval_file";
 my $script = &SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 #------------------------------------------------------------
+
 
 
 __END__
