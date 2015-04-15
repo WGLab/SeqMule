@@ -312,24 +312,23 @@ sub cmd_gen
 sub fastqc
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("fastqc"));
+    my $fastqc = &getExe(&SeqMule::Utils::getProgramExe("fastqc"));
 
     warn "FastQC executable: $exe\n" if $verbose;
+    my $extractSummary = File::Spec->catfile($install_dir,"bin","secondary","convertQCstat");
 
     for $i(@obj_list)
     {
-	if ($i->filetype() eq 'FASTQ')
-	{
-	    #if @aligners is populated, then BAM has been generated
-	    push @commands, [$threads,"QC assesment on FASTQ files",
-		"$exe --extract ".
-		($threads >=2 ? " -t $threads ":" ").
-		$i->file() ];
-	} elsif ($i->filetype() eq 'BAM') 
-	{
-	    # @bam_list comes from user input (possibly after merge)
-	    push @commands, [$threads,"QC assesment on BAM files","$exe --extract".($threads >= 2 ? " -t $threads " : " ").$i->file()];
-	} 
+	my $sample = $i->sample();
+	my $result_folder = &get_result_folder($sample);
+	my $qcstat = File::Spec->catfile($result_folder,"${sample}_qc_stat.txt");
+	my $alias = join("_",(map {basename $_->file()} $i->ancestor()));
+	unlink $qcstat or die "ERROR: Failed to remove $qcstat: $!" if -e $qcstat or -l $qcstat; #remove existing $qcstat since the following command append ouput to it (not overwrite)
+	push @commands, [$threads,"QC assesment on input",
+	    "$fastqc --extract ".
+	    ($threads >=2 ? " -t $threads ":" ").
+	    $i->file() ];
+	push @commands,[$threads,"Generate QC stat","$extractSummary ".$i->file()." $alias $qcstat"]; 
     }
 }
 
@@ -2020,6 +2019,11 @@ sub procBAM
 		    'filetype'	=> 'BAM',
 		    'sample'	=> $prefix_list[$i],
 		);
+		#only one sample is allowed in each BAM, so we can safely 
+		#assume only one sample here
+		my $sample_in_bam = &SeqMule::Utils::getBAMSample($samtools,$bam_list[$j]);
+		die "ERROR: prefix $prefix_list[$i] is not equal to sample $sample_in_bam found in $bam_list[$j]\n"
+		unless $prefix_list[$i] eq $sample_in_bam;
 		push @one_sample_input_bam,$obj;
 	    }
 	    $onebam->rg($readgroup[$i]) if ($force_one_rg);
@@ -2031,6 +2035,7 @@ sub procBAM
 	}
     } else
     {
+
 	if($prefix)
 	{
 	    $#bam_list==$#prefix_list 
@@ -2038,7 +2043,7 @@ sub procBAM
 	} else
 	{
 	    @prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} (split /,/,$bam); #in case the file is symbolic link
-	    die "ERROR: Duplicate BAM file name found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
+	    die "ERROR: Duplicate BAM sample found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
 	}
 
 	for my $i(0..$#prefix_list)
@@ -2049,6 +2054,11 @@ sub procBAM
 		'filetype'	=> 'BAM',
 		'sample'	=> $prefix_list[$i],
 	    );
+
+	    my $sample_in_bam = &SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
+	    die "ERROR: prefix $prefix_list[$i] is not equal to sample $sample_in_bam found in $bam_list[$i]\n"
+	    unless $prefix_list[$i] eq $sample_in_bam;
+
 	    $original_bam->ancestor($original_bam);
 	    my $newbam = $original_bam->gen_symlink(
 		File::Spec->catfile(
@@ -2308,17 +2318,16 @@ sub genScript
     &genStat() unless $nostat;
 #copy all results of each individual sample to one folder
 
-    unless ($noremove)
-    {
+    unless ($noremove) {
 	&keepUseful;
 	push @commands,[$threads, "Remove intermediate files","rm -f @removable"] if (@removable);
     }
-    if (@script_unlink_list)
-    {
+    if (@script_unlink_list) {
 	#-f makes rm keep silent if the file doesn't exist
 	push @commands,[$threads,"Remove temporary files","rm -rf @script_unlink_list"];
     }
 
+    !!!
     &writeLog;
     &genReport() unless ($nostat);
 
@@ -2371,79 +2380,49 @@ sub genReport
     !system("cp -f $advanced $param_file") and !system("cp -f $log $log_file") or die "Failed to copy configuration or log file: $!\n";
     push @commands,[$threads,"Generating html report","$html_gen $alias_string $outdir @prefix_list"];
 }
+#generate various stats used in reports
 sub genStat
 {
-    #Venn Diagram
-    for my $i(0..$#prefix_list)
-    {
-	my $sample=$prefix_list[$i];
+    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
+    my $seqmule=File::Spec->catfile($install_dir,"bin","seqmule");
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+
+    for my $sample(SeqMule::SeqUtils->get_attr_enum('sample',@obj_list)) {
+	my @per_sample_obj = grep {$_->sample() eq $sample} @obj_list;
 	my $result_folder = &get_result_folder($sample);
 	my ($qcstat,$stat_prefix);
-	$qcstat=File::Spec->catfile($result_folder,"${sample}_qc_stat.txt");
 	$stat_prefix=File::Spec->catfile($result_folder,$sample);
-	my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-	my $seqmule=File::Spec->catfile($install_dir,"bin","seqmule");
-	my $sample_in_bam;
-	if ($fq_toggle or $merge)
-	{
-	    $sample_in_bam=$sample;
-	} else
-	{
-	    #when merging is enabled, original BAMs have been replaced by merged BAMs,
-	    #which will be generated in execution phase
-	    $sample_in_bam=&SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
-	}
+	$qcstat=$stat_prefix."_qc_stat.txt";
 
-	#output FASTqc summary
-	{
-	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","convertQCstat");
-	    unlink $qcstat or die "Failed to remove $qcstat: $!" if -f $qcstat; #remove existing $qcstat since the following command append ouput to it (not overwrite)
-	    if ($fq_toggle)
-	    {
-		#only fastq input
-		# convertQCstat will append result to last argument
-		if ($merge)
-		{
-		    for my $j(0..$#fq1_list)
-		    {
-			push @commands,[$threads,"Generate QC stat","$exe $fq1_list[$j] ".$original_input{$fq1_list[$j]}." $qcstat"]; 
-			push @commands,[$threads,"Generate QC stat","$exe $fq2_list[$j] ".$original_input{$fq2_list[$j]}." $qcstat"] if $fq2_list[$j];
-		    }
-		} else
-		{
-		    push @commands,[$threads,"Generate QC stat","$exe $fq1_list[$i] ".$original_input{$fq1_list[$i]}." $qcstat"]; 
-		    push @commands,[$threads,"Generate QC stat","$exe $fq2_list[$i] ".$original_input{$fq2_list[$i]}." $qcstat"] if $fq2_list[$i];
-		}
-	    } else
-	    {
-		#only bam input, merge is done before QC
-		push @commands,[$threads,"Generate QC stat","$exe $bam_list[$i] ".$original_input{$bam_list[$i]}." $qcstat"]; 
-	    }
-	}
+	#QC stat is handled at &fastqc subroutine
 	#output venn diagram
-	if (my @venn_files= grep { /$result_folder/ } @vcf_files )
 	{
-	    if (@venn_files <= 5 && @venn_files >= 2)
-	    {
-		my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix -ref $local_ref ".($sample_in_bam?" -s $sample_in_bam ":"")];
-	    } else
-	    {
+	    #we don't include consensus results as they are extracted from other VCFs
+	    my @venn_obj = grep { $_->filetype eq 'VCF' and $_->caller ne 'consensus'} @per_sample_obj;
+	    my $cmd_common = "$seqmule stats -tmpdir $TMPDIR ".
+	    #each VCF may contain multiple samples
+	    #sample names will match samples associated with obj for FASTQ/BAM with/without merging
+	    " -prefix $stat_prefix -ref $local_ref -s $sample ";
+
+	    if(@venn_obj <= 5 && @venn_obj >=2) {
+		push @commands,[$threads,"Generate Venn digram","$cmd_common -venn ".join(',',(map {$_->file()} @venn_obj))];
+	    } else {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
 	    }
 	}
 	#output alignment and coverage statistics
-	if (my ($bam)=grep { /$result_folder/ } (@bam_for_aln_stat)) #only report one BAM
-	{
+	#only output statistics about one BAM, can be improved later
+	if (my ($bam_obj)=grep { $_->filetype eq 'BAM' } (@per_sample_obj)) {#only report one BAM 
+	    my $bam = $bam_obj->file();
 	    warn "NOTICE: SeqMule only reports statistics from ONE BAM file.\n";
-	    push @commands,[$threads,"Generate alignment and coverage stat","$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix -capture ".($wes?" $capture":"")];
+	    push @commands,[$threads,"Generate alignment and coverage stat",
+		"$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix -capture ".($wes?" $capture":"")];
 	}
-
 	#output variant statistics
-	if (my @vcf=grep { /$result_folder/ } (@consensus_vcf,@vcf_files))
-	{
+	if (my @vcf_obj = grep { $_->filetype eq 'VCF' } (@per_sample_obj)) {
+	    my @vcf = map{$_->file()} @vcf_obj;
 	    my $genVarStat=File::Spec->catfile($install_dir,"bin/secondary/genVarStat");
-	    push @commands,[$threads,"Generate variant stat","$genVarStat ".($sample_in_bam? " -s $sample_in_bam ":"")." $stat_prefix @vcf"];
+	    push @commands,[$threads,"Generate variant stat","$genVarStat -s $sample $stat_prefix @vcf"];
 	}
     }
 }
