@@ -7,13 +7,12 @@ use Carp;
 use SeqMule::Utils;
 
 #allowed filetypes
-my %FILETYPE = (BAM=>1,FASTQ=>1,VCF=>1);
 my $id = 0;
 sub new
 {
     my ($class,%arg)=@_;
 
-    $arg{'filetype'} =~ /FASTQ|BAM|VCF/ or croak ("filetype: FASTQ|BAM|VCF\n");
+    $arg{'filetype'} =~ /FASTQ|BAM|VCF|SOAPALN/ or croak ("filetype: FASTQ|BAM|VCF\n");
 
     #here, by using parent/child, we create a doubly linked list for each set of files
     #ancestor is the head

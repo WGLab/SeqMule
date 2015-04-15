@@ -698,7 +698,7 @@ sub soap
     my $sortsam=&getExe("SortSam.jar"); 
     my $java="java"; 
     my $local_real_index;
-    my $suffix = "soap";
+    my $aligner = "soap";
 
     if ($soap_index_prefix) 
     {
@@ -707,8 +707,7 @@ sub soap
 	    $local_real_index=$soap_index_prefix;
 	}
     }
-    else 
-    {
+    else {
 	my $hg18_pre="$HG18REF.index";
 	my $hg19_pre="$HG19REF.index";
 	my $default_index=File::Spec->catfile($install_dir,"database","soap",($buildver eq 'hg18'? $hg18_pre:$hg19_pre));
@@ -723,22 +722,27 @@ sub soap
     {
 	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my $local_sam="${local_prefix}_$suffix.sam";
-	my $local_bam="${local_prefix}_${suffix}.sort.bam";
-	my $unpaired="${local_prefix}_${suffix}_unpaired.soapout";
-	my $unmapped="${local_prefix}_${suffix}_unmapped.soapout";
-	my $alnfile="${local_prefix}_${suffix}.soapaln";
+	my $local_sam="${local_prefix}_$aligner.sam";
+	my $local_bam="${local_prefix}_${aligner}.sort.bam";
+	my $unpaired="${local_prefix}_${aligner}_unpaired.soapout";
+	my $unmapped="${local_prefix}_${aligner}_unmapped.soapout";
+	my $alnfile="${local_prefix}_${aligner}.soapaln";
 	my @local_fq_obj = ($i,$i->sibling());
 	my @local_fq;
 	my $local_bam_obj = $i->clone();
+	my $local_soapaln_obj = $i->clone();
 	my $cmd;
 
 	push @local_fq,map {$_->file()} (@local_fq_obj);
 	$local_bam_obj->file($local_bam);
 	$local_bam_obj->parent(@local_fq_obj);
 	$local_bam_obj->filetype('BAM');
-	map{$_->child($local_bam_obj)} (@local_fq_obj);
-	$soapaln_sample{$alnfile}=$local_bam_obj->sample();
+	$local_bam_obj->aligner($aligner);
+	$local_soapaln_obj->file($alnfile);
+	$local_soapaln_obj->parent(@local_fq_obj);
+	$local_soapaln_obj->filetype('SOAPALN');
+	$local_soapaln_obj->aligner($aligner);
+	map{$_->child($local_bam_obj,$local_soapaln_obj)} (@local_fq_obj);
 
 	$cmd.=" $runsoap ";
 	$cmd.=" -soap $exe ";
@@ -756,23 +760,16 @@ sub soap
 	$cmd.=" -soap2sam $exe_soap2sam ";
 	$cmd.=" -threads $threads";
 	$cmd.=" -unmapped $unmapped";
-	if (@local_fq == 2) 
-	{    
+	if (@local_fq == 2) {    
 	    $cmd.=" -fq $local_fq[0] -fq $local_fq[1] -soapaln $alnfile -unpaired $unpaired";
-	}
-	else 
-	{
+	} else {
 	    $cmd.="-fq $local_fq[0] -soapaln $alnfile";
 	}
 	push @commands,[$threads,"SOAP2 alignment",$cmd];
 
-	#for sOAP alignment output, we will keep it in a list
-	#instead of an obj as analysis on it is pretty simple
-	#only SOAPsnp can handle it.
-	push @soapaln_file,$alnfile;
-	push @script_unlink_list,$local_sam;
-	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
+	push @script_unlink_list,$local_sam,$unpaired,$unmapped;
+	push @obj_list,$local_bam_obj,$local_soapaln_obj;
+	push @removable,$local_bam,$alnfile;
     }
 } 
 sub samtools
@@ -1614,34 +1611,54 @@ sub gen_cmd_for_variant_call_task
 }
 sub soapsnp
 {
+    warn "soapsnp cmd generation\n" if $verbose;
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
-    warn "soapsnp cmd generation\n" if $verbose;
-    push @callers,"soapsnp";
     my $soapsnp=&getExe(&SeqMule::Utils::getProgramExe("soapsnp"));
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $soapsnp2vcf=File::Spec->catfile($install_dir,"bin","soapsnp2vcf");
     my $msort=&getExe("msort");
     my $runSoapsnp=File::Spec->catfile($install_dir,"bin","secondary","runSOAPSNP");
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my ($bam)= grep {/_soap/} @bam_files;
-
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+    my $cmd_common .= "$runSoapsnp -advanced $advanced -n $n -msort $msort -soapsnp $soapsnp -samtools $samtools -soapsnp2vcf $soapsnp2vcf -ref $local_ref ";
+    my $caller = "soapsnp";
 
-    for my $soap_file(@soapaln_file) 
+    for my $soap_obj(@obj_list) 
     {
-	my ($local_prefix)=$soap_file=~/(.*)\.soapaln$/i; 
-	my $outfile="${local_prefix}_soapsnp.consensus"; push @removable,$outfile;
-	my $vcf="${local_prefix}_soapsnp.filter.vcf"; push @removable,$vcf;
-	my $sorted="${local_prefix}.sort.soapaln"; push @removable,$sorted;
-	my $sample=$soapaln_sample{$soap_file};
+	next unless $soap_obj->filetype() eq 'SOAPALN';
+	my $soap_file = $soap_obj->file();
+	my ($local_prefix) = $soap_file=~/(.*)\.soapaln$/i; 
+	my $outfile = "${local_prefix}_$caller.consensus"; 
+	my $vcf = "${local_prefix}_$caller.filter.vcf"; 
+	my $sorted = "${local_prefix}.sort.soapaln"; 
+	my $sample = $soap_obj->sample();
+	my ($bam_obj) = grep {$_->sample() eq $sample and $_->filetype() eq 'BAM'} @obj_list;
+	my $new_vcf_obj = $soap_obj->clone();
+	my $new_soapaln_obj = $soap_obj->clone();
 	my $cmd;
 
-	$cmd.="$runSoapsnp -advanced $advanced -n $n -msort $msort -soapsnp $soapsnp -samtools $samtools -soapsnp2vcf $soapsnp2vcf -in $soap_file -bam $bam -sample $sample -sorted $sorted -ref $local_ref ";
+	$new_vcf_obj->caller($caller);
+	$new_vcf_obj->file($vcf);
+	$new_soapaln_obj->file($sorted);
+	$new_vcf_obj->filetype('VCF');
+	$new_soapaln_obj->filetype('SOAPALN');
+	$new_vcf_obj->parent($soap_obj);
+	$new_soapaln_obj->parent($soap_obj);
+	$soap_obj->child($new_soapaln_obj,$new_vcf_obj);
 
+	$cmd .= $cmd_common;
+	$cmd .= " -in $soap_file ";
+	$cmd .= " -bam ".$bam_obj->file();
+	$cmd .= " -sample $sample ";
+	$cmd .= " -sorted $sorted ";
 	$cmd.=" -soapsnp-out $outfile -vcf $vcf ";
-	push @commands,[$local_threads,"SOAPsnp variant calling",$cmd];$cmd="";
-	push @vcf_files,$vcf;
+
+	push @commands,[$local_threads,"SOAPsnp variant calling",$cmd];
+	push @script_unlink_list,$outfile;
+	push @obj_list,$new_vcf_obj;
+	#the unsorted soapaln file is no longer usefu
+	$soap_obj = $new_soapaln_obj;
     }
 } 
 
