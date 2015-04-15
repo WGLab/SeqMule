@@ -2491,35 +2491,47 @@ sub mergeVCF
 
 sub getConsensusCall
 {
-
     #merge vcfs by prefix (samplename)
     my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
-    for my $sample(@prefix_list)
-    {
-	my $outdir="${sample}_result";
-	my @one_sample_var=grep { /$outdir/ } @vcf_files;
-	my $out=File::Spec->catfile($outdir,${sample}.($wes? ".extract":"")."_consensus.vcf" );
-	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-	my $cmd;
+    #we regarde "consensus" as a calling method
+    my $caller = "consensus";
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+    my $cmd_common = "$exe stats -tmpdir $TMPDIR -ref $local_ref ".
+    " -jmem $java_mem ".
+    " -t ".($threads>$gatk_nt? $gatk_nt:$threads); #use smaller one
+    $cmd_common .= " -N $minN" if $minN;
 
-	next unless @one_sample_var>1;#at least two files must exist to extract consensus calls
+    for my $sample(SeqMule::SeqUtils->get_attr_enum('sample',@obj_list)) {
+	my @vcf_obj = grep {$_->sample eq $sample and $_->filetype eq 'VCF'} @obj_list;
+
+	#at least 2 VCFs are required for each sample to get consensus
+	next unless @vcf_obj>1;
 	warn
 	"WARNING: user requests to extract consensus calls from at least $minN files,\n",
-	"WARNING: but there only ",scalar(@one_sample_var)," files.\n" 
-	    and next
-	if $minN && @one_sample_var<$minN;
+	"WARNING: but there are only ",scalar(@vcf_obj)," files.\n" and next
+	if $minN && @vcf_obj<$minN;
 
-	$cmd=
-	"$exe stats -tmpdir $TMPDIR -ref $local_ref".
-	" -jmem $java_mem".
-	" -t ".($threads>$gatk_nt? $gatk_nt:$threads). #use smaller one
-	" -c-vcf ".join(",",@one_sample_var).
-	" -p ".
-	File::Spec->catdir($outdir,$sample).
-	($wes? ".extract":"");
-	$cmd.=" -N $minN" if $minN;
+	my $outdir = &get_result_folder($sample);
+	#this is used for seqmule stats command
+	my $out_prefix = File::Spec->catfile($outdir,${sample}.($wes? ".extract":""));
+	my $out = $out_prefix."_consensus.vcf";
+	my $new_vcf_obj = $vcf_obj[0]->clone();
+
+	$new_vcf_obj->caller($caller);
+	$new_vcf_obj->parent(@vcf_obj);
+	$new_vcf_obj->file($out);
+	map {$_->child($new_vcf_obj) } @vcf_obj;
+
+	my $cmd = $cmd_common;
+	$cmd .= " -c-vcf ".join(",",map{$_->file()} @vcf_obj).
+	$cmd .= " -p $out_prefix ";
 	push @commands,[$threads,"Extract consensus calls",$cmd];
-	push @consensus_vcf,$out;
+	push @obj_list,$new_vcf_obj;
+	#right now we keep all VCFs
+	#SeqMule::SeqUtils->rmObjFromArray(
+	#    target=>\@vcf_obj,
+	#    all=>\@obj_list,
+	#);
     }
 }
 
@@ -2611,7 +2623,6 @@ sub parsePipeline
     close OUT;
 
     #complain about some particular configuration
-    !!!
     if ( $merge && grep {/soap/} (SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)) )
     {
 	die "ERROR: SOAPaligner alignments cannot be merged.\n";
@@ -2657,26 +2668,26 @@ sub convert64to33
 sub get_result_folder
 {
     my $sample = shift;
-    my $istumor = shift;
     my $result_folder="${sample}_result";
     mkdir $result_folder unless -d $result_folder;
-    if($somatic_toggle)
-    {
-	if($istumor)
-	{
-	    my $tumor_result_folder=File::Spec->catdir($result_folder,"${sample}_tumor_result");
-	    mkdir $tumor_result_folder unless -d $tumor_result_folder;
-	    return $tumor_result_folder;
-	} else
-	{
-	    my $normal_result_folder=File::Spec->catdir($result_folder,"${sample}_normal_result");
-	    mkdir $normal_result_folder unless -d $normal_result_folder;
-	    return $normal_result_folder;
-	}
-    } else
-    {
+    #my $istumor = shift;
+    #if($somatic_toggle)
+    #{
+    #    if($istumor)
+    #    {
+    #        my $tumor_result_folder=File::Spec->catdir($result_folder,"${sample}_tumor_result");
+    #        mkdir $tumor_result_folder unless -d $tumor_result_folder;
+    #        return $tumor_result_folder;
+    #    } else
+    #    {
+    #        my $normal_result_folder=File::Spec->catdir($result_folder,"${sample}_normal_result");
+    #        mkdir $normal_result_folder unless -d $normal_result_folder;
+    #        return $normal_result_folder;
+    #    }
+    #} else
+    #{
 	return $result_folder;
-    }
+	#}
 }
 sub merge_bam
 {
