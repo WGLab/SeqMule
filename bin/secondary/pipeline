@@ -2449,73 +2449,43 @@ sub genStat
 }
 sub mergeVCF
 {
-    #merge all VCFs by original bam file and callers
-    if ($quick)
+    #merge VCF because variants are called over different regions
+    #under quick mode
+    #all VCFs that are supposed to be merged into one VCF
+    #are siblings to each other
+    for my $vcf_obj(@obj_list)
     {
-	my @merged_vcf;
-	#merge all VCFs by signature
-	for my $bam(@bam_files)  #original_bam is for non-gatk variant callers
-	{
-	    my $dir=dirname $bam;
-	    my $base=basename $bam;
-	    $base=~s/\.bam$//i or die "Unknown file type: $base";
-	    my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
+	next unless $vcf_obj->rank == 0 and 
+	$vcf_obj->filetype eq 'VCF' and
+	$vcf_obj->siblings > 1;
 
-	    for my $caller (@callers)
-	    {
-		next if $caller eq 'soapsnp'; #do nothing for SOAPsnp
-		next if $original_bam_toggle{$caller}; #if true, variant calling is performed on original BAM files (norealign, no recal)
-		my @one_set_vcf = grep { /_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files; #use underscore to avoid possible naming conflicts with user supplied prefix
-		next unless @one_set_vcf>1; #if only one vcf, no need to merge
-		#if we decide to merge, remove the VCFs to be merged from VCF pool
-		@vcf_files = grep { !/_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files; #use underscore to avoid possible naming conflicts with user supplied prefix
+	my @sibling_vcf_obj = ($vcf_obj,$vcf_obj->siblings());
+	#if we decide to merge, remove the VCFs to be merged from VCF pool
+	SeqMule::SeqUtils->rmObjFromArray(
+	    target=>\@sibling_vcf_obj,
+	    all=>\@obj_list,
+	);
+	my ($local_prefix) = $vcf_obj->file() =~ /(.*?)\.vcf$/i;
+	my $merged_vcf_obj = $vcf_obj->clone();
+	my $expect_merged_vcf_obj = $vcf_obj->clone();
+	my $out_file="${local_prefix}_union.vcf";
+	my $expect_out_file="$local_prefix.vcf";
 
-		# $out_prefix might contain path
-		my $out_prefix=basename $one_set_vcf[0]; 
-		$out_prefix =~ s/.*_\d+_\.($base.*)\.vcf$/$1/i or die "ERROR: NO VCF file or unexpected file name under quick mode: $out_prefix\n";
-		$out_prefix=File::Spec->catfile($dir,$out_prefix);
+	$merged_vcf_obj->file($out_file);
+	$merged_vcf_obj->parent(@sibling_vcf_obj);
+	$expect_merged_vcf_obj->file($expect_out_file);
+	$expect_merged_vcf_obj->parent($merged_vcf_obj);
+	map {$_->child($merged_vcf_obj)} @sibling_vcf_obj;
 
-		my $out_file="${out_prefix}_union.vcf";
-		my $expect_out_file="$out_prefix.vcf";
+	push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($local_prefix,map{$_->file()}@sibling_vcf_obj)];
+	push @commands,[$threads,"Rename VCF","mv -f $out_file $expect_out_file"];
 
-		push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($out_prefix,@one_set_vcf)];
-		push @commands,[$threads,"Rename VCF","mv $out_file $expect_out_file"];
-		push @merged_vcf,$expect_out_file;
-		push @script_unlink_list,@one_set_vcf;
-		push @script_unlink_list,(map {"$_.idx"} @one_set_vcf);
-	    }
-	}
-	for my $bam(@original_bam_files)  #original_bam is for non-gatk variant callers
-	{
-	    my $dir=dirname $bam;
-	    my $base=basename $bam;
-	    $base=~s/\.bam$//i or die "Unknown file type: $base";
-	    my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
-
-	    for my $caller (@callers)
-	    {
-		next if $caller eq 'soapsnp'; #do nothing for SOAPsnp
-		next unless $original_bam_toggle{$caller}; #only do this for variants from original BAM
-		my @one_set_vcf = grep { /_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files; #use underscore to avoid possible naming conflicts with user supplied prefix
-		next unless @one_set_vcf>1;
-		#if we decide to merge, remove the VCFs to be merged from VCF pool
-		@vcf_files = grep { !/_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files;
-
-		# $out_prefix might contain path
-		my $out_prefix=basename $one_set_vcf[0]; 
-		$out_prefix =~ s/.*_\d+_\.($base.*)\.vcf$/$1/i or die "ERROR: NO VCF file or unexpected file name under quick mode: $out_prefix\n";
-		$out_prefix=File::Spec->catfile($dir,$out_prefix);
-
-		my $out_file="${out_prefix}_union.vcf";
-		my $expect_out_file="$out_prefix.vcf";
-
-		push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($out_prefix,@one_set_vcf)];
-		push @commands,[$threads,"Rename VCF","mv $out_file $expect_out_file"];
-		push @merged_vcf,$expect_out_file;
-		push @script_unlink_list,@one_set_vcf;
-	    }
-	}
-	@vcf_files=(@vcf_files,@merged_vcf); #update global vcf file list
+	push @obj_list,$expect_merged_vcf_obj;
+	#only siblings here!!, why?
+	#the vcf_obj->file() will be used as name of merged VCF
+	#so we need to keep it
+	push @script_unlink_list,(map{$_->file()} $vcf_obj->sibling());
+	push @script_unlink_list,(map {"$_.idx"} (map{$_->file()} @sibling_vcf_obj));
     }
 }
 
@@ -2557,16 +2527,27 @@ sub extractVar
 {
     #extract variants in BED region
     my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
+    my $cmd_common="$exe stats -tmpdir $TMPDIR ";
+    $cmd_common .= " -capture $capture " if $wes;
     #1.vcf => 1.extract.vcf (seqmule stats default naming rule)
-    for my $vcf(@vcf_files)
+    for my $vcf_obj(@obj_list)
     {
-	if ($vcf=~/(.*)\.vcf$/i)
+	next unless $vcf_obj->filetype eq 'VCF';
+	my $vcf = $vcf_obj->file();
+	if ($vcf =~ /(.*)\.vcf$/i)
 	{
-	    my $out="$1.extract.vcf";
 	    my $local_prefix=$1;
-	    my $cmd="$exe stats -tmpdir $TMPDIR -capture $capture -vcf $vcf -p $local_prefix";
+	    my $out="$local_prefix.extract.vcf";
+	    my $new_vcf_obj = $vcf_obj->clone();
+	    $new_vcf_obj->file($out);
+	    $new_vcf_obj->parent($vcf_obj);
+	    $vcf_obj->child($new_vcf_obj);
+
+	    my $cmd = $cmd_common;
+	    $cmd .= " -vcf $vcf -p $local_prefix";
 	    push @commands,[$threads,"Extract variants in custom regions",$cmd];
-	    $vcf=$out;
+	    $vcf_obj = $new_vcf_obj;
+	    push @removable,$vcf;
 	} else
 	{
 	    die "ERROR: Failed to get VCF prefix (*.vcf format expected): $vcf\n";
