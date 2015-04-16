@@ -1869,6 +1869,8 @@ sub reportParam
 sub writeLog
 {
     $log="$analysis_prefix.log";
+    my @callers = SeqMule::SeqUtils->get_attr_enum('caller',@obj_list);
+    my @aligners = SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list);
     warn "NOTICE: log file will be overwritten: $log\n" if -f $log;
     open LOG,'>',$log or die "Failed to write to $log: $!\n";
 
@@ -1879,15 +1881,15 @@ sub writeLog
     {
 	if ($multi_sample_calling)
 	{
-	    print LOG "Multi-sample variant calling ENABLED, assume all samples in the same breed.\n";
+	    print LOG "Multi-sample variant calling ENABLED.\n";
 	} else
 	{
-	    print LOG "Multi-sample variant calling DISABLED, assume all samples in the same breed.\n";
+	    print LOG "Multi-sample variant calling DISABLED.\n";
 	}
     }
     print LOG "Input is exome (or captured) sequencing data.\n" if $wes;
     print LOG "Input is whole genome sequencing data.\n" if $wgs;
-    print LOG scalar @callers," variant caller(s) used: ",join(" ",&SeqMule::Utils::callers2names(@callers)),"\n" if @callers;
+    print LOG scalar @callers," variant caller(s) used: ",join(" ",&SeqMule::Utils::callers2names(@callers),"\n" if @callers;
     print LOG scalar @aligners," aligner(s) used: @aligners\n" if @aligners;
     print LOG "Variants shared by at least $minN combinations of aligners and callers are printed.\n" if $minN;
     print LOG "File used for caculating coverage statistics and extracting variants: ",(basename $capture),"\n" if $wes;
@@ -1898,13 +1900,12 @@ sub writeLog
     print LOG "dbsnp$dbsnpver is used for variant calling and recalibration (in GATK VQSR).\n";
     print LOG "Java memory usage is limited to $java_mem\n";
     print LOG "Max number of processes: $threads\n";
-    if ($fq_toggle)
-    {
+    if ($fq_toggle) {
 	$paired ? print LOG "Two INPUT files detected, PAIRED ends mode\n" : print LOG "SINGLE end mode\n";
     }
     print LOG "Variant calling are run in parallel mode [EXPERIMENTAL].\n" if $quick;
 
-    for my $sample(@prefix_list)
+    for my $sample(SeqMule::SeqUtils->get_attr_enum('sample',@obj_list))
     {
 	my $result_folder = &get_result_folder($sample);
 
@@ -1913,9 +1914,15 @@ sub writeLog
 	print LOG "###################################################\n";
 	print LOG "NOTICE: Both consensus results and individual results are listed.\n";
 	print LOG "WARNING: consensus results may not be available because some variant callers or aligners may fail to generate output.\n";
-	print LOG join "\n", grep {/$result_folder/} @consensus_vcf;
+	print LOG join "\n", grep {$_->caller eq 'consensus' &&
+				   $_->filetype eq 'VCF' &&
+				   $_->sample eq $sample
+				   } @obj_list;
 	print LOG "\n";
-	print LOG join "\n", grep {/$result_folder/} @vcf_files;
+	print LOG join "\n", grep {$_->caller ne 'consensus' &&
+				   $_->filetype eq 'VCF' &&
+				   $_->sample eq $sample
+				   } @obj_list;
 	print LOG "\n";
     }
     print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
@@ -2327,10 +2334,8 @@ sub genScript
 	push @commands,[$threads,"Remove temporary files","rm -rf @script_unlink_list"];
     }
 
-    !!!
     &writeLog;
     &genReport() unless ($nostat);
-
     #generate analysis script
     &writeScript();
 }
@@ -2371,14 +2376,11 @@ sub genReport
     my $param_file=File::Spec->catfile($outdir,"parameter.txt");
     my $log_file=File::Spec->catfile($outdir,"log.txt");
     my $html_gen=File::Spec->catfile($install_dir,"bin","secondary","html_gen");
-    my $alias_string=join (" ", 
-	map { " alias $_ $original_input{$_} " } (keys %original_input) 
-    );
     mkdir $outdir unless -d $outdir;
 
     warn "NOTICE: copying configuration file and log file.\n";
     !system("cp -f $advanced $param_file") and !system("cp -f $log $log_file") or die "Failed to copy configuration or log file: $!\n";
-    push @commands,[$threads,"Generating html report","$html_gen $alias_string $outdir @prefix_list"];
+    push @commands,[$threads,"Generating html report","$html_gen $outdir @prefix_list"];
 }
 #generate various stats used in reports
 sub genStat
