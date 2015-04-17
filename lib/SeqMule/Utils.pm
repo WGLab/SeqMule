@@ -1580,27 +1580,38 @@ sub splitRegion
 sub fa2BED
 {
     my $fa=shift;
+    my $idx = "$fa.fai";
     my @content;
-    open IN,'<',$fa or die "ERROR: Failed to read $fa: $!\n";
-    my $len=0;
-    while(<IN>)
-    {
-	if (/^>(\S+)/)
-	{
-	    if ($len!=0)
-	    {
-		push @{$content[$#content]},$len;
-		$len=0;
-	    }
-	    push @content,[$1,0];
-	} else
-	{
-	    chomp;
-	    $len+=length;
+    #get contig length from .fai
+    if( -f &abs_path_failsafe($idx)) {
+	my %contig=&readFastaIdx($idx);
+	for my $i(keys %contig) {
+	    push @content,[$i,0,$contig{$i}->{length}];
 	}
     }
-    push @{$content[$#content]},$len;
-    close IN;
+
+    #get contig length from FASTA
+    if(@content == 0) {
+	open IN,'<',$fa or die "ERROR: Failed to read $fa: $!\n";
+	my $len=0;
+	while(<IN>) {
+	    if (/^>(\S+)/) {
+		if ($len!=0) {
+		    #update previous contig length
+		    push @{$content[$#content]},$len;
+		    $len=0;
+		}
+		#set contig name and lower boundary
+		push @content,[$1,0];
+	    } else {
+		chomp;
+		#record length
+		$len+=length;
+	    }
+	}
+	push @{$content[$#content]},$len;
+	close IN;
+    }
     return &genBED(\@content);
 }
 

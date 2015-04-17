@@ -52,13 +52,22 @@ sub new
     }, $class;
 }
 
+sub dump
+{
+    my $self = shift;
+    while (my ($key,$value) = each %{$self}) {
+	print "$key:$value ";
+    }
+    print "\n";
+}
 sub get_attr_enum
 {
     #add get_attr_enum method for obtaining all different values of a particular
     #attribute across all objects
     my ($class,$attr,@obj) = @_;
-
-    return &SeqMule::Utils::uniq(map {$_->{$attr}} @obj);
+    my @enum = &SeqMule::Utils::uniq(map {$_->{$attr}} @obj);
+    @enum = grep {$_} @enum; #try to get rid of empty strings, undef
+    return @enum;
 }
 sub aligner
 {
@@ -190,12 +199,9 @@ sub rmObjFromArray
     my $target = $opt{target};
     my $all = $opt{all};
 
-    for my $i(@$target)
-    {
-	for my $j(@$all)
-	{
-	    if($i->id() == $j->id())
-	    {
+    for my $i(@$target) {
+	for my $j(@$all) {
+	    if(defined $j && $i->id() == $j->id()) {
 		$j = undef;
 	    }
 	}
@@ -218,7 +224,7 @@ sub rmSelf
     }
     @newarray = grep {defined $_ } @newarray;
 
-    $self->_setAttr($attr,@newarray);
+    $self->_setAttr($attr,[@newarray]);
 }
 sub rmObjArrayDup
 {
@@ -239,7 +245,7 @@ sub rmObjArrayDup
     }
     @newarray = grep {defined $_ } @newarray;
 
-    $self->_setAttr($attr,@newarray);
+    $self->_setAttr($attr,[@newarray]);
 }
 sub rmArrayDup
 {
@@ -259,7 +265,7 @@ sub rmArrayDup
     }
     @newarray = grep {defined $_ } @newarray;
 
-    $self->_setAttr($attr,@newarray);
+    $self->_setAttr($attr,[@newarray]);
 }
 sub ancestor
 {
@@ -269,7 +275,7 @@ sub ancestor
     $self->rmObjArrayDup('ancestor');
     if(@ancestor > 0)
     {
-	push @{$self->{ancestor}},@ancestor;
+	$self->_setAttr('ancestor',[@ancestor]);
     } else
     {
 	return @{$self->{ancestor}};
@@ -285,7 +291,7 @@ sub sibling
     $self->rmSelf('sibling');
     if(@sibling > 0)
     {
-	push @{$self->{sibling}},@sibling;
+	$self->_setAttr('sibling',[@sibling]);
     } else
     {
 	return @{$self->{sibling}};
@@ -299,7 +305,7 @@ sub parent
     $self->rmObjArrayDup('parent');
     if(@parent > 0)
     {
-	push @{$self->{parent}},@parent;
+	$self->_setAttr('parent',[@parent]);
     } else
     {
 	return @{$self->{parent}};
@@ -313,7 +319,7 @@ sub child
     $self->rmObjArrayDup('child');
     if(@child > 0)
     {
-	push @{$self->{child}},@child;
+	$self->_setAttr('child',[@child]);
     } else
     {
 	return @{$self->{child}};
@@ -321,10 +327,12 @@ sub child
 }
 sub _setAttr
 {
-    #get or set parent (where current obj comes from)
+    #erase everything existing
+    #set attr to specified arguments
     my $self = shift;
     my $attr = shift;
-    $self->{$attr} = [@_];
+    my $value = shift;
+    $self->{$attr} = $value;
 }
 sub istumor
 {
@@ -394,10 +402,10 @@ sub clone
     my $copy = bless dclone({%$self}), ref $self;
 
     #do a shallow copy here, we don't dereference the obj list in parent/child/ancestor/sibling
-    $copy->_setAttr('parent',$self->parent());
-    $copy->_setAttr('child',$self->child());
-    $copy->_setAttr('ancestor',$self->ancestor());
-    $copy->_setAttr('sibling',$self->sibling());
+    $copy->parent($self->parent());
+    $copy->child($self->child());
+    $copy->ancestor($self->ancestor());
+    $copy->sibling($self->sibling());
 
     $copy->rank(0);
     $copy->_modID($id++);
@@ -405,6 +413,9 @@ sub clone
 }
 sub _modID
 {
+    #change ID to specified value
+    #ID is maintained internally, so
+    #users should not use this method
     my $self = shift;
     my $id_value = shift;
     if(defined $id_value)
