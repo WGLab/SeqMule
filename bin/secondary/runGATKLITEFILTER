@@ -30,7 +30,7 @@ my @vcf;
 
 GetOptions(
     #input and output
-    'capture=s'		=>	\$capture,
+    'bed=s'		=>	\$capture,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
@@ -44,19 +44,9 @@ GetOptions(
     'hapmap=s'		=>	\$hapmap,
     'goldindel=s'	=>	\$goldindel,
     'bam=s'		=>	\@bam, #specify it multiple times
-    'indel=s'		=>	\$indel,
-    'indel-filter=s'	=>	\$indel_filter,
-    'snp=s'		=>	\$snp,
-    'snp-filter=s'	=>	\$snp_filter,
     'vcf=s'		=>	\$vcf,
     'vcf-part=s'	=>	\@vcf,
     'vcf-filter=s'	=>	\$vcf_filter,
-    'tranches=s'	=>	\$tranches,
-    'recal-file=s'	=>	\$recal_file,
-    'plots=s'		=>	\$plots,
-    'indel-tranches=s'	=>	\$indel_tranches,
-    'indel-recal-file=s'=>	\$indel_recal_file,
-    'indel-plots=s'	=>	\$indel_plots,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
     'tmpdir=s'		=>	\$tmpdir,
@@ -71,7 +61,26 @@ my %options=%{ $steps[$n-1][2] };
 
 my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
 my @cmd;
+my @remove;
 my $java_opt = "$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $gatk";
+
+#figure out temp file names
+#they will be removed later
+{
+    my ($local_prefix)= File::Spec->catfile($tmpdir,rand($$).".gatklite.tmp");
+    $indel="${local_prefix}_gatklite.indel.vcf";
+    $indel_filter="${local_prefix}_gatklite.indel.filter.vcf";
+    $snp="${local_prefix}_gatklite.snp.vcf";
+    $snp_filter="${local_prefix}_gatklite.snp.filter.vcf";
+    $indel_tranches="${local_prefix}_gatklite.indel.tranches";
+    $indel_recal_file="${local_prefix}_gatklite.indel_recal"; 
+    $indel_plots="${local_prefix}_gatklite.indel.plots.R"; 
+    $tranches="${local_prefix}_gatklite.tranches";
+    $recal_file="${local_prefix}_gatklite.snp_recal";
+    $plots="${local_prefix}_gatklite.plots.R";
+
+    push @remove,$indel,$indel_filter, $snp, $snp_filter, $indel_tranches, $indel_recal_file, $indel_plots, $tranches, $recal_file, $plots;
+}
 
 if (@vcf && @vcf>1)
 {
@@ -187,6 +196,7 @@ if ($options{filter}==1)
     push @cmd,"$java_opt -T CombineVariants -R $ref --variant $snp_filter --variant $indel_filter -o $vcf_filter ".($capture? " -L $capture":"");
 }
 
+=head
 #make a copy of final_vcf for each sample, with "multi-call" keyword
 if (@bam>1)
 {
@@ -199,6 +209,7 @@ if (@bam>1)
 	push @cmd,"cp $final_vcf $out";
     }
 }
+=cut
 
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);

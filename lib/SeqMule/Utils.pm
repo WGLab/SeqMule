@@ -10,19 +10,20 @@ use File::Basename qw/basename/;
 use Cwd qw/cwd abs_path/;
 use Carp qw/carp croak/;
 no warnings 'File::Find';
+use SeqMule::SeqUtils;
 
 
-	    sub get_rank_by_mergingrule
-	    {
-		#given index for sample, index for file, and merging rule
-		#return rank of that file in all files belonging to that sample
-		my $i = shift;
-		my $j = shift;
-		my @mergingrule = @_;
-		my $return = $j-&sum(@mergingrule[0..$i-1]);
-		$return = 0 unless $return;
-		return $return;
-	    }
+sub get_rank_by_mergingrule
+{
+    #given index for sample, index for file, and merging rule
+    #return rank of that file in all files belonging to that sample
+    my $i = shift;
+    my $j = shift;
+    my @mergingrule = @_;
+    my $return = $j-&sum(@mergingrule[0..$i-1]);
+    $return = 0 unless $return;
+    return $return;
+}
 sub gen_idx_range_by_mergingrule
 {
     #given index of sample and merging rule
@@ -1483,7 +1484,8 @@ sub checkDuplicateRGID
 #prepare @RG
     for my $bam(@bam)
     {
-	my %onebam_rg=&getRG($samtools,$bam);
+	#here BAM is an object
+	my %onebam_rg=&getRG($samtools,$bam->file());
 	for my $id(keys %onebam_rg)
 	{
 	    warn "WARNING: Duplicate readgroup ID found: $id.\n" and return 1 if defined $rgid{$id};
@@ -1578,27 +1580,38 @@ sub splitRegion
 sub fa2BED
 {
     my $fa=shift;
+    my $idx = "$fa.fai";
     my @content;
-    open IN,'<',$fa or die "ERROR: Failed to read $fa: $!\n";
-    my $len=0;
-    while(<IN>)
-    {
-	if (/^>(\S+)/)
-	{
-	    if ($len!=0)
-	    {
-		push @{$content[$#content]},$len;
-		$len=0;
-	    }
-	    push @content,[$1,0];
-	} else
-	{
-	    chomp;
-	    $len+=length;
+    #get contig length from .fai
+    if( -f &abs_path_failsafe($idx)) {
+	my %contig=&readFastaIdx($idx);
+	for my $i(keys %contig) {
+	    push @content,[$i,0,$contig{$i}->{length}];
 	}
     }
-    push @{$content[$#content]},$len;
-    close IN;
+
+    #get contig length from FASTA
+    if(@content == 0) {
+	open IN,'<',$fa or die "ERROR: Failed to read $fa: $!\n";
+	my $len=0;
+	while(<IN>) {
+	    if (/^>(\S+)/) {
+		if ($len!=0) {
+		    #update previous contig length
+		    push @{$content[$#content]},$len;
+		    $len=0;
+		}
+		#set contig name and lower boundary
+		push @content,[$1,0];
+	    } else {
+		chomp;
+		#record length
+		$len+=length;
+	    }
+	}
+	push @{$content[$#content]},$len;
+	close IN;
+    }
     return &genBED(\@content);
 }
 

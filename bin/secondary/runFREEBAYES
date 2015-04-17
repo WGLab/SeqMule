@@ -14,6 +14,7 @@ use Getopt::Long qw/GetOptions/;
 my ($advanced,$n,$help,
     $bed,$freebayes,$samtools,
     $vcf_sort,$ref,$vcf_filter,$tmpdir,);
+my @bam;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
@@ -24,7 +25,8 @@ GetOptions(
     'samtools=s'	=>	\$samtools,
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
-    'vcf=s'		=>	\$vcf_filter,
+    'bam=s'		=>	\@bam,
+    'vcf-filter=s'	=>	\$vcf_filter,
     'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
@@ -32,7 +34,6 @@ GetOptions(
 $help and pod2usage ({-verbose=>1});
 
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
-my @bam=@ARGV;
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
@@ -55,6 +56,7 @@ $cmd.=" | $vcf_sort -tmpdir $tmpdir -contig-bed $contig_bed > $vcf_filter ";
 
 push @cmd,$cmd;$cmd="";
 
+=head
 if (@bam>1) #multi-sample calling
 {
     for (@bam)
@@ -69,6 +71,7 @@ if (@bam>1) #multi-sample calling
 	push @cmd,"cp $vcf_filter $out_filter";
     }
 }
+=cut
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
@@ -94,7 +97,7 @@ Options:
     'freebayes=s'	=>	\$freebayes,
     'vcf-sort=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
-    'vcf=s'		=>	\$vcf_filter,
+    'vcf-filter=s'	=>	\$vcf_filter,
     'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,

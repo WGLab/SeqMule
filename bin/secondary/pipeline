@@ -21,8 +21,10 @@ use File::Copy qw/copy move/;
 use File::Basename qw/basename dirname/;
 use SeqMule::Utils;
 use SeqMule::Parallel;
+use SeqMule::SeqUtils;
 
 #CONSTANTS
+my $PHRED_SCORE_CHECK_LINECOUNT = 1000;
 my $HG18REF="human_b36_both.fasta";
 my $HG19REF="human_g1k_v37.fasta";
 my $GATKLITE_HARD_FILTER_BAM_SIZE=1_000_000_000; #in bytes, BAM files smaller than it will be subject to SNP hard filtering instead of VQSR
@@ -62,24 +64,22 @@ my @library;
 my @platform;
 
 #intermediate files
+my @obj_list;
 my @bam_files; #intermediate BAM files
-my @original_bam_files; #initial BAM files from aligners
 my @soapaln_file;
 my @vcf_files;
 my @consensus_vcf;
 my @presplit_bam;
 my @presplit_original_bam; #original BAM files prior to splitting
-my %original_bam_toggle;
 my @aligners;
 my @callers; #lowercase, variant callers, including gatklite, gatk_ug, gatk_hc,samtools,snver,freebayes,varscan, soapsnp
 my %soapaln_sample;
-my @symlink;
 my @small_bed;
 
 #files for calculating statistics only
 my @bam_for_aln_stat;
 
-my ($paired,$fq_toggle)=(0,0);
+my ($paired,$fq_toggle,$somatic_toggle)=(0,0,0);
 my $script_file;
 my $log;
 my @commands;
@@ -178,7 +178,7 @@ sub checkMerge
 	@merging_rule_list = split /,/,$mergingrule;
     } else
     { #by default, seqmule tries to assign the files evenly among samples
-	    @merging_rule_list = (int ($file_count/@prefix_list)) x @prefix_list;
+	@merging_rule_list = (int ($file_count/@prefix_list)) x @prefix_list;
     }
     if(&SeqMule::Utils::sum(@merging_rule_list) != $file_count)
     {
@@ -310,22 +310,24 @@ sub cmd_gen
 sub fastqc
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("fastqc"));
+    my $fastqc = &getExe(&SeqMule::Utils::getProgramExe("fastqc"));
 
-    warn "FastQC executable: $exe\n" if $verbose;
+    warn "FastQC executable: $fastqc\n" if $verbose;
+    my $extractSummary = File::Spec->catfile($install_dir,"bin","secondary","convertQCstat");
 
-    if ($fq_toggle)
+    for my $i(@obj_list)
     {
-	    #if @aligners is populated, then BAM has been generated
-	    push @commands, [$threads,"QC assesment on FASTQ files",
-		"$exe --extract".
-		($threads >=2 ? " -t $threads":"").
-		" @fq1_list ".(@fq2_list ? "@fq2_list":"")];
-    } else 
-    {
-	# @bam_list comes from user input (possibly after merge)
-	push @commands, [$threads,"QC assesment on BAM files","$exe --extract".($threads >= 2 ? " -t $threads" : "")." @bam_list"];
-    } 
+	my $sample = $i->sample();
+	my $result_folder = &get_result_folder($sample);
+	my $qcstat = File::Spec->catfile($result_folder,"${sample}_qc_stat.txt");
+	my $alias = join("_",(map {basename $_->file()} $i->ancestor()));
+	unlink $qcstat or die "ERROR: Failed to remove $qcstat: $!" if -e $qcstat or -l $qcstat; #remove existing $qcstat since the following command append ouput to it (not overwrite)
+	push @commands, [$threads,"QC assesment on input",
+	    "$fastqc --extract ".
+	    ($threads >=2 ? " -t $threads ":" ").
+	    $i->file() ];
+	push @commands,[$threads,"Generate QC stat","$extractSummary ".$i->file()." $alias $qcstat"]; 
+    }
 }
 
 sub bwa
@@ -339,6 +341,7 @@ sub bwa
     my $java="java"; 
     my $runbwa=File::Spec->catfile($install_dir,"bin","secondary","runBWA");
     my $local_ref;
+    my $aligner = "bwa";
 
     if ($ref) 
     {
@@ -355,31 +358,42 @@ sub bwa
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $i(0..$#prefix_list)
+    for my $i(@obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my @local_fq;
-	    my @sai;
-	    my $local_bam="${local_prefix}_bwa.sort.bam";
-	    my $cmd;
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my @sai;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$aligner.sort.bam";
+	my $cmd;
 
-	    push @local_fq,$fq1_list[$no];
-	    push @local_fq,$fq2_list[$no] if $paired;
-	    push @sai,"${local_prefix}_bwa.1.sai";
-	    push @sai,"${local_prefix}_bwa.2.sai" if $paired;
-	    push @script_unlink_list,@sai;
+	$local_bam_obj->aligner($aligner);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    $cmd="$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    map {$cmd.=" -fq $_ ";} @local_fq;
-	    map {$cmd.=" -sai $_ ";} @sai;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
 
-	    push @commands,[$threads,"BWA-BACKTRACK alignment",$cmd]; $cmd="";
-	    push @bam_files,$local_bam;push @removable,$local_bam;
-	}
+	push @sai,map {"${local_prefix}_$aligner.$_.sai"; } (0..$#local_fq_obj);
+	push @script_unlink_list,@sai;
+
+	$cmd = "$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem".
+	" -sortsam $sortsam -ref $local_ref -bam $local_bam ".
+	" -threads $threads ".
+	" -rg ".$i->rg().
+	" -sample ".$i->sample.
+	" -pl ".$i->pl().
+	" -lb ".$i->lb().
+	" -tmpdir $TMPDIR";
+	map {$cmd.=" -fq $_ ";} @local_fq;
+	map {$cmd.=" -sai $_ ";} @sai;
+
+	push @commands,[$threads,"BWA-BACKTRACK alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 
@@ -396,6 +410,7 @@ sub bwa_mem
     my $java="java"; 
     my $runBwamemCMD=File::Spec->catfile($install_dir,"bin","secondary","runBWA-MEM");
     my $local_ref;
+    my $aligner = "bwamem";
 
     die "ERROR: BWA-MEM cannot handle Phred 64 base quality score\n" if $phred == 64;
 
@@ -414,28 +429,38 @@ sub bwa_mem
 
     &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
 
-    for my $i(0..$#prefix_list)
+    for my $i(@obj_list)
     {
-	#for my $no(0..$#fq1_list)
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my @local_fq;
-	    my $local_bam="${local_prefix}_bwamem.sort.bam"; push @removable,$local_bam;
-	    my $cmd;
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0 ;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$aligner.sort.bam";
+	my $cmd;
 
-	    push @local_fq,$fq1_list[$no];
-	    push @local_fq,$fq2_list[$no] if $paired;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->aligner($aligner);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
 
-	    $cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    $cmd.=" @local_fq";
+	$cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools ".
+	" -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -tmpdir $TMPDIR".
+	" @local_fq";
 
-	    push @commands,[$threads,"BWA alignment",$cmd];$cmd="";
-	    push @bam_files,$local_bam;
-	}
+	push @commands,[$threads,"BWA alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 
@@ -451,6 +476,7 @@ sub snap
     my $runSnapCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNAP");
     my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
     my $local_ref;
+    my $aligner = "snap";
 
     die "ERROR: SNAP cannot handle Phred+64 score\n" if $phred == 64;
 
@@ -469,30 +495,39 @@ sub snap
 
     #this part can be improved
     #SNAP can run multiple alignments without reloading index
-    for my $i(0..$#prefix_list)
+    for my $i(@obj_list)
     {
-	#for my $no(0..$#fq1_list)
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my @local_fq;
-	    my $local_bam="${local_prefix}_snap.sort.bam"; 
-	    push @removable,$local_bam;
-	    my $cmd;
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$aligner.sort.bam";
+	my $cmd;
 
-	    push @local_fq,$fq1_list[$no];
-	    push @local_fq,$fq2_list[$no] if $paired;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->aligner($aligner);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    $cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools -ref $local_ref -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd.=" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME);
-	    $cmd .= " -tmpdir $TMPDIR";
-	    $cmd .= " -interleave_fq $interleave_fq ";
-	    $cmd.=" @local_fq";
+	$cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools ".
+	" -ref $local_ref ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME).
+	" -tmpdir $TMPDIR".
+	" -interleave_fq $interleave_fq ".
+	" @local_fq";
 
-	    push @commands,[$threads,"SNAP alignment",$cmd];$cmd="";
-	    push @bam_files,$local_bam;
-	}
+	push @commands,[$threads,"SNAP alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 sub bowtie
@@ -506,6 +541,7 @@ sub bowtie
     my $java="java"; 
     my $runBowtieCMD=File::Spec->catfile($install_dir,"bin","secondary","runBOWTIE");
     my $local_real_index;
+    my $aligner = "bowtie";
 
 
     #check if all indexes exist; keep the real name of the indexes
@@ -525,9 +561,7 @@ sub bowtie
 		last;
 	    }
 	}
-    }
-    else 
-    {
+    } else {
 	my ($hg18_pre)= $HG18REF=~/(.*)\.(.*)$/;
 	my ($hg19_pre)= $HG19REF=~/(.*)\.(.*)$/;
 	my $default_index=File::Spec->catfile($install_dir,"database","bowtie",($buildver eq 'hg18' ? $hg18_pre : $hg19_pre));
@@ -539,27 +573,38 @@ sub bowtie
     } 
     die "ERROR: No bowtie indexe files (prefix.1.ebwt etc.) found\n" unless $local_real_index;
 
-    for my $i(0..$#prefix_list)
+    for my $i(@obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my $local_bam="${local_prefix}_bowtie.sort.bam"; push @removable,$local_bam;
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$aligner.sort.bam";
+	my $cmd;
 
-	    my $cmd="$runBowtieCMD -advanced $advanced -n $n -bowtie $bowtie -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_real_index -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    if ($paired)
-	    {   
-		$cmd.=" $fq1_list[$no] $fq2_list[$no]";
-	    } else 
-	    {  
-		$cmd.=" $fq1_list[$no]";
-	    }
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->aligner($aligner);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    push @commands,[$threads,"Bowtie alignment",$cmd];
-	    push @bam_files,$local_bam;
-	}
+	$cmd="$runBowtieCMD -advanced $advanced -n $n -bowtie $bowtie ".
+	" -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam ".
+	" -ref $local_real_index ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -tmpdir $TMPDIR".
+	" @local_fq";
+
+	push @commands,[$threads,"Bowtie alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 
@@ -573,6 +618,7 @@ sub bowtie2
     my $java="java"; 
     my $runBowtie2CMD=File::Spec->catfile($install_dir,"bin","secondary","runBOWTIE2");
     my $local_real_index;
+    my $aligner = "bowtie2";
 
     #check if all indexes exist; keep the real name of the indexes
     if ($bowtie2_index_prefix)
@@ -591,9 +637,7 @@ sub bowtie2
 		last;
 	    }
 	}
-    }
-    else 
-    {
+    } else {
 	my ($hg18_pre)= $HG18REF=~/(.*)\.(.*)$/;
 	my ($hg19_pre)= $HG19REF=~/(.*)\.(.*)$/;
 	my $default_index=File::Spec->catfile($install_dir,"database","bowtie2",($buildver eq 'hg18' ? $hg18_pre : $hg19_pre));
@@ -605,28 +649,38 @@ sub bowtie2
     } 
     die "No index files ({prefix}.1.bt2 etc.) found\n" unless $local_real_index;
 
-    for my $i(0..$#prefix_list)
+    for my $i(@obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my $local_bam="${local_prefix}_bowtie2.sort.bam";
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_bam="${local_prefix}_$aligner.sort.bam";
+	my $cmd;
 
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->aligner($aligner);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	    my $cmd="$runBowtie2CMD -advanced $advanced -n $n -bowtie2 $bowtie2 -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam -ref $local_real_index -bam $local_bam -threads $threads -rg $readgroup[$i] -sample $sample -pl $platform[$i] -lb $library[$i] ";
-	    $cmd .= " -tmpdir $TMPDIR";
-	    if ($paired==1) 
-	    {
-		$cmd.=" $fq1_list[$no] $fq2_list[$no]";
-	    } else 
-	    {  
-		$cmd.=" $fq1_list[$no]";
-	    }
+	$cmd="$runBowtie2CMD -advanced $advanced -n $n -bowtie2 $bowtie2 ".
+	" -samtools $samtools -java $java -jmem $java_mem ".
+	" -sortsam $sortsam -ref $local_real_index ".
+	" -bam ".$local_bam_obj->file().
+	" -threads $threads ".
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb().
+	" -tmpdir $TMPDIR".
+	" @local_fq";
 
-	    push @commands,[$threads,"BOWTIE2 alignment",$cmd];
-	    push @bam_files,$local_bam; push @removable,$local_bam;
-	}
+	push @commands,[$threads,"Bowtie2 alignment",$cmd];
+	push @obj_list,$local_bam_obj;
+	push @removable,$local_bam;
     }
 }
 sub soap
@@ -640,7 +694,7 @@ sub soap
     my $sortsam=&getExe("SortSam.jar"); 
     my $java="java"; 
     my $local_real_index;
-
+    my $aligner = "soap";
 
     if ($soap_index_prefix) 
     {
@@ -649,8 +703,7 @@ sub soap
 	    $local_real_index=$soap_index_prefix;
 	}
     }
-    else 
-    {
+    else {
 	my $hg18_pre="$HG18REF.index";
 	my $hg19_pre="$HG19REF.index";
 	my $default_index=File::Spec->catfile($install_dir,"database","soap",($buildver eq 'hg18'? $hg18_pre:$hg19_pre));
@@ -661,51 +714,58 @@ sub soap
     } 
     die "ERROR: No SOAP index files ({prefix}.amb etc.) found\n" unless $local_real_index;
     #generate command for multiple input files
-    for my $i(0..$#prefix_list)
+    for my $i(@obj_list)
     {
-	for my $no(&SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list))
-	{
-	    my $local_prefix= &SeqMule::Utils::getFQprefix($fq1_list[$no]);
-	    my $sample=$prefix_list[$i];
-	    my $local_sam="${local_prefix}_soap.sam";
-	    my $local_bam="${local_prefix}_soap.sort.bam";
-	    my $unpaired="${local_prefix}_soap_unpaired.soapout";
-	    my $unmapped="${local_prefix}_soap_unmapped.soapout";
-	    my $alnfile="${local_prefix}_soap.soapaln";
-	    my $cmd;
+	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
+	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
+	my $local_sam="${local_prefix}_$aligner.sam";
+	my $local_bam="${local_prefix}_${aligner}.sort.bam";
+	my $unpaired="${local_prefix}_${aligner}_unpaired.soapout";
+	my $unmapped="${local_prefix}_${aligner}_unmapped.soapout";
+	my $alnfile="${local_prefix}_${aligner}.soapaln";
+	my @local_fq_obj = ($i,$i->sibling());
+	my @local_fq;
+	my $local_bam_obj = $i->clone();
+	my $local_soapaln_obj = $i->clone();
+	my $cmd;
 
-	    $soapaln_sample{$alnfile}=$sample;
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+	$local_bam_obj->file($local_bam);
+	$local_bam_obj->parent(@local_fq_obj);
+	$local_bam_obj->filetype('BAM');
+	$local_bam_obj->aligner($aligner);
+	$local_soapaln_obj->file($alnfile);
+	$local_soapaln_obj->parent(@local_fq_obj);
+	$local_soapaln_obj->filetype('SOAPALN');
+	$local_soapaln_obj->aligner($aligner);
+	map{$_->child($local_bam_obj,$local_soapaln_obj)} (@local_fq_obj);
 
-	    $cmd.=" $runsoap ";
-	    $cmd.=" -soap $exe ";
-	    $cmd.=" -index $local_real_index ";
-	    $cmd.=" -n $n -advanced $advanced ";
-	    $cmd.=" -rg $readgroup[$i] ";
-	    $cmd.=" -sample $sample ";
-	    $cmd.=" -lb $library[$i] ";
-	    $cmd.=" -pl $platform[$i] ";
-	    $cmd.=" -sam $local_sam ";
-	    $cmd.=" -bam $local_bam ";
-	    $cmd.=" -sortsam $sortsam ";
-	    $cmd.=" -java $java -jmem $java_mem ";
-	    $cmd.=" -samtools $samtools ";
-	    $cmd.=" -soap2sam $exe_soap2sam ";
-	    $cmd.=" -threads $threads";
-	    $cmd.=" -unmapped $unmapped";
-	    if ($paired) 
-	    {    
-		$cmd.=" -fq $fq1_list[$no] -fq $fq2_list[$no] -soapaln $alnfile -unpaired $unpaired";
-	    }
-	    else 
-	    {
-		$cmd.="-fq $fq1_list[$no] -soapaln $alnfile";
-	    }
-	    push @commands,[$threads,"SOAP alignment",$cmd];$cmd="";
-
-	    push @soapaln_file,$alnfile;
-	    push @script_unlink_list,$local_sam;
-	    push @bam_files,$local_bam; push @removable,$local_bam;
+	$cmd.=" $runsoap ";
+	$cmd.=" -soap $exe ";
+	$cmd.=" -index $local_real_index ";
+	$cmd.=" -n $n -advanced $advanced ".
+	" -bam ".$local_bam_obj->file().
+	" -rg ".$local_bam_obj->rg().
+	" -sample ".$local_bam_obj->sample().
+	" -pl ".$local_bam_obj->pl().
+	" -lb ".$local_bam_obj->lb();
+	$cmd.=" -sam $local_sam ";
+	$cmd.=" -sortsam $sortsam ";
+	$cmd.=" -java $java -jmem $java_mem ";
+	$cmd.=" -samtools $samtools ";
+	$cmd.=" -soap2sam $exe_soap2sam ";
+	$cmd.=" -threads $threads";
+	$cmd.=" -unmapped $unmapped";
+	if (@local_fq == 2) {    
+	    $cmd.=" -fq $local_fq[0] -fq $local_fq[1] -soapaln $alnfile -unpaired $unpaired";
+	} else {
+	    $cmd.="-fq $local_fq[0] -soapaln $alnfile";
 	}
+	push @commands,[$threads,"SOAP2 alignment",$cmd];
+
+	push @script_unlink_list,$local_sam,$unpaired,$unmapped;
+	push @obj_list,$local_bam_obj,$local_soapaln_obj;
+	push @removable,$local_bam,$alnfile;
     }
 } 
 sub samtools
@@ -719,247 +779,138 @@ sub samtools
     {
 	if ($fq_toggle && $merge)
 	{
-	    my @merged_bam;
-	    #merge by aligner
+	    #merge by aligner, sample combination
 	    for my $i(@aligners)
 	    {
-		for my $no(0..$#prefix_list)
+		for my $j(0..$#prefix_list)
 		{
-		    my $result_folder=$prefix_list[$no]."_result";
-		    mkdir $result_folder unless -d $result_folder;
-		    my $onebam=File::Spec->catfile($result_folder,$prefix_list[$no]."_$i.merge.bam");
-		    my @one_aligner_sample_bam;
-		    for my $local_bam(grep { /_$i/i} @bam_files)
-		    {
-			#bam_files names follow fq-prefix_alignerXXXX format
-			#e.g. merging rule: 2,2,3
-			#no = 2
-			#then we need fq from 4 to 6
-			my @fq_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($no,@merging_rule_list);
-			for my $local_fq(@fq1_list[@fq_idx_range])
-			{
-			    my $fq_prefix = &SeqMule::Utils::getFQprefix($local_fq);
-			    #local_bam uses fq's prefix (instead of sample prefix)
-			    if($local_bam =~ /$fq_prefix/)
-			    {
-				push @one_aligner_sample_bam,$local_bam;
-			    }
-			}
-		    }
+		    my $sample = $prefix_list[$j];
+		    my $result_folder = &get_result_folder($sample);
+		    my $onebam=File::Spec->catfile($result_folder,$sample."_$i.merge.bam");
+		    my @one_aligner_sample_bam = grep {
+		    $_->aligner() eq $i && 
+		    $_->filetype eq 'BAM' &&
+		    $_->sample() eq $sample 
+		    } @obj_list;
+		    #remove the unmerged BAM from obj_list
+		    #they will no longer be processed
+		    SeqMule::SeqUtils->rmObjFromArray(
+			target=>\@one_aligner_sample_bam,
+			all=>\@obj_list,
+		    );
+
+		    my $onebam_obj = $one_aligner_sample_bam[0]->clone();
+		    $onebam_obj->parent(@one_aligner_sample_bam);
+		    $onebam_obj->file($onebam);
+		    map {$_->child($onebam_obj) } @one_aligner_sample_bam;
 
 		    if(@one_aligner_sample_bam == 1)
 		    {
-			push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]","cp $one_aligner_sample_bam[0] $onebam"];
+			push @commands, [$threads,"Merge BAM for $i and $sample",join(" ","cp",$one_aligner_sample_bam[0]->file(),$onebam_obj->file())];
 		    } else
 		    {
-			push @commands, [$threads,"Merge BAM for $i and $prefix_list[$no]",
-			    "$exe merge -f $onebam @one_aligner_sample_bam ".($threads>=2? " -@ $threads":"")
+			push @commands, [$threads,"Merge BAM for $i and $sample",
+			    "$exe merge -f ".
+			    $onebam_obj->file().' '.
+			    join(' ',map{$_->file()} @one_aligner_sample_bam).
+			    ($threads>=2? " -@ $threads ":" ")
 			];
 		    }
-		    push @merged_bam,$onebam; push @removable,$onebam;
+		    #save merged obj in obj_list
+		    push @obj_list,$onebam_obj; 
+		    push @removable,$onebam_obj->file();
 		}
 	    }
-		@bam_files=@merged_bam;
 	}
 
-	map { push @commands, [$threads,"Index BAM file","$exe index $_"] } (@bam_files);
+	map { push @commands, [$threads,"Index BAM file","$exe index ".$_->file()] } (grep {$_->filetype() eq 'BAM'} @obj_list);
 
-	#keep the original_bam_files updated before they can be used towards variant calling
-	@original_bam_files=@bam_files;
-	@bam_for_aln_stat=@bam_files; #this step is mandatory, so it guarrantees that we have some BAM for calculating statistics
     } elsif($subprogram=~/filter/i)
     {
 	my $readfilter=File::Spec->catfile($install_dir,"bin","secondary","readFilter");
-	for my $bam(@bam_files)
+	for my $i(@obj_list)
 	{
+	    next unless $i->filetype eq 'BAM';
+	    my $bam = $i->file();
 	    my ($local_prefix)= $bam=~/(.*?)\.bam$/i or die "ERROR: expect .bam suffix: $bam\n";
+	    my $new_obj = $i->clone();
 	    my $out="$local_prefix.readfiltered.bam";
+	    $new_obj->parent($i);
+	    $new_obj->file($out);
+	    $i->child($new_obj);
+
 	    my $cmd="$readfilter -samtools $exe -bam $bam -out $out -threads $threads -n $n -advanced $advanced ";
 	    push @commands, [$threads,"Filter BAM file",$cmd];
 	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
-	    $bam=$out;
+	    $i=$new_obj;
 	}
-	#keep the original_bam_files updated before they can be used towards variant calling
-	@original_bam_files=@bam_files;
     }elsif ($subprogram=~/mpileup/i) 
     {
-	my $caller='samtools';
-	push @callers,$caller;
-	warn "NOTICE: SAMtools will enable mapping quality downgrading for BWA input.\n" if ($options{bwaDownGrade} && (grep { /bwa/ } @aligners) );
-	#add path for bcftools executable
-	$ENV{PATH}=($ENV{PATH}? $ENV{PATH}:"").":".File::Spec->catdir(dirname($exe),"bcftools");
+	my $mode;
+	my $caller = 'samtools';
+	my $bcftools=&getExe("bcftools");
+	my $vcfutils=&getExe("vcfutils.pl");
+	my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
+	my $exe=File::Spec->catfile($install_dir,"bin","secondary","runSAMTOOLS");
+	my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
+	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+	my $faidx="$local_ref.fai";
+	my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+	my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -bcftools $bcftools -vcfutils $vcfutils -ref $local_ref ";
 
-	my $exe_bcftools=&getExe("bcftools");
-	my $exe_vcfutils=&getExe("vcfutils.pl");
-	my @target_bam_files;
+	#add PATH for bcftools
+	$ENV{PATH}=($ENV{PATH}? $ENV{PATH}.":":"").File::Spec->catdir(dirname($samtools),"bcftools");
+	push @commands,[$local_threads,"Index reference genome","$samtools faidx $local_ref"] unless -e $faidx;
 
-	if ($options{'originalBAM'})
-	{
+	warn "NOTICE: SAMtools will enable mapping quality downgrading for BWA input (if any).\n" if ($options{bwaDownGrade});
+
+	my @target_obj;
+	if ($options{'originalBAM'}) {
 	    #this step is to make sure we use BAM files without realn or recal if users want to
-	    @target_bam_files=@original_bam_files;
-	    $original_bam_toggle{$caller}=1;
-	} else
-	{
-	    @target_bam_files=@bam_files;
+	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
+	} else {
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	}
 
-
-	if ($multi_sample_calling)
+	&check_obj(@target_obj);
+	$mode = ($multi_sample_calling? 'multi':'single');
+	#previously we have to treat BAMs differently depending on
+	#whether they come from FASTQ files
+	#now we solely depend on aligner of each BAM
+	#if it comes from FASTQ, it has an non-empty string denoting the aligner
+	#otherwise its aligner attribute is an empty string ''
+	for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
 	{
-	    if ($fq_toggle)
-	    {
-		#original input is fq
-		#consider aligner
-		for my $aligner(@aligners)
-		{
-		    #do multi-sample calling for bam files from the same aligner
-		    if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		    {
-			&samtools_variant('multi',$n,\%options,@one_aligner_bam);
-		    }
-		}
-	    } else
-	    {
-		#original input is bam
-		#directly do multi-sample calling
-		&samtools_variant('multi',$n,\%options,@target_bam_files);
-	    }
-	} else
-	{
-	    #do snp calling for each bam
-	    &samtools_variant('single',$n,\%options,@target_bam_files);
+	    #do multi-sample calling for bam files from the same aligner
+	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
+	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
+	&check_obj(@bam_obj);
+	    &gen_variant_call_cmd({
+		    mode=>$mode,
+		    caller=>$caller,
+		    callcmd=>$cmd_common,
+		    bam=>\@bam_obj
+		});
 	}
     } elsif ($subprogram=~/rmdup/i)
     {
-	for my $local_bam(@bam_files) 
+	for my $i(@obj_list)
 	{
-	    my $cmd;
-	    my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
-	    my $newbam="$local_prefix.rmdup.bam";
-	    #only mark duplicates, do not really remove them from BAM
-	    $cmd.="$exe rmdup ";
-	    $cmd.=" $local_bam $newbam";
-	    push @commands,[$threads,"Remove duplicates",$cmd];$cmd="";
-	    $local_bam=$newbam; push @removable,$newbam;
-	}
-	@original_bam_files=@bam_files;
-	@bam_for_aln_stat=@bam_files;
+	    next unless $i->filetype() eq 'BAM';
+	    my $bam = $i->file();
+	    my ($local_prefix)= $bam=~/(.*?)\.bam$/i or die "ERROR: expect .bam suffix: $bam\n";
+	    my $new_obj = $i->clone();
+	    my $out = "$local_prefix.rmdup.bam";
+	    $new_obj->parent($i);
+	    $new_obj->file($out);
+	    $i->child($new_obj);
 
+	    my $cmd.="$exe rmdup $bam $out";
+	    push @commands,[$threads,"Remove duplicates in $bam",$cmd];
+	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
+	    $i = $new_obj;
+	}
     }else {die "ERROR: Unrecognized subprogram for SAMtools: $subprogram\n"}
-}
-sub samtools_variant
-{
-    my $mode=shift;
-    my $n=shift;
-    my %options=%{shift @_};
-    my @bam=@_;
-    my $bcftools=&getExe("bcftools");
-    my $vcfutils=&getExe("vcfutils.pl");
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-    my $exe=File::Spec->catfile($install_dir,"bin","secondary","runSAMTOOLS");
-    $ENV{PATH}=($ENV{PATH}? $ENV{PATH}:"").":".File::Spec->catdir(dirname($samtools),"bcftools");
-    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $faidx="$local_ref.fai";
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -bcftools $bcftools -vcfutils $vcfutils -ref $local_ref ";
-
-    push @commands,[$local_threads,"Index reference genome","$samtools faidx $local_ref"] unless -e $faidx;
-
-    if ($mode eq 'multi')
-    {
-	die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	if ($quick)
-	{
-	    for my $i(1..$threads)
-	    {
-		my $bed=$small_bed[$i-1];
-		my ($local_prefix)=$bam[0]=~/(.*)\.bam$/i;
-		$local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		my $local_vcf="${local_prefix}_samtools.vcf";  
-		my $local_vcf_filter="${local_prefix}_samtools.filter.vcf"; 
-		my $cmd=$cmd_common;
-
-		$cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
-		$cmd.=" -bed $bed " if $bed;
-		map {$cmd.=" -bam $_ ";} @bam;
-		for (@bam)
-		{
-		    my ($new_prefix)= /^(.*)\.bam$/i;
-		    $new_prefix=File::Spec->catfile((dirname $new_prefix),"_${i}_.".(basename $new_prefix));
-		    my $out_filter="${new_prefix}_samtools.multi-call.filter.vcf";
-		    #the runSamtoolsCMD will make a copy of final vcf for each prefix (samplename)
-		    push @vcf_files,$out_filter;
-		}
-		push @commands,[$local_threads,"SAMtools multi-sample variant calling",$cmd];$cmd="";
-		push @script_unlink_list,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	} else
-	{
-	    my $bed=$capture;
-	    my ($local_prefix)=$bam[0]=~/(.*)\.bam$/i;
-	    my $local_vcf="${local_prefix}_samtools.vcf";  push @script_unlink_list,$local_vcf;
-	    my $local_vcf_filter="${local_prefix}_samtools.filter.vcf"; push @script_unlink_list,$local_vcf_filter;
-	    my $cmd=$cmd_common;
-
-	    $cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
-	    $cmd.=" -bed $bed " if $bed;
-	    map {$cmd.=" -bam $_ ";} @bam;
-	    for (@bam)
-	    {
-		my ($new_prefix)= /^(.*)\.bam$/i;
-		my $out_filter="${new_prefix}_samtools.multi-call.filter.vcf";
-		#the runSamtoolsCMD will make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out_filter;
-	    }
-	    push @commands,[$local_threads,"SAMtools multi-sample variant calling",$cmd];$cmd="";
-	}
-    } elsif ($mode eq 'single')
-    {
-	for my $local_bam(@bam) 
-	{
-	    if ($quick)
-	    {
-		for my $i(1..$threads)
-		{
-		    my $bed=$small_bed[$i-1];
-		    my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-		    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		    my $local_vcf="${local_prefix}_samtools.vcf";
-		    my $local_vcf_filter="${local_prefix}_samtools.filter.vcf";
-		    my $cmd=$cmd_common;
-
-		    $cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
-		    $cmd.=" -bed $bed " if $bed;
-		    $cmd.=" -bam $local_bam ";
-
-		    push @commands,[$local_threads,"SAMtools variant calling",$cmd];$cmd="";
-		    push @vcf_files,$local_vcf_filter;
-		    push @script_unlink_list,$local_vcf;
-		}
-	    } else
-	    {
-		my $bed=$capture;
-		my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-		my $local_vcf="${local_prefix}_samtools.vcf"; 
-		my $local_vcf_filter="${local_prefix}_samtools.filter.vcf";
-		my $cmd=$cmd_common;
-
-		$cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
-		$cmd.=" -bed $bed " if $bed;
-		$cmd.=" -bam $local_bam ";
-
-		push @commands,[$local_threads,"SAMtools variant calling",$cmd];$cmd="";
-		push @vcf_files,$local_vcf_filter;
-		push @script_unlink_list,$local_vcf;
-	    }
-	}
-    } else
-    {
-	die "ERROR: unrecognized mode for samtools variant.\n";
-    }
-
 }
 
 sub freebayes
@@ -967,58 +918,7 @@ sub freebayes
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
     my $caller='freebayes';
-    push @callers,$caller;
-    my @target_bam_files;
-    if ($options{'originalBAM'})
-    {
-	#this step is to make sure we use BAM files without realn or recal
-	@target_bam_files=@original_bam_files;
-	$original_bam_toggle{$caller}=1;
-    } else
-    {
-	@target_bam_files=@bam_files;
-    }
-
-    my $samtools=&getExe("samtools");
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $faidx="$local_ref.fai";
-
-    push @commands,[$threads,"Index reference genome","$samtools faidx $local_ref"] unless -e $faidx;
-
-    if ($multi_sample_calling)
-    {
-	if ($fq_toggle)
-	{
-	    #original input is fq
-	    #consider aligner
-	    for my $aligner(@aligners)
-	    {
-		#do multi-sample calling for bam files from the same aligner
-		if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		{
-		    &freebayes_variant('multi',$n,\%options,@one_aligner_bam);
-		}
-	    }
-	} else
-	{
-	    #original input is bam
-	    #directly do multi-sample calling
-	    &freebayes_variant('multi',$n,\%options,@target_bam_files);
-	}
-    } else
-    {
-	#do snp calling for each bam
-	&freebayes_variant('single',$n,\%options,@target_bam_files);
-    }
-}
-
-sub freebayes_variant
-{
-    #generate freebayes variant calling command
-    my $mode=shift;
-    my $n=shift;
-    my %options=%{shift @_};
-    my @bam=@_;
+    my $mode;
     my $run_freebayes=&getExe("runFREEBAYES");
     my $freebayes=&getExe( &SeqMule::Utils::getProgramExe("Freebayes") );
     my $samtools=&getExe( &SeqMule::Utils::getProgramExe("samtools") );
@@ -1028,95 +928,47 @@ sub freebayes_variant
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
     my $cmd_common="$run_freebayes -advanced $advanced -n $n -freebayes $freebayes -vcf-sort $vcf_sort -ref $local_ref -samtools $samtools -tmpdir $TMPDIR ";
 
-    if ($mode eq 'single')
+    my @target_obj;
+    if ($options{'originalBAM'})
     {
-	for my $local_bam(@bam) 
-	{
-	    if ($quick)
-	    {
-		for my $i(1..$threads)
-		{
-		    my $bed=$small_bed[$i-1];
-		    my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-		    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		    my $local_vcf="${local_prefix}_freebayes.filter.vcf";
-		    my $cmd=$cmd_common;
-
-		    $cmd.=" -vcf $local_vcf ";
-		    $cmd.=" -bed $bed " if $bed;
-		    $cmd.=$local_bam;
-		    push @commands,[$local_threads,"FreeBayes variant calling",$cmd];
-		    push @vcf_files,$local_vcf;
-		}
-	    } else
-	    {
-		my $bed=$capture;
-		my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-		my $local_vcf="${local_prefix}_freebayes.filter.vcf";
-		my $cmd=$cmd_common;
-
-		$cmd.=" -vcf $local_vcf ";
-		$cmd.=" -bed $bed " if $bed;
-		$cmd.=$local_bam;
-		push @commands,[$local_threads,"FreeBayes variant calling",$cmd];
-		push @vcf_files,$local_vcf;
-	    }
-	}
-    } elsif ($mode eq 'multi')
-    {
-	die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	if ($quick)
-	{
-	    for my $i(1..$threads)
-	    {
-		my $bed=$small_bed[$i-1];
-		my ($local_prefix)=$bam[0]=~/(.*)\.bam$/i;
-		$local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		my $local_vcf="${local_prefix}_freebayes.filter.vcf"; 
-		my $cmd=$cmd_common;
-
-		$cmd.=" -vcf $local_vcf ";
-		$cmd.=" -bed $bed " if $bed;
-		$cmd.=" @bam";
-
-		for (@bam)
-		{
-		    my ($new_prefix)= /^(.*)\.bam$/i;
-		    $new_prefix=File::Spec->catfile((dirname $new_prefix),"_${i}_.".(basename $new_prefix));
-		    my $out_filter="${new_prefix}_freebayes.multi-call.filter.vcf";
-		    #make a copy of final vcf for each prefix (samplename)
-		    push @vcf_files,$out_filter;
-		}
-		push @commands,[$local_threads,"FreeBayes multi-sample variant calling",$cmd];$cmd="";
-		push @script_unlink_list,$local_vcf;
-	    }
-	} else
-	{
-	    my $bed=$capture;
-	    my ($local_prefix)=$bam[0]=~/(.*)\.bam$/i;
-	    my $local_vcf="${local_prefix}_freebayes.filter.vcf"; 
-	    my $cmd=$cmd_common;
-
-	    $cmd.=" -vcf $local_vcf ";
-	    $cmd.=" -bed $bed " if $bed;
-	    $cmd.=" @bam";
-
-	    for (@bam)
-	    {
-		my ($new_prefix)= /^(.*)\.bam$/i;
-		my $out_filter="${new_prefix}_freebayes.multi-call.filter.vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out_filter;
-	    }
-	    push @commands,[$local_threads,"FreeBayes multi-sample variant calling",$cmd];$cmd="";
-	    push @script_unlink_list,$local_vcf;
-	}
+	#this step is to make sure we use BAM files without realn or recal if users want to
+	@target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
     } else
     {
-	die "ERROR: unrecognized mode for freebayes variant.\n";
+	@target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
+    }
+
+    $mode = ($multi_sample_calling? 'multi':'single');
+    #previously we have to treat BAMs differently depending on
+    #whether they come from FASTQ files
+    #now we solely depend on aligner of each BAM
+    #if it comes from FASTQ, it has an non-empty string denoting the aligner
+    #otherwise its aligner attribute is an empty string ''
+    for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
+    {
+	#do multi-sample calling for bam files from the same aligner
+	my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
+	@bam_obj = grep {$_->aligner eq $i} @bam_obj;
+	&gen_variant_call_cmd({
+		mode=>$mode,
+		caller=>$caller,
+		callcmd=>$cmd_common,
+		bam=>\@bam_obj
+	    });
     }
 }
 
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
 sub snver
 {
     my $caller='snver';
@@ -1138,8 +990,6 @@ sub snver
     if ($options{'originalBAM'})
     {
 	#this step is to make sure we use BAM files without realn or recal
-	@target_bam_files=@original_bam_files;
-	$original_bam_toggle{$caller}=1;
     } else
     {
 	#if ($quick && ! @presplit_bam)
@@ -1185,8 +1035,7 @@ sub snver
     }
 }
 
-
-#gatklite
+########################gatklite################################
 sub gatk
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
@@ -1196,7 +1045,7 @@ sub gatk
     {
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } @aligners);
 
-	&gatk_realign(\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatklite","realn",\%options);
     } 
     elsif ($subprogram=~/recal/i) 
     {
@@ -1204,50 +1053,63 @@ sub gatk
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } @aligners);
 	die "ERROR: No covariates for base quality recalibration\n" if $options{covariates} eq "";
 
-	&gatk_recal(\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatklite","recal",\%options);
     } 
     elsif ($subprogram=~/variant/) 
     {
 	my $caller='gatklite';
-	push @callers,$caller;
+	my $mode;
+	my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+	my $exe_java="java";
+	my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEFILTER");
+	my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITECALL");
+
+	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+	my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
+	my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
+	my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
+	my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
+
+	my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+	#sanity check for filter expression
+	for my $i($options{indelfilters}, $options{snpfilters})
+	{
+	    for my $filter(split ';',$i)
+	    {
+		my ($filtername,$filterexp)=split ',',$filter;
+		die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
+	    }
+	}
+	my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+	my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
 	warn "CAUTION: GATKLite variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
-	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } @aligners);
-	my @target_bam_files;
+	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } (SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)));
+
+	my @target_obj;
 
 	if ($options{'originalBAM'})
 	{
-	    #this step is to make sure we use BAM files without realn or recal
-	    @target_bam_files=@original_bam_files;
-	    $original_bam_toggle{$caller}=1;
+	    #this step is to make sure we use BAM files without realn or recal if users want to
+	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
 	} else
 	{
-	    @target_bam_files=@bam_files;
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	}
+	$mode = ($multi_sample_calling? 'multi':'single');
 
-	if ($multi_sample_calling)
+	for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
 	{
-	    if ($fq1)
-	    {
-		#original input is fq
-		#consider aligner
-		for my $aligner(@aligners)
-		{
-		    #do multi-sample calling for bam files from the same aligner
-		    if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		    {
-			&gatk_variant('multi',$n,\%options,@one_aligner_bam);
-		    }
-		}
-	    } else
-	    {
-		#original input is bam
-		#directly do multi-sample calling
-		&gatk_variant('multi',$n,\%options,@target_bam_files);
-	    }
-	} else
-	{
-	    #do snp calling for each bam
-	    &gatk_variant('single',$n,\%options,@target_bam_files);
+	    #do multi-sample calling for bam files from the same aligner
+	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
+	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
+
+	    &gen_variant_call_cmd({
+		    mode		=>	$mode,
+		    caller		=>	$caller,
+		    callcmd		=>	$cmd_common_call,
+		    filtercmd		=>	$options{filter} ? $cmd_common_filter: undef,
+		    bam			=>	\@bam_obj,
+		});
 	}
     }
     else
@@ -1256,240 +1118,79 @@ sub gatk
     }
 }
 
-sub gatk_variant
+sub gen_gatk_realign_recal_cmd
 {
-    my $mode=shift;
-    my $n=shift;
+    my $n = shift;
+    my $version = shift; #gatklite vs gatkfull?
+    my $operation = shift; #realn vs recal
     my %options=%{shift @_};
-    my @bam=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+    my $exe;
     my $exe_java="java";
-    my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEFILTER");
-    my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITECALL");
-
+    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
-    my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
-    my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
     my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    #sanity check for filter expression
-    for my $i($options{indelfilters}, $options{snpfilters})
-    {
-	for my $filter(split ';',$i)
-	{
-	    my ($filtername,$filterexp)=split ',',$filter;
-	    die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
-	}
-    }
-    my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
-    my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-
-    if ($mode ne 'multi' and $mode ne 'single')
-    {
-	die "ERROR: unrecognized mode for GATKLite variant calling.\n";
-    }
-
-    my $number_of_parallel_proc=1;
-    $number_of_parallel_proc=$threads if ($quick);
-
-    for my $local_bam(@bam)
-    {
-	my @vcf_part;
-	for my $i(1..$number_of_parallel_proc)
-	{
-	    my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	    my $bed=$capture if $wes;
-	    $bed=$small_bed[$i-1] if $quick;
-	    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix)) if $quick;
-	    my $local_vcf="${local_prefix}_gatklite.vcf"; 
-	    my $cmd=$cmd_common_call;
-
-	    if ($mode eq 'multi')
-	    {
-		map {$cmd.=" -bam $_ ";} @bam;
-	    } else
-	    {
-		$cmd.=" -bam $local_bam ";
-	    }
-
-	    $cmd.=" -vcf $local_vcf ";
-	    $cmd.=" -capture $bed" if $bed;
-
-	    push @commands,[$local_threads,"GATKLite".($mode eq 'multi'? ' multi-sample ':' ')."variant calling",$cmd];
-	    if ($quick)
-	    {
-		push @script_unlink_list,$local_vcf;
-		push @vcf_part,$local_vcf;
-	    }
-	}
-	my $bed=$capture if $wes;
-	my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	my $local_vcf="${local_prefix}_gatklite.vcf"; 
-	my $local_vcf_filter="${local_prefix}_gatklite.filter.vcf";
-	my $indel="${local_prefix}_gatklite.indel.vcf";
-	my $indel_filter="${local_prefix}_gatklite.indel.filter.vcf";
-	my $snp="${local_prefix}_gatklite.snp.vcf";
-	my $snp_filter="${local_prefix}_gatklite.snp.filter.vcf";
-	my $indel_tranches="${local_prefix}_gatklite.indel.tranches";
-	my $indel_recal_file="${local_prefix}_gatklite.indel_recal"; 
-	my $indel_plots="${local_prefix}_gatklite.indel.plots.R"; 
-	my $tranches="${local_prefix}_gatklite.tranches";
-	my $recal_file="${local_prefix}_gatklite.snp_recal";
-	my $plots="${local_prefix}_gatklite.plots.R";
-
-	my $cmd=$cmd_common_filter;
-	if ($mode eq 'multi')
-	{
-	    die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	    map {$cmd.=" -bam $_ "} @bam;
-	} else
-	{
-	    $cmd.=" -bam $local_bam ";
-	}
-	$cmd.=" -indel $indel";
-	$cmd.=" -indel-filter $indel_filter ";
-	$cmd.=" -snp $snp ";
-	$cmd.=" -snp-filter $snp_filter ";
-	$cmd.=" -vcf $local_vcf ";
-	$cmd.=" -vcf-filter $local_vcf_filter ";
-	$cmd.=" -indel-tranches $indel_tranches ";
-	$cmd.=" -indel-recal-file $indel_recal_file ";
-	$cmd.=" -indel-plots $indel_plots ";
-	$cmd.=" -tranches $tranches ";
-	$cmd.=" -recal-file $recal_file ";
-	$cmd.=" -plots $plots ";
-	$cmd.=" -capture $bed" if $bed;
-	map {$cmd.=" -vcf-part $_ "} @vcf_part;
-
-	push @commands,[$threads,"GATKLite variant filtering",$cmd];
-	push @script_unlink_list,$indel;
-	push @script_unlink_list,$indel_filter;
-	push @script_unlink_list,$snp;
-	push @script_unlink_list,$snp_filter;
-	push @script_unlink_list,$indel_tranches;
-	push @script_unlink_list,$indel_recal_file;
-	push @script_unlink_list,$indel_plots;
-	push @script_unlink_list,$tranches;
-	push @script_unlink_list,$recal_file;
-	push @script_unlink_list,$plots;
-	if ($mode eq 'multi')
-	{
-	    #make a copy of final vcf for each sample, with "multi-call" keyword
-	    for (@bam)
-	    {
-		my ($local_prefix)= /^(.*)\.bam$/i;
-		my $out="${local_prefix}_gatklite.multi-call".($options{filter} ? ".filter":"").".vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out;
-	    }
-	    push @script_unlink_list,$local_vcf;
-	    push @script_unlink_list,$local_vcf_filter;
-	    last;
-	} else
-	{
-	    if ($options{filter})
-	    {
-		push @vcf_files,$local_vcf_filter;
-		push @script_unlink_list,$local_vcf;
-	    } else
-	    {
-		push @vcf_files,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	}
-    }
-}
-
-sub gatk_recal
-{
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
+    my $run_gatk;
 
-    for my $local_bam(@bam_files) 
-    {
-	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $grp="${local_prefix}.grp";
-	my $grp_after="${local_prefix}.after.grp";
-	my $newbam="${local_prefix}.recal.bam"; 
-	my @cov=split ',',$options{covariates};
-	my $cmd;
+    if($version eq 'gatklite') {
+	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+	if($operation eq 'realn') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEREALN");
+	} elsif ($operation eq 'recal') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITERECAL");
+	} else {
+	    die "ERROR: unknown GATK operation: $operation\n";
+	}
+    } elsif ($version eq 'gatkfull') {
+	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatk"));
+	if($operation eq 'realn') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLREALN");
 
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref -knownSites $local_dbsnp --disable_indel_quals "; #rf BadCigar to skip bad reads
-	map {$cmd.=" -cov $_" } @cov;
-
-	$cmd.=" -I $local_bam -o $grp";
-	$cmd.=" -L $capture" if $wes;
-	$cmd.=" $options{additional} " if $options{additional} ne '';
-	push @commands,[$threads,"GATKLite base quality recalibration",$cmd];
-
-	$cmd=~s/ -I $local_bam -o $grp/ -I $newbam -o $grp_after/;
-	$cmd="";
-
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
-	$cmd.=" -L $capture" if $wes;
-	push @commands,[$threads,"Apply base quality recalibration",$cmd];$cmd="";
-	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
-	push @script_unlink_list,$grp_after;
-	push @script_unlink_list,$grp;
-	push @removable,$newbam;
-
-	$local_bam=$newbam;
+	} elsif ($operation eq 'recal') {
+	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLRECAL");
+	} else {
+	    die "ERROR: unknown GATK operation: $operation\n";
+	}
+    } else {
+	die "ERROR: unknown GATK version: $version\n";
     }
-}
-sub gatk_realign
-{
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
 
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+    my $cmd_common ="$run_gatk -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+    $cmd_common .= " -bed $capture" if $wes;
+    $cmd_common .= " -goldindel $local_indel " if $local_indel;
+    $cmd_common .= " -dbsnp $local_dbsnp " if $local_dbsnp;
 
-    for my $local_bam(@bam_files) 
+    for my $local_bam_obj(@obj_list) 
     {
+	next unless $local_bam_obj->filetype() eq 'BAM';
+	my $local_bam = $local_bam_obj->file();
 	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $interval_file="${local_prefix}.intervals";
-	my $newbam="${local_prefix}.realn.bam";
-	my $cmd;
+	my $newbam_obj = $local_bam_obj->clone();
+	my $newbam = "${local_prefix}.$operation.bam";
+	my $cmd = $cmd_common;
 
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
-	$cmd.=" -L $capture" if $wes;
-	push @commands,[$threads,"GATKLite realignment",$cmd];$cmd="";
+	$cmd .= " -pl ".$local_bam_obj->pl()." " if $local_bam_obj->pl();
+	if($operation eq 'realn') {
+	    $newbam_obj->realn(1);
+	} elsif ($operation eq 'recal') {
+	    $newbam_obj->recal(1);
+	}
+	$newbam_obj->file($newbam);
+	$newbam_obj->parent($local_bam_obj);
+	$local_bam_obj->child($newbam_obj);
 
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
-	$cmd.=" -maxInMemory $options{maxInMemory}" if $options{maxInMemory};
-	$cmd.=" -L $capture" if $wes;
-	$cmd.=" $options{additional} " if $options{additional} ne '';
-	push @commands,[$threads,"Apply realignment",$cmd];$cmd="";
-
-	$cmd.="$exe_samtools index $newbam";
-	push @commands,[$threads,"Index BAM files",$cmd];$cmd="";
-
-	$local_bam=$newbam; 
+	$cmd .= " -bam $local_bam -out $newbam ";
+	push @commands,[$threads,"$version $operation",$cmd];
+	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
+	#it's possible that some variant callers will use non-recal non-realn BAM
+	#so we still keep the old BAM in @obj_list
+	#$local_bam_obj = $newbam_obj; 
 	push @removable,$newbam;
-	push @script_unlink_list,$interval_file;
     }
 }
 #############end of gatklite#############
 
-#gatk full version
-
+#################################gatk full version###########################
 sub gatk_full
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
@@ -1500,7 +1201,7 @@ sub gatk_full
     {
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK\n" and sleep 1 if (grep { /soap/ } @aligners);
 
-	&gatk_full_realign(\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatkfull","realn",\%options);
     } 
     elsif ($subprogram eq 'recal') 
     {
@@ -1508,48 +1209,67 @@ sub gatk_full
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK\n" and sleep 1 if (grep { /soap/ } @aligners);
 	die "ERROR: No covariates for base quality recalibration\n" if $options{covariates} eq "";
 
-	&gatk_full_recal(\%options);
+	&gen_gatk_realign_recal_cmd($n,"gatkfull","recal",\%options);
     } 
     elsif ($subprogram eq 'unifiedgenotyper' || $subprogram eq 'haplotypecaller')
     {
+	my $mode;
+	my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
+	my $exe_java="java";
+	my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLCALL");
+	my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLFILTER");
+
+	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+	my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
+	my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
+	my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
+	my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
+
+	my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+
+	#sanity check for filter expression
+	for my $i($options{indelfilters}, $options{snpfilters})
+	{
+	    for my $filter(split ';',$i)
+	    {
+		my ($filtername,$filterexp)=split ',',$filter;
+		die "Missing filter name or expression for GATK indel/SNP filtering.\n" unless ($filtername && $filterexp);
+	    }
+	}
+
+	my $cmd_common_call="$runGATKCMDCALL -internal-caller $subprogram -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+	my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $subprogram -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+
 	warn "CAUTION: GATK variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK UnifiedGenotyper.\n" and sleep 1 if (grep { /soap/ } @aligners);
-	my @target_bam_files;
+	my @target_obj;
 	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
+
 
 	if ($options{'originalBAM'})
 	{
-	    @target_bam_files=@original_bam_files;
-	    $original_bam_toggle{$caller}=1;
+	    #this step is to make sure we use BAM files without realn or recal if users want to
+	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
 	} else
 	{
-	    @target_bam_files=@bam_files;
+	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	}
 
-	if ($multi_sample_calling)
+	$mode = ($multi_sample_calling? 'multi':'single');
+
+	for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
 	{
-	    if ($fq1)
-	    {
-		#original input is fq
-		#consider aligner
-		for my $aligner(@aligners)
-		{
-		    #do multi-sample calling for bam files from the same aligner
-		    if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		    {
-			&gatk_full_variant('multi',$subprogram,$n,\%options,@one_aligner_bam);
-		    }
-		}
-	    } else
-	    {
-		#original input is bam
-		#directly do multi-sample calling
-		&gatk_full_variant('multi',$subprogram,$n,\%options,@target_bam_files);
-	    }
-	} else
-	{
-	    #do snp calling for each bam
-	    &gatk_full_variant('single',$subprogram,$n,\%options,@target_bam_files);
+	    #do multi-sample calling for bam files from the same aligner
+	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
+	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
+
+	    &gen_variant_call_cmd({
+		    mode		=>	$mode,
+		    caller		=>	$caller,
+		    callcmd		=>	$cmd_common_call,
+		    filtercmd		=>	$options{filter} ? $cmd_common_filter: undef,
+		    bam			=>	\@bam_obj,
+		});
 	}
     } else
     { 
@@ -1557,265 +1277,6 @@ sub gatk_full
     }
 }
 
-sub gatk_full_variant
-{
-    my $mode=shift;
-    my $internal_caller=shift;
-    my $n=shift;
-    my %options=%{shift @_};
-
-    if ($internal_caller eq 'haplotypecaller')
-    {
-	push @callers,'gatk_hc';
-    } elsif ($internal_caller eq 'unifiedgenotyper')
-    {
-	push @callers,'gatk_ug';
-    } else
-    {
-	die "ERROR: Unrecognized internal caller for GATK: $internal_caller.\n";
-    }
-
-    my @bam=@_;
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-    my $exe_java="java";
-    my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLCALL");
-    my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLFILTER");
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
-    my $local_hapmap=&SeqMule::Utils::search_db({type=>"hapmap",target=>$hapmap,build=>$buildver,install_dir=>$install_dir});
-    my $local_kg=&SeqMule::Utils::search_db({type=>"kg",target=>$kg,build=>$buildver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-
-    #sanity check for filter expression
-    for my $i($options{indelfilters}, $options{snpfilters})
-    {
-	for my $filter(split ';',$i)
-	{
-	    my ($filtername,$filterexp)=split ',',$filter;
-	    die "Missing filter name or expression for GATK indel/SNP filtering.\n" unless ($filtername && $filterexp);
-	}
-    }
-    my $cmd_common_call="$runGATKCMDCALL -internal-caller $internal_caller -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-    my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $internal_caller -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
-
-
-    if ($mode ne 'multi' and $mode ne 'single')
-    {
-	die "ERROR: unrecognized mode for GATK variant calling.\n";
-    }
-
-    my $number_of_parallel_proc=1;
-    $number_of_parallel_proc=$threads if ($quick);
-
-    for my $local_bam(@bam)
-    {
-	my @vcf_part;
-	for my $i(1..$number_of_parallel_proc)
-	{
-	    my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	    my $bed=$capture if $wes;
-	    $bed=$small_bed[$i-1] if $quick;
-	    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix)) if $quick;
-	    my $local_vcf=$internal_caller eq 'haplotypecaller' ? "${local_prefix}_gatkhc.vcf":"${local_prefix}_gatkug.vcf"; 
-	    my $cmd=$cmd_common_call;
-
-	    if ($mode eq 'multi')
-	    {
-		die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-		map {$cmd.=" -bam $_ ";} @bam;
-	    } else
-	    {
-		$cmd.=" -bam $local_bam ";
-	    }
-
-	    $cmd.=" -vcf $local_vcf ";
-	    $cmd.=" -capture $bed" if $bed;
-
-	    push @commands,[$local_threads,
-		"GATK ".($internal_caller eq 'haplotypecaller'? 'HaplotypeCaller':'UnifiedGenotyper').
-		($mode eq 'multi'? ' multi-sample ':' ')."variant calling", $cmd];
-	    if ($quick)
-	    {
-		push @script_unlink_list,$local_vcf;
-		push @vcf_part,$local_vcf;
-	    }
-	}
-	my $bed=$capture if $wes;
-	my ($local_prefix)= $local_bam=~/^(.*)\.bam$/i;
-	my $local_vcf="${local_prefix}_gatkug.vcf"; 
-	my $local_vcf_filter="${local_prefix}_gatkug.filter.vcf";
-	my $indel="${local_prefix}_gatkug.indel.vcf";
-	my $indel_filter="${local_prefix}_gatkug.indel.filter.vcf";
-	my $snp="${local_prefix}_gatkug.snp.vcf";
-	my $snp_filter="${local_prefix}_gatkug.snp.filter.vcf";
-	my $indel_tranches="${local_prefix}_gatkug.indel.tranches";
-	my $indel_recal_file="${local_prefix}_gatkug.indel_recal"; 
-	my $indel_plots="${local_prefix}_gatkug.indel.plots.R"; 
-	my $tranches="${local_prefix}_gatkug.tranches";
-	my $recal_file="${local_prefix}_gatkug.snp_recal";
-	my $plots="${local_prefix}_gatkug.plots.R";
-
-	if ($internal_caller eq 'haplotypecaller')
-	{
-	    map { s/_gatkug/_gatkhc/; } ($local_vcf,$indel,$indel_filter,$snp,$snp_filter,$local_vcf_filter,$indel_tranches,$indel_recal_file,$indel_plots,
-		$tranches,$recal_file,$plots);
-	}
-	my $cmd=$cmd_common_filter;
-	if ($mode eq 'multi')
-	{
-	    die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	    map {$cmd.=" -bam $_ "} @bam;
-	} else
-	{
-	    $cmd.=" -bam $local_bam ";
-	}
-	$cmd.=" -indel $indel";
-	$cmd.=" -indel-filter $indel_filter ";
-	$cmd.=" -snp $snp ";
-	$cmd.=" -snp-filter $snp_filter ";
-	$cmd.=" -vcf $local_vcf ";
-	$cmd.=" -vcf-filter $local_vcf_filter ";
-	$cmd.=" -indel-tranches $indel_tranches ";
-	$cmd.=" -indel-recal-file $indel_recal_file ";
-	$cmd.=" -indel-plots $indel_plots ";
-	$cmd.=" -tranches $tranches ";
-	$cmd.=" -recal-file $recal_file ";
-	$cmd.=" -plots $plots ";
-	$cmd.=" -capture $bed" if $bed;
-	map {$cmd.=" -vcf-part $_ "} @vcf_part;
-
-	push @commands,[$threads,"GATK variant filtering",$cmd];
-	push @script_unlink_list,$indel;
-	push @script_unlink_list,$indel_filter;
-	push @script_unlink_list,$snp;
-	push @script_unlink_list,$snp_filter;
-	push @script_unlink_list,$indel_tranches;
-	push @script_unlink_list,$indel_recal_file;
-	push @script_unlink_list,$indel_plots;
-	push @script_unlink_list,$tranches;
-	push @script_unlink_list,$recal_file;
-	push @script_unlink_list,$plots;
-	if ($mode eq 'multi')
-	{
-	    #make a copy of final vcf for each sample, with "multi-call" keyword
-	    for (@bam)
-	    {
-		my ($local_prefix)= /^(.*)\.bam$/i;
-		my $out="${local_prefix}".
-		($internal_caller eq 'haplotypecaller'? '_gatkhc':'_gatkug').
-		".multi-call".
-		($options{filter} ? ".filter":"").
-		".vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out;
-	    }
-	    push @script_unlink_list,$local_vcf;
-	    push @script_unlink_list,$local_vcf_filter;
-	    last;
-	} else
-	{
-	    if ($options{filter})
-	    {
-		push @vcf_files,$local_vcf_filter;
-		push @script_unlink_list,$local_vcf;
-	    } else
-	    {
-		push @vcf_files,$local_vcf;
-		push @script_unlink_list,$local_vcf_filter;
-	    }
-	}
-    }
-}
-
-sub gatk_full_recal
-{
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    for my $local_bam(@bam_files) 
-    {
-	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $grp="${local_prefix}.grp";push @removable,$grp;
-	my $newbam="${local_prefix}.recal.bam"; 
-	my @cov=split ',',$options{covariates};
-	my $cmd;
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T BaseRecalibrator -R $local_ref";
-	$cmd.=" -knownSites $local_dbsnp";
-	$cmd.=" -knownSites $local_indel";
-	$cmd.=" -nct $threads" if $threads>=2;
-	$cmd.=" -I $local_bam -o $grp";
-	$cmd.=" --default_platform $pl" if $pl; #in case RG tag doesn't have platform info
-	$cmd.=" -L $capture" if $wes;
-	$cmd.=" $options{additional} " if $options{additional} ne '';
-
-	push @commands,[$threads,"GATK base quality recalibration",$cmd];
-
-	$cmd="";
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T PrintReads -R $local_ref -I $local_bam -BQSR $grp -o $newbam";
-	$cmd.=" -L $capture" if $wes;
-	push @commands,[$threads,"Apply base quality recalibration",$cmd];$cmd="";
-	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
-
-	$local_bam=$newbam; push @removable,$newbam;
-    }
-}
-sub gatk_full_realign
-{
-    my %options=%{shift @_};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-    my $exe_java="java";
-    my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-
-    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
-
-    for my $local_bam(@bam_files) 
-    {
-	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
-	my $interval_file="${local_prefix}.intervals";push @removable,$interval_file;
-	my $newbam="${local_prefix}.realn.bam";
-	my $cmd;
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T RealignerTargetCreator -I $local_bam -R $local_ref -o $interval_file";
-	$cmd.=" -known $local_indel" if $local_indel;
-	$cmd.=" -nt $threads" if $threads>=2;
-	$cmd.=" -L $capture" if $wes;
-	push @commands,[$threads,"GATK realignment",$cmd];$cmd="";
-
-	$cmd.="$exe_java ";
-	$cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
-	$cmd.=" -Xmx$java_mem -jar $exe -T IndelRealigner -I $local_bam -R $local_ref -targetIntervals $interval_file --out $newbam";
-	$cmd.=" -maxInMemory $options{maxInMemory}" if $options{maxInMemory};
-	$cmd.=" -rf NotPrimaryAlignment"; #remove secondary alignments
-	$cmd.=" -known $local_indel" if $local_indel;
-	$cmd.=" -LOD $options{LOD}" if $options{LOD};
-	$cmd.=" -L $capture" if $wes;
-	$cmd.=" $options{additional} " if $options{additional} ne '';
-	push @commands,[$threads,"Apply realignment",$cmd];$cmd="";
-
-	$cmd.="$exe_samtools index $newbam";
-	push @commands,[$threads,"Index BAM files",$cmd];$cmd="";
-
-	$local_bam=$newbam; push @removable,$newbam;
-    }
-}
 ############end of gatk full version##########
 
 sub picard
@@ -1823,25 +1284,29 @@ sub picard
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
     my $exe_java="java";
+    my $exe=&getExe("markduplicates.jar");
     if ($subprogram=~/markduplicates/i)
     {
-
-	my $exe=&getExe("markduplicates.jar");
-	for my $local_bam(@bam_files) 
+	for my $local_bam_obj(@obj_list) 
 	{
+	    next unless $local_bam_obj->filetype() eq 'BAM';
 	    my $cmd;
-	    my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
+	    my $local_bam = $local_bam_obj->file();
+	    my ($local_prefix)= $local_bam =~ /(.*)\.bam$/i;
+	    my $newbam_obj = $local_bam_obj->clone();
 	    my $newbam="$local_prefix.rmdup.bam";
 	    my $metrics="${local_prefix}.rmdup.metrics";
+	    $newbam_obj->file($newbam);
+	    $newbam_obj->parent($local_bam_obj);
+	    $local_bam_obj->child($newbam_obj);
 	    #only mark duplicates, do not really remove them from BAM
 	    $cmd.="$exe_java ";
 	    $cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
 	    $cmd.=" -Xmx$java_mem -jar $exe INPUT=$local_bam OUTPUT=$newbam METRICS_FILE=$metrics REMOVE_DUPLICATES=false VALIDATION_STRINGENCY=SILENT";
-	    push @commands,[$threads,"Remove duplicates",$cmd];$cmd="";
-	    $local_bam=$newbam; push @removable,$newbam;
+	    push @commands,[$threads,"Remove duplicates",$cmd];
+	    $local_bam_obj = $newbam_obj;
+	    push @removable,$newbam;
 	}
-	@original_bam_files=@bam_files;
-	@bam_for_aln_stat=@bam_files;
     } else 
     {
 	die "ERROR: Unrecognized subprogram for picard: $subprogram\n";
@@ -1851,186 +1316,292 @@ sub varscan
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
-    my $caller='varscan';
-    push @callers,$caller;
-    my @target_bam_files;
-
-    if ($options{'originalBAM'})
-    {
-	#this step is to make sure we use BAM files without realn or recal
-	@target_bam_files=@original_bam_files;
-	$original_bam_toggle{$caller}=1;
-    } else
-    {
-	@target_bam_files=@bam_files;
-    }
-
-    if ($multi_sample_calling)
-    {
-	if ($fq1)
-	{
-	    #original input is fq
-	    #consider aligner
-	    for my $aligner(@aligners)
-	    {
-		#do multi-sample calling for bam files from the same aligner
-		if (my @one_aligner_bam=grep { /_$aligner/ } @target_bam_files)
-		{
-		    &varscan_variant('multi',$n,\%options,@one_aligner_bam);
-		}
-	    }
-	} else
-	{
-	    #original input is bam
-	    #directly do multi-sample calling
-	    &varscan_variant('multi',$n,\%options,@target_bam_files);
-	}
-    } else
-    {
-	#do snp calling for each bam
-	&varscan_variant('single',$n,\%options,@target_bam_files);
-    }
-} 
-
-sub varscan_variant
-{
-    my $mode=shift;
-    my $n=shift;
-    my %options=%{shift @_};
-    my @bam=@_;
+    my $mode;
+    my $caller = 'varscan';
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","runVARSCAN");
     my $varscan=&getExe(&SeqMule::Utils::getProgramExe("varscan"));
     my $java="java";
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
     my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -java $java -jmem $java_mem -varscan $varscan -ref $local_ref -tmpdir $TMPDIR ";
 
-    if ($mode eq 'single')
+    my @target_obj;
+
+    if ($options{'originalBAM'})
     {
-	for my $local_bam(@bam) 
-	{
-	    if ($quick)
-	    {
-		for my $i(1..$threads)
-		{
-
-		    my $bed=$small_bed[$i-1];
-		    my $cmd=$cmd_common;
-		    my ($local_prefix)= $local_bam=~/(.*)\.bam$/i; 
-		    $local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		    my $vcf_filter="${local_prefix}_varscan.filter.vcf"; 
-
-		    $cmd.=" -vcf-filter $vcf_filter ";
-		    $cmd.=" -bam $local_bam ";
-		    $cmd.=" -bed $bed " if $bed;
-
-		    push @commands,[$local_threads,"Varscan variant calling",$cmd];
-		    push @vcf_files,$vcf_filter;
-		}
-	    } else
-	    {
-		my $bed=$capture;
-		my $cmd=$cmd_common;
-		my ($local_prefix)= $local_bam=~/(.*)\.bam$/i; 
-		my $vcf_filter="${local_prefix}_varscan.filter.vcf"; 
-
-		$cmd.=" -vcf-filter $vcf_filter ";
-		$cmd.=" -bam $local_bam ";
-		$cmd.=" -bed $bed " if $bed;
-
-		push @commands,[$local_threads,"Varscan variant calling",$cmd];
-		push @vcf_files,$vcf_filter;
-	    }
-	}
-    } elsif ($mode eq 'multi')
-    {
-	die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam>=2;
-	my $bed;
-	if ($quick)
-	{
-	    for my $i(1..$threads)
-	    {
-		my $bed=$small_bed[$i-1];
-		my ($local_prefix)= $bam[0]=~/(.*)\.bam$/i; 
-		$local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
-		my $vcf_filter="${local_prefix}_varscan.filter.vcf";
-		my $cmd=$cmd_common;
-
-		$cmd.=" -vcf-filter $vcf_filter ";
-		map {   $cmd.=" -bam $_ "} @bam;
-		$cmd.=" -bed $bed " if $bed;
-
-		for (@bam)
-		{
-		    my ($new_prefix)= /^(.*)\.bam$/i;
-		    $new_prefix=File::Spec->catfile((dirname $new_prefix),"_${i}_.".(basename $new_prefix));
-		    my $out="${new_prefix}_varscan.multi-call.filter.vcf";
-		    #make a copy of final vcf for each prefix (samplename)
-		    push @vcf_files,$out;
-		}
-
-		push @commands,[$local_threads,"Varscan multi-sample variant calling",$cmd];
-		push @script_unlink_list,$vcf_filter;
-	    }
-	} else
-	{
-	    my ($local_prefix)= $bam[0]=~/(.*)\.bam$/i; 
-	    my $vcf_filter="${local_prefix}_varscan.filter.vcf";
-	    my $cmd;
-
-	    $cmd.=$cmd_common;
-	    $cmd.=" -vcf-filter $vcf_filter ";
-	    map {   $cmd.=" -bam $_ "} @bam;
-	    $cmd.=" -bed $bed " if $bed;
-
-	    for (@bam)
-	    {
-		my ($new_prefix)= /^(.*)\.bam$/i;
-		my $out="${new_prefix}_varscan.multi-call.filter.vcf";
-		#make a copy of final vcf for each prefix (samplename)
-		push @vcf_files,$out;
-	    }
-
-	    push @commands,[$local_threads,"Varscan multi-sample variant calling",$cmd];
-	    push @script_unlink_list,$vcf_filter;
-	}
+	#this step is to make sure we use BAM files without realn or recal if users want to
+	@target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
     } else
     {
-	die "ERROR: Unrecognized mode for varscan variant calling: $mode.\n";
+	@target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
+    }
+    $mode = ($multi_sample_calling? 'multi':'single');
+
+    for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
+    {
+	#do multi-sample calling for bam files from the same aligner
+	my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
+	@bam_obj = grep {$_->aligner eq $i} @bam_obj;
+	&gen_variant_call_cmd({
+		mode=>$mode,
+		caller=>$caller,
+		callcmd=>$cmd_common,
+		bam=>\@bam_obj
+	    });
+    }
+} 
+
+sub gen_variant_call_cmd
+{
+    #for varscan, samtools and freebayes and GATK
+    #figure out the mode of variant calling: multi-sample, somatic, single-sample
+    #figure out what BAMs to use
+    #call gen_cmd_for_variant_call_task to actually generate the command
+    my $opt = shift;
+    my $mode = $opt->{mode};
+    my $caller = $opt->{caller};
+    my $cmd_common = $opt->{callcmd};
+    my $cmd_common_filter = $opt->{filtercmd};
+    my @bam_obj = @{$opt->{bam}};
+    while(@bam_obj) {
+	#number of tasks, when quick is enabled, equal to number of threads
+	my $ntask = $quick ? $threads : 1;
+	my @bam_obj_for_this_task;
+	my $suffix;
+	#after we process a BAM, we remove it from the list to be processed
+	if($mode eq 'multi') {
+	    @bam_obj_for_this_task = @bam_obj;
+	    @bam_obj = ();
+	    die "ERROR: expect at least 2 BAM files for multi-sample variant calling.\n" unless @bam_obj_for_this_task >= 2;
+	    $suffix = $caller.".multi-call";
+	} elsif ($mode eq 'single') {
+	    @bam_obj_for_this_task = shift @bam_obj;
+	    $suffix = $caller;
+	} elsif ($mode eq 'somatic') {
+	    die "ERROR: Freebayes doesn't support somatic variant calling\n" if $caller eq 'freebayes';
+	    $suffix = $caller.".somatic-call";
+	    #for somatic calling, we need a pair of BAM, normal and tumor
+	    my $random_obj = shift @bam_obj;
+	    #before calling gen_variant_call_cmd, we have make sure
+	    #the BAM files come from same aligner
+	    my @same_sample_obj = grep { $_->sample() eq $random_obj->sample() } @bam_obj;
+
+	    if(@same_sample_obj == 1) {
+		#here we try to put normal first, tumor second
+		if($random_obj->istumor() == 0 && $same_sample_obj[0]->istumor() == 1) {
+		    push @bam_obj_for_this_task,$random_obj,$same_sample_obj[0];
+		} elsif ($random_obj->istumor() == 1 && $same_sample_obj[0]->istumor() == 0) {
+		    push @bam_obj_for_this_task,$same_sample_obj[0],$random_obj;
+		}
+		#remove somatic/normal pair from input list
+		SeqMule::SeqUtils->rmObjFromArray(
+		    target=>\@same_sample_obj,
+		    all=>\@bam_obj
+		);
+	    } elsif(@same_sample_obj == 0) {
+		die "ERROR: only found one BAM file for sample ".$random_obj->sample()."\n".
+		"Somatic mutation calling cannot be performed\n";
+	    } else {
+		die "ERROR: Right now SeqMule can only handle 2 BAM files for one sample in\n".
+		"somatic calling mode, we found ".(scalar @same_sample_obj+1)."\n";
+	    }
+	} else    {
+	    die "ERROR: unrecognized mode ($mode) for samtools variant.\n";
+	}
+	my @sample_for_this_task = SeqMule::SeqUtils->get_attr_enum('sample',@bam_obj_for_this_task); 
+	my @sibling_vcf = map {[]} (scalar @sample_for_this_task);
+	print "bam_obj_for_this_task\n";
+	&check_obj(@bam_obj_for_this_task);
+	for my $i(0..($ntask-1)) {
+	    my $bed = $quick? $small_bed[$i]:$capture;
+	    #the empty array ref will be used to store VCF files for all VCF obj
+	    #generated by one task
+
+	    &gen_cmd_for_variant_call_task({
+		    bed=>$bed,
+		    bam=>\@bam_obj_for_this_task,
+		    sibling_vcf=>\@sibling_vcf,
+		    cmd		=>$cmd_common,
+		    filter_flag	=>	0,
+		    caller	=>	$caller,
+		    suffix	=> 	$suffix,
+		    task_idx	=>	$i,
+		}
+	    );
+	}
+	print "obj_list after all tasks\n";
+	&check_obj(@obj_list);
+	#VCF generated in each task is a sibling
+	#to VCFs generated in all other tasks given that sample/input BAM is same
+	#later all VCFs which are siblings to each will be merged
+	for my $i(0..$#sibling_vcf) {
+	    for my $j(@{$sibling_vcf[$i]}) {
+		$j->sibling(@{$sibling_vcf[$i]});
+	    }
+	}
+	if($cmd_common_filter) {
+	    #if a separate filtering is to be done
+	    #we can safely remove obj generated in variant calling stage
+	    SeqMule::SeqUtils->rmObjFromArray(
+		target	=>	[map {@$_} @sibling_vcf],
+		all	=>	\@obj_list,
+	    );
+
+	    #if filter is necessary
+	    #we have to provide all siblings
+	    #do filtering just once, then copy results
+	    #to other samples (if any)
+	    &gen_cmd_for_variant_call_task({
+		    #here we will not use split BED
+		    #as the filtering step cannot be carried out
+		    #as multiple processes
+		    bed		=>	$capture,
+		    bam		=>	\@bam_obj_for_this_task,
+		    sibling_vcf	=>	\@sibling_vcf,
+		    cmd		=>	$cmd_common_filter,
+		    filter_flag	=>	1,
+		    task_idx	=>	0,
+		});
+	}
     }
 }
 
+sub gen_cmd_for_variant_call_task
+{
+    #generate command and objects for variant calling/filtering step
+    my $opt = shift;
+    my $bed = $opt->{bed};
+    my @bam_obj = @{$opt->{bam}};
+    my @sibling_vcf = @{$opt->{sibling_vcf}};
+    my @sample = SeqMule::SeqUtils->get_attr_enum('sample',@bam_obj); 
+    my $cmd_common = $opt->{cmd};
+    my $filter_flag = $opt->{filter_flag};
+    my $suffix = $opt->{suffix};
+    my $caller = $opt->{caller};
+    my $i = $opt->{task_idx};
+    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+
+    #@sibling_vcf will keep track of siblings of each VCF
+    #first array size is equal to # of samples
+    #second array size is equal to # of tasks
+    #creation and completion of this array is done outside this subroutine
+    #
+    #here we want to create a VCF for 
+    #each sample
+    for my $j(0..$#sample)
+    {
+	my ($bam_obj_for_this_sample) = grep { $_->sample() eq $sample[$j] } @bam_obj;
+	my ($local_prefix) = ($bam_obj_for_this_sample->file() =~ /(.*)\.bam$/i);
+	$local_prefix = $local_prefix.".$i";
+	my $local_vcf = "${local_prefix}_$suffix.vcf";  
+	my $local_vcf_filter = "${local_prefix}_$suffix.filter.vcf"; 
+
+	#we create a VCF object for each sample
+	#but only use the first one in analysis
+	#the rest are just copies
+	#name of this obj contains 'filter',
+	#but it is not necessarily filtered depending on 
+	#$cmd_common_filter
+
+	my $new_vcf_obj = $bam_obj_for_this_sample->clone();
+	$new_vcf_obj->filetype('VCF');
+	$new_vcf_obj->caller($caller);
+
+	if($filter_flag) {
+	    $new_vcf_obj->file($local_vcf_filter);
+	} else {
+	    $new_vcf_obj->file($local_vcf);
+	    #if a seperate filtering is performed
+	    #then this VCF will NOT have siblings
+	    #all siblings must have been merged before filtering
+	    #otherwise why not do variant calling and filtering together?
+	    $new_vcf_obj->rank($i);
+	}
+
+	#only the first one is child of BAM input
+	if($j==0) {
+	    my $msg = $suffix; 
+	    my $cmd = $cmd_common;
+	    $cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
+	    $cmd.=" -bed $bed " if $bed;
+	    if($filter_flag) {
+		#parent is all sibling VCFs from variant calling step
+		$new_vcf_obj->parent(@{$sibling_vcf[$j]});
+		map {$cmd.=" -vcf-part ".$_->file()} $new_vcf_obj->parent();
+		$msg .= " variant filtering";
+	    } else {
+		$new_vcf_obj->parent(@bam_obj);
+		map {$cmd.=" -bam ".$_->file()} $new_vcf_obj->parent();
+		$msg .= " variant calling";
+	    }
+		map { $_->child($new_vcf_obj) } $new_vcf_obj->parent();
+	    push @commands,[$local_threads,$msg,$cmd];
+	} else
+	{
+	    #for each BAM, variants are only called once
+	    #the rest of VCFs are generated by copy if two VCFs share same input
+	    my $vcf_template = $sibling_vcf[0][$i];
+	    $new_vcf_obj->parent($vcf_template);
+	    $vcf_template->child($vcf_template->child(),$new_vcf_obj);
+	    #this step is necessary because result for each sample is supposed to be standalone
+	    push @commands,[$local_threads,"Copy results to other samples","cp ".$vcf_template->file()." ".$new_vcf_obj->file()];
+	}
+	#note the index here is sample idx then task idx
+	#VCFs of same sample idx will be siblings/merged later
+	$sibling_vcf[$j][$i] = $new_vcf_obj;
+	push @obj_list,$new_vcf_obj;
+    }
+}
 sub soapsnp
 {
+    warn "soapsnp cmd generation\n" if $verbose;
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
-    warn "soapsnp cmd generation\n" if $verbose;
-    push @callers,"soapsnp";
     my $soapsnp=&getExe(&SeqMule::Utils::getProgramExe("soapsnp"));
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $soapsnp2vcf=File::Spec->catfile($install_dir,"bin","soapsnp2vcf");
     my $msort=&getExe("msort");
     my $runSoapsnp=File::Spec->catfile($install_dir,"bin","secondary","runSOAPSNP");
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my ($bam)= grep {/_soap/} @bam_files;
-
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+    my $cmd_common .= "$runSoapsnp -advanced $advanced -n $n -msort $msort -soapsnp $soapsnp -samtools $samtools -soapsnp2vcf $soapsnp2vcf -ref $local_ref ";
+    my $caller = "soapsnp";
 
-    for my $soap_file(@soapaln_file) 
+    for my $soap_obj(@obj_list) 
     {
-	my ($local_prefix)=$soap_file=~/(.*)\.soapaln$/i; 
-	my $outfile="${local_prefix}_soapsnp.consensus"; push @removable,$outfile;
-	my $vcf="${local_prefix}_soapsnp.filter.vcf"; push @removable,$vcf;
-	my $sorted="${local_prefix}.sort.soapaln"; push @removable,$sorted;
-	my $sample=$soapaln_sample{$soap_file};
+	next unless $soap_obj->filetype() eq 'SOAPALN';
+	my $soap_file = $soap_obj->file();
+	my ($local_prefix) = $soap_file=~/(.*)\.soapaln$/i; 
+	my $outfile = "${local_prefix}_$caller.consensus"; 
+	my $vcf = "${local_prefix}_$caller.filter.vcf"; 
+	my $sorted = "${local_prefix}.sort.soapaln"; 
+	my $sample = $soap_obj->sample();
+	my ($bam_obj) = grep {$_->sample() eq $sample and $_->filetype() eq 'BAM'} @obj_list;
+	my $new_vcf_obj = $soap_obj->clone();
+	my $new_soapaln_obj = $soap_obj->clone();
 	my $cmd;
 
-	$cmd.="$runSoapsnp -advanced $advanced -n $n -msort $msort -soapsnp $soapsnp -samtools $samtools -soapsnp2vcf $soapsnp2vcf -in $soap_file -bam $bam -sample $sample -sorted $sorted -ref $local_ref ";
+	$new_vcf_obj->caller($caller);
+	$new_vcf_obj->file($vcf);
+	$new_soapaln_obj->file($sorted);
+	$new_vcf_obj->filetype('VCF');
+	$new_soapaln_obj->filetype('SOAPALN');
+	$new_vcf_obj->parent($soap_obj);
+	$new_soapaln_obj->parent($soap_obj);
+	$soap_obj->child($new_soapaln_obj,$new_vcf_obj);
 
+	$cmd .= $cmd_common;
+	$cmd .= " -in $soap_file ";
+	$cmd .= " -bam ".$bam_obj->file();
+	$cmd .= " -sample $sample ";
+	$cmd .= " -sorted $sorted ";
 	$cmd.=" -soapsnp-out $outfile -vcf $vcf ";
-	push @commands,[$local_threads,"SOAPsnp variant calling",$cmd];$cmd="";
-	push @vcf_files,$vcf;
+
+	push @commands,[$local_threads,"SOAPsnp variant calling",$cmd];
+	push @script_unlink_list,$outfile;
+	push @obj_list,$new_vcf_obj;
+	#the unsorted soapaln file is no longer usefu
+	$soap_obj = $new_soapaln_obj;
     }
 } 
 
@@ -2162,7 +1733,6 @@ sub optCheck
     die "ERROR: -capture should NOT be used with -wgs/-g option. If you already have VCF files and want to calculate coverage statistics or extract variants in certain regions, please use 'seqmule stats -capture <BED> -vcf <VCF>'.\n" if $capture && $wgs;
     die "ERROR: -g -e cannot be specified together\n" if ($wes && $wgs);
     die "ERROR: '-capture <BED>' must specified for exome/captured data. Alternatively, you can use '-capture default' to analyze with default exome region definition.\nAll steps except alignment are done solely for the specified region.\nSome popular BED files can be downloaded by 'seqmule download -bed'.\n" if ($wes && !$capture);
-    die "ERROR: at least 2 threads required for quick analysis.\n" if ($quick && $threads<2);
     warn "CAUTION: You used your own reference file or index file, there is no guarantee that it will work with all programs.\n" if ($ref || $index_prefix || $bowtie_index_prefix || $bowtie2_index_prefix || $soap_index_prefix);
     warn "CAUTION: You used your own variant database, there is no guarantee that it will work with all programs.\n" if ($dbsnp || $kg || $hapmap);
     warn "Entering verbose mode...\n" if $verbose;
@@ -2244,6 +1814,8 @@ sub reportParam
 sub writeLog
 {
     $log="$analysis_prefix.log";
+    my @callers = SeqMule::SeqUtils->get_attr_enum('caller',@obj_list);
+    my @aligners = SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list);
     warn "NOTICE: log file will be overwritten: $log\n" if -f $log;
     open LOG,'>',$log or die "Failed to write to $log: $!\n";
 
@@ -2254,10 +1826,10 @@ sub writeLog
     {
 	if ($multi_sample_calling)
 	{
-	    print LOG "Multi-sample variant calling ENABLED, assume all samples in the same breed.\n";
+	    print LOG "Multi-sample variant calling ENABLED.\n";
 	} else
 	{
-	    print LOG "Multi-sample variant calling DISABLED, assume all samples in the same breed.\n";
+	    print LOG "Multi-sample variant calling DISABLED.\n";
 	}
     }
     print LOG "Input is exome (or captured) sequencing data.\n" if $wes;
@@ -2273,27 +1845,30 @@ sub writeLog
     print LOG "dbsnp$dbsnpver is used for variant calling and recalibration (in GATK VQSR).\n";
     print LOG "Java memory usage is limited to $java_mem\n";
     print LOG "Max number of processes: $threads\n";
-    if ($fq_toggle)
-    {
+    if ($fq_toggle) {
 	$paired ? print LOG "Two INPUT files detected, PAIRED ends mode\n" : print LOG "SINGLE end mode\n";
     }
     print LOG "Variant calling are run in parallel mode [EXPERIMENTAL].\n" if $quick;
+    print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
 
-    for my $sample(@prefix_list)
+    for my $sample(SeqMule::SeqUtils->get_attr_enum('sample',@obj_list))
     {
-	my $result_folder="${sample}_result";
+	my $result_folder = &get_result_folder($sample);
 
 	print LOG "###################################################\n";
 	print LOG "FINAL OUTPUT for $sample:\n";
 	print LOG "###################################################\n";
 	print LOG "NOTICE: Both consensus results and individual results are listed.\n";
 	print LOG "WARNING: consensus results may not be available because some variant callers or aligners may fail to generate output.\n";
-	print LOG join "\n", grep {/$result_folder/} @consensus_vcf;
+	print LOG join "\n", map {$_->file()} 
+	(grep {$_->caller eq 'consensus' && $_->filetype eq 'VCF' &&
+	$_->sample eq $sample } @obj_list);
 	print LOG "\n";
-	print LOG join "\n", grep {/$result_folder/} @vcf_files;
+	print LOG join "\n", map {$_->file()} 
+	(grep {$_->caller ne 'consensus' && $_->filetype eq 'VCF' &&
+	$_->sample eq $sample } @obj_list);
 	print LOG "\n";
     }
-    print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
 
     close LOG;
     warn "NOTICE: log written to $log\n";
@@ -2315,119 +1890,150 @@ sub procFQ
     if ($paired && $#fq1_list != $#fq2_list);
 
 
-    #PL/LB/RG should be unique for each FASTQ
-    #get @RG info
-    if ($pl =~ /,/)
-    {
-	    @platform=split /,/,$pl;
-	    die "ERROR: number of platforms does NOT equal number of samples\n" unless @platform == @prefix_list;
-    } else
-    {
-	@platform=map { $pl } @prefix_list;
-    }
-
-    if ($lb =~ /,/)
-    {
-	    @library=split /,/,$lb;
-	    die "ERROR: number of libraries does NOT equal number of samples\n" unless @library == @prefix_list;
-    } else
-    {
-	@library=map {$lb} @prefix_list;
-    }
-
-    #make sure every sample has a RG/PL/LB
-    #in principle, we need to specify RG/PL/LB for every input file
-    #for now, we just make sure every sample have its own tags
-    if ($rg =~ /,/)
-    {
-	@readgroup=split /,/,$rg;
-	die "ERROR: number of read groups does NOT equal number of samples\n" unless @readgroup == @prefix_list;
-    } else
-    {
-	#when only one RG is specified
-	#automatically generate a uniq RG for each sample
-	@readgroup=map {"${rg}_$prefix_list[$_]"} (0..$#prefix_list);
-	$rg=join ',',@readgroup;
-    }
 
     for my $i(0..$#prefix_list)
     {
 	#create symlinks such that all corresponding output have consistent prefix
 	#this step is critical for fastqc processing
-	my $result_folder=$prefix_list[$i]."_result";
-	mkdir $result_folder unless -d $result_folder;
+	my $result_folder = &get_result_folder($prefix_list[$i]);
 	#generate a symbolic link for each fastq file
 	#place all fastq files belonging to the same sample under sample_result folder
 	#we also need to check if the links already exist
 	my @fq_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
 	for my $j(@fq_idx_range)
 	{
-	    my $basename = $prefix_list[$i].
-	    ($merge? ".".&SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list):"").
-	    ".1.fastq".
-	    ($fq1_list[$j]=~/\.gz/i ? ".gz":"");
-	    my $newfq = &gen_input_symlink({
-		folder=>$result_folder,
-		basename=>$basename,
-		original=>$fq1_list[$j],
-	    });
-	    $original_input{$newfq}=basename $fq1_list[$j];
-	    $fq1_list[$j]=$newfq;
-	    push @symlink,$newfq;
-	}
-	for my $j(@fq_idx_range)
-	{
-	    my $basename = $prefix_list[$i].
-	    ($merge? ".".&SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list):"").
-	    ".2.fastq".
-	    ($fq2_list[$j]=~/\.gz/i ? ".gz":"");
-	    my $newfq = &gen_input_symlink( {
-		folder=>$result_folder,
-		basename=>$basename,
-		original=>$fq2_list[$j],
-	    });
-	    $original_input{$newfq}=basename $fq2_list[$j];
-	    $fq2_list[$j]=$newfq;
-	    push @symlink,$newfq;
+	    my @rank = (0,1);
+	    my @paired_obj = @rank;
+	    for my $k(@rank) #are we dealing with first or second fastq in a pair?
+	    {
+		my $file = ($k == 0? $fq1_list[$j] : $fq2_list[$j]);
+		my $fq = SeqMule::SeqUtils->new( 	
+		    'file'	=> $file,
+		    'filetype'	=> 'FASTQ',
+		    'sample'	=> $prefix_list[$i],
+		    'rgid'	=> $readgroup[$i],
+		    'lb'	=> $library[$i],
+		    'pl'    	=> $platform[$i],
+		    'rank'	=> $k,
+		);
+		$fq->ancestor($fq);
+		my $newfq = $fq->gen_symlink(
+		    File::Spec->catfile(
+			$result_folder,
+			#here I used a trick for join
+			#join will ignore an empty list ()
+			#undef will still cause join to add another separator, though
+			join(".",$fq->sample(),
+			    ($merge? &SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list) : ()),
+			    $fq->rank(),
+			    "fastq",
+			    ($fq->file()=~/\.gz$/i ? "gz" : ()), 
+			)
+		    ));
+		$paired_obj[$newfq->rank()] = $newfq;
+	    }
+	    $paired_obj[0]->sibling($paired_obj[1]);
+	    $paired_obj[1]->sibling($paired_obj[0]);
+	    push @obj_list,@paired_obj;
 	}
     }
 #examine first 1000 reads, count bases in ASCII code 33-58 for phred33 and 80-104 for phred64
-    $phred=&SeqMule::Utils::phred_score_check(1000,@fq1_list,@fq2_list) if ($fq1 && $phred==1);
+    $phred=&SeqMule::Utils::phred_score_check($PHRED_SCORE_CHECK_LINECOUNT,(map{$_->file() if $_->filetype() eq 'FASTQ'} @obj_list)) if ($fq_toggle && $phred==1);
 }
 
-sub gen_input_symlink
-{
-    my $opt = shift;
-    my $folder = $opt->{'folder'};
-    my $basename = $opt->{'basename'};
-    my $original = $opt->{'original'};
-
-    my $new=File::Spec->catfile($folder,$basename);
-    if (-e $new #-e dosenot return true for symbolic links, weird thing!
-	    or -l $new)
-    {
-	if ( (&SeqMule::Utils::abs_path_failsafe($new)) ne (&SeqMule::Utils::abs_path_failsafe($original)))
-	{
-	    die "ERROR: $new exists, and it links to another file, please use another prefix or delete it.\n";
-	}
-    }
-
-    symlink $original,$new unless -e $new or -l $new;
-    return $new;
-}
 sub procBAM
 {
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-    if (grep { $_ !~ /\.bam$/i } @bam_list)
+    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
+    if (grep { $_ !~ /\.bam$/ } @bam_list)
     {
 	die "ERROR: All BAM files must have suffix .bam\n";
     }
+
+    if ($merge) {
+	for my $i(0..$#prefix_list) {
+	    my $result_folder = &get_result_folder($prefix_list[$i]);
+	    my $onebam = SeqMule::SeqUtils->new(
+		'file'		=> File::Spec->catfile($result_folder,$prefix_list[$i].".merge.bam"),
+		'filetype'	=> 'BAM',
+		'sample'	=> $prefix_list[$i],
+	    );
+	    #although aligner information is unavaiable, we still need it to figure out
+	    #one_aligner_bam later
+	    $onebam->aligner('NA');
+	    my @bam_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
+	    my @one_sample_input_bam;
+	    for my $j(@bam_idx_range)
+	    {
+		my $obj = SeqMule::SeqUtils->new( 	
+		    'file'	=> $bam_list[$j],
+		    'filetype'	=> 'BAM',
+		    'sample'	=> $prefix_list[$i],
+		);
+		$obj->aligner('NA');
+		#only one sample is allowed in each BAM, so we can safely 
+		#assume only one sample here
+		my $sample_in_bam = &SeqMule::Utils::getBAMSample($samtools,$bam_list[$j]);
+		die "ERROR: prefix <<$prefix_list[$i]>> is not equal to sample <<$sample_in_bam>> found in $bam_list[$j]\n"
+		unless $prefix_list[$i] eq $sample_in_bam;
+		push @one_sample_input_bam,$obj;
+	    }
+	    $onebam->rg($readgroup[$i]) if ($force_one_rg);
+
+	    #ancestor will be set by merge_bam
+	    &merge_bam($onebam,@one_sample_input_bam);
+	    #replace BAMs-to-be-merged with merged BAM
+	    push @obj_list,$onebam;
+	}
+    } else {
+	if($prefix)
+	{
+	    $#bam_list==$#prefix_list 
+		or die "ERROR: Prefixes for BAM files are optional.\nIf specified, they must equal to BAM files unless merging is used.\n";
+	} else
+	{
+	    @prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} (split /,/,$bam); #in case the file is symbolic link
+	    die "ERROR: Duplicate BAM sample found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
+	}
+
+	for my $i(0..$#prefix_list)
+	{
+	    my $result_folder = &get_result_folder($prefix_list[$i]);
+	    my $original_bam = SeqMule::SeqUtils->new( 	
+		'file'	=> $bam_list[$i],
+		'filetype'	=> 'BAM',
+		'sample'	=> $prefix_list[$i],
+	    );
+	    $original_bam->aligner('NA');
+
+	    my $sample_in_bam = &SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
+	    die "ERROR: prefix $prefix_list[$i] is not equal to sample $sample_in_bam found in $bam_list[$i]\n"
+	    unless $prefix_list[$i] eq $sample_in_bam;
+
+	    $original_bam->ancestor($original_bam);
+	    my $newbam = $original_bam->gen_symlink(
+		File::Spec->catfile(
+		    $result_folder,$original_bam->sample().".bam"
+		));
+	    push @obj_list,$newbam;
+	}
+
+	&checkBAMSample($samtools,@obj_list);
+    }
     #check contig, try to resolve inconsistency
-    for my $local_bam(@bam_list)
+    for my $local_bam_obj(@obj_list)
     {
+	next unless $local_bam_obj->filetype() eq 'BAM';
 	#compare chromosome name in ref and BED, complain if they don't match
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-	my $chr_compare=&SeqMule::Utils::compareChr({samtools=>$samtools,type1=>'fasta', file1=>$local_ref, type2=>'bam', file2=>$local_bam, });
+	my $local_bam = $local_bam_obj->file();
+	my $chr_compare=&SeqMule::Utils::compareChr({
+		samtools=>$samtools,
+		type1=>'fasta',
+		file1=>$local_ref,
+		type2=>'bam',
+		file2=>$local_bam, 
+	    });
 	if ($chr_compare==0)
 	{
 	    die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
@@ -2443,14 +2049,19 @@ sub procBAM
 	    } else
 	    {
 		#try remove or add 'chr'
+		#check @SQ tags, try to fix inconsistent tags
 		warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
-		my $newbam=$local_bam;
-		$newbam=~s/\.bam/.chrmod.bam/;
-		warn "WARNING: $newbam will be overwritten.\n" if -e $newbam;
-		&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam);
-		$original_input{$newbam}=$original_input{$local_bam};
-		delete $original_input{$local_bam};
-		$local_bam=$newbam;
+		my $newbam_obj = $local_bam_obj->clone();
+		my $newbam_file = $local_bam_obj->file();
+		$newbam_file =~ s/\.bam/.chrmod.bam/;
+		$newbam_obj->file($newbam_file);
+		$newbam_obj->parent($local_bam_obj);
+		$local_bam_obj->child($newbam_obj);
+
+		warn "WARNING: $newbam_file will be overwritten.\n" if -e $newbam_file or -l $newbam_file;
+		&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam_file);
+
+		$local_bam_obj=$newbam_obj;
 	    }
 	} else
 	{
@@ -2458,91 +2069,27 @@ sub procBAM
 	}
     }
 
-    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
-    if ($merge)
-    {
-	for my $i(0..$#prefix_list)
-	{
-	    my $result_folder=$prefix_list[$i]."_result";
-	    mkdir $result_folder unless -d $result_folder;
-	    my $onebam=File::Spec->catfile($result_folder,$prefix_list[$i].".merge.bam");
-	    my @bam_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
-	    my @one_sample_input_bam = @bam_list[@bam_idx_range];
-
-	    #force single sample in each BAM
-	    &checkBAMSample($samtools,@one_sample_input_bam);
-	    #check BAM @SQ header
-	    push @commands, [$threads,"Check BAM header before merging", "$header_check $samtools @one_sample_input_bam"];
-
-	    if ($force_one_rg)
-	    {
-		my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
-		push @commands, [$threads,"Merge BAM into one readgroup","$exe $samtools $threads $rg $onebam $TMPDIR @one_sample_input_bam"];
-	    } elsif ($union_rg)
-	    {
-		my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
-		#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-		push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam $TMPDIR @one_sample_input_bam"];
-	    } else
-	    {
-		#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-		if (&SeqMule::Utils::checkDuplicateRGID($samtools,@one_sample_input_bam)) 
-		{
-		    die "ERROR: SeqMule cannot decide how to merge BAM files with duplicate readgroup IDs. Please use '--forceOneRG' or '--unionRG' option.\n";
-		} else 
-		{
-		    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
-		    push @commands, [$threads,"Merge BAM without changing readgroup","$exe $samtools $threads $onebam $TMPDIR @one_sample_input_bam"];
-		}
-	    }
-	    $original_input{$onebam}=join(",",map {basename $_} @one_sample_input_bam);
-	    #replace BAMs-to-be-merged with merged BAM
-	    splice @bam_list,$bam_idx_range[0],(scalar @bam_idx_range),$onebam;
-	}
-    }
-    if(!$merge)
-    {
-	&checkBAMSample($samtools,@bam_list);
-	if($prefix)
-	{
-	    $#bam_list==$#prefix_list 
-		or die "ERROR: Prefixes for BAM files are optional.\nIf specified, they must equal to BAM files unless merging is used.\n";
-	} else
-	{
-	    @prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} (split /,/,$bam); #in case the file is symbolic link
-	    die "ERROR: Duplicate BAM file name found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
-	}
-	for my $i(0..$#prefix_list)
-	{
-	    my $result_folder=$prefix_list[$i]."_result";
-	    mkdir $result_folder unless -d $result_folder;
-	    my $newbam = &gen_input_symlink({
-		folder=>$result_folder,
-		basename=>$prefix_list[$i].".bam",
-		original=>$bam_list[$i],
-	    });
-	    $original_input{$newbam}=basename $bam_list[$i];
-	    $bam_list[$i]=$newbam;
-	    push @symlink,$newbam;
-	}
-    }
-
-#check @SQ tags, try to fix inconsistent tags
     #sort all BAMs as we cannot assume they are aligned
-    for my $local_bam(@bam_list)
-    {
-	my ($local_prefix)= $local_bam=~/(.*)\.bam$/i;
+    for my $local_bam_obj(@obj_list) {
+	next unless $local_bam_obj->filetype() eq 'BAM';
+	my $local_bam = $local_bam_obj->file();
+	my ($local_prefix)= $local_bam=~/(.*)\.bam$/;
 	die "ERROR: $local_bam must have *.bam as file name\n" unless defined $local_prefix;
-	my $newbam="$local_prefix.sort.bam";
+	my $newbam_obj = $local_bam_obj->clone();
+	my $newbam_file="$local_prefix.sort.bam";
 	my $newbam_prefix="$local_prefix.sort";
+	#we need to write dependency info before command is generated
+	#as we need file dependency to resolve command dependency
+	$newbam_obj->file($newbam_file);
+	$newbam_obj->parent($local_bam_obj);
+	$local_bam_obj->child($newbam_obj);
+
 	push @commands, [$threads,
 	    "Sort BAM input assuming it is not sorted",
 	    "$samtools sort -m ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME)." -\@ $threads $local_bam $newbam_prefix"];
-	#whenever bam_list is changed, original_input should be changed accordingly
-	$original_input{$newbam}=$original_input{$local_bam};
-	delete $original_input{$local_bam};
-	$local_bam=$newbam; 
-	push @removable,$newbam;
+
+	$local_bam_obj = $newbam_obj; 
+	push @removable,$newbam_obj->file();
     }
 }
 
@@ -2551,7 +2098,7 @@ sub confOptCheck
 #check global options
     if ($buildver !~ /^(hg18|hg19)$/ )
     {
-	die "ERROR: Illegal build version: use hg18 or hg19: $buildver\n";
+	die "ERROR: Illegal build version $buildver, use hg18 or hg19\n";
     }  #standardize build version
     die "Only support ILLUMINA and IONTORRENT.\n" unless ($pl =~ /illumina|iontorrent/i);
     if ($fq1)
@@ -2559,19 +2106,20 @@ sub confOptCheck
 	die "ERROR: Illegal Phred score scheme: use 1 (auto-detect), 33 or 64\n" 
 	unless ($phred==1 or $phred==33 or $phred==64);
     }
-    die "ERROR: use integers for threads option: $threads\n" unless $threads=~/\d+/;
-    die "ERROR: use integers for GATK threads option: $gatk_nt\n" unless $gatk_nt=~/\d+/;
+    die "ERROR: use integers for threads option: $threads\n" unless $threads=~/^\d+$/;
+    die "ERROR: use integers for GATK threads option: $gatk_nt\n" unless $gatk_nt=~/^\d+$/;
     die "ERROR: at least 2 threads required for QUICK mode" if $threads<2 && $quick;
 
     #check capture file
-    if ($capture && $capture=~/default/i)
+    if ($capture && $capture=~/^default$/i)
     {
 	#see if we should modify default capture file to match custom reference
-	warn "NOTICE: use default BED file: ${buildver}_exome.bed\n";
+	warn "NOTICE: use default BED file ${buildver}_exome.bed\n";
 	$capture=File::Spec->catfile($install_dir,"misc","${buildver}_exome.bed"); #make sure buildver is assigned a value
     }
     if ($capture)
     {
+	$capture = &SeqMule::Utils::abs_path_failsafe($capture);
 	die "ERROR: $capture must have .bed suffix.\n" unless $capture=~/\.bed$/;
 	die "ERROR: $capture does NOT exist or is empty\n" if !-f $capture or -s $capture <=0;
 	#compare chromosome name in ref and BED, complain if they don't match
@@ -2620,12 +2168,12 @@ sub confOptCheck
     {
 	#remove overlapping regions in BED, generate a new BED if necessary
 	warn "NOTICE: SeqMule now tries to resolve overlapping regions in BED file.\n";
-	my $tmp=basename $capture; 
-	$tmp=~s/\.bed$/.nooverlap.bed/;#fix the naming to avoid generating new file each run
+	my $tmp = basename $capture; 
+	$tmp =~ s/\.bed$/.nooverlap.bed/;#fix the naming to avoid generating new file each run
 	warn "NOTICE: $tmp will be used to replace $capture.\n";
-	if (-e $tmp && &SeqMule::Utils::checkOverlapBED($tmp))
+	if ((-e $tmp || -l $tmp) && &SeqMule::Utils::checkOverlapBED($tmp))
 	{
-	    die "ERROR: SeqMule tries to create $tmp for you, but target exists and its content differs from what SeqMule expects.\nPlease remove or rename it.\n";
+	    die "ERROR: SeqMule tries to create $tmp for you, but target exists and it contains overlapping regions.\nPlease remove or rename it.\n";
 	} else
 	{
 	    $capture=&SeqMule::Utils::rmOverlapBED($capture,$tmp);
@@ -2633,6 +2181,40 @@ sub confOptCheck
     }
 
     warn "NOTICE: Input BED file detected, only variants in corresponding regions will be generated.\n" if $capture;
+    #get @RG info
+    #
+    if ($pl =~ /,/)
+    {
+	@platform=split /,/,$pl;
+	die "ERROR: when over 1 platforms are specified, number of platforms must equal number of samples\n" unless @platform == @prefix_list;
+    } else
+    {
+	@platform=map { $pl } @prefix_list;
+    }
+
+    if ($lb =~ /,/)
+    {
+	@library=split /,/,$lb;
+	die "ERROR: when over 1 libraries are specified, number of libraries must equal number of samples\n"  unless @library == @prefix_list;
+    } else
+    {
+	@library=map {$lb} @prefix_list;
+    }
+
+    #make sure every sample has a RG/PL/LB
+    #in principle, we need to specify RG/PL/LB for every input file
+    #for now, we just make sure every sample have its own tags
+    if ($rg =~ /,/)
+    {
+	@readgroup=split /,/,$rg;
+	die "ERROR: when over 1 readgroup IDs are specified, number of readgroup IDs must equal number of samples\n"   unless @readgroup == @prefix_list;
+    } else
+    {
+	#when only one RG is specified
+	#automatically generate a uniq RG for each sample
+	@readgroup=map {"${rg}_$prefix_list[$_]"} (0..$#prefix_list);
+	$rg=join ',',@readgroup;
+    }
 }
 sub checkForSplit
 {
@@ -2646,26 +2228,16 @@ sub genScript
 {
     warn "Generating script...\n";
     #prepare new tmp folder
-    if ($quick)
-    {
-	if ($wes)
-	{
+    if ($quick) {
+	if ($wes) {
 	    @small_bed=&SeqMule::Utils::splitRegion({threads=>$threads,bed=>$capture,prefix=>$analysis_prefix});
-	} else
-	{
+	} else {
 	    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 	    my $bed=$capture || &SeqMule::Utils::fa2BED($local_ref);
 	    @small_bed=&SeqMule::Utils::splitRegion({bed=>$bed,threads=>$threads});
 	}
 	#remove temp BED files after analysis is done
 	push @script_unlink_list,@small_bed;
-    }
-    if (!$fq_toggle)
-    {
-	#assign to intermediate files
-	@bam_files=@bam_list ; #bam_list comes from command line
-	@original_bam_files=@bam_list;
-	@bam_for_aln_stat=@bam_list;
     }
 #convert phred64 to phred33, only effective for FQ input
     &convert64to33() if $fq_toggle;
@@ -2683,20 +2255,17 @@ sub genScript
     &genStat() unless $nostat;
 #copy all results of each individual sample to one folder
 
-    unless ($noremove)
-    {
+    unless ($noremove) {
 	&keepUseful;
 	push @commands,[$threads, "Remove intermediate files","rm -f @removable"] if (@removable);
     }
-    if (@script_unlink_list)
-    {
+    if (@script_unlink_list) {
 	#-f makes rm keep silent if the file doesn't exist
 	push @commands,[$threads,"Remove temporary files","rm -rf @script_unlink_list"];
     }
 
     &writeLog;
     &genReport() unless ($nostat);
-
     #generate analysis script
     &writeScript();
 }
@@ -2706,11 +2275,6 @@ sub keepUseful
 {
     my %rm=map { ($_,1) } @removable;
     my @target=(@bam_files,@vcf_files,@soapaln_file,@consensus_vcf);
-
-    if (%original_bam_toggle)
-    {
-	push @target,@original_bam_files;
-    }
 
     for (@target)
     {
@@ -2737,194 +2301,149 @@ sub genReport
     my $param_file=File::Spec->catfile($outdir,"parameter.txt");
     my $log_file=File::Spec->catfile($outdir,"log.txt");
     my $html_gen=File::Spec->catfile($install_dir,"bin","secondary","html_gen");
-    my $alias_string=join (" ", 
-	map { " alias $_ $original_input{$_} " } (keys %original_input) 
-    );
     mkdir $outdir unless -d $outdir;
 
     warn "NOTICE: copying configuration file and log file.\n";
     !system("cp -f $advanced $param_file") and !system("cp -f $log $log_file") or die "Failed to copy configuration or log file: $!\n";
-    push @commands,[$threads,"Generating html report","$html_gen $alias_string $outdir @prefix_list"];
+    push @commands,[$threads,"Generating html report","$html_gen $outdir @prefix_list"];
 }
+#generate various stats used in reports
 sub genStat
 {
-    #Venn Diagram
-    for my $i(0..$#prefix_list)
-    {
-	my $sample=$prefix_list[$i];
-	my $result_folder="${sample}_result";
-	my ($qcstat,$stat_prefix);
-	$qcstat=File::Spec->catfile($result_folder,"${sample}_qc_stat.txt");
-	$stat_prefix=File::Spec->catfile($result_folder,$sample);
-	my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
-	my $seqmule=File::Spec->catfile($install_dir,"bin","seqmule");
-	my $sample_in_bam;
-	if ($fq_toggle or $merge)
-	{
-	    $sample_in_bam=$sample;
-	} else
-	{
-	     #when merging is enabled, original BAMs have been replaced by merged BAMs,
-		#which will be generated in execution phase
-	    $sample_in_bam=&SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
-	}
+    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
+    my $seqmule=File::Spec->catfile($install_dir,"bin","seqmule");
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 
-	#output FASTqc summary
-	{
-	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","convertQCstat");
-	    unlink $qcstat or die "Failed to remove $qcstat: $!" if -f $qcstat; #remove existing $qcstat since the following command append ouput to it (not overwrite)
-	    if ($fq_toggle)
-	    {
-		#only fastq input
-		# convertQCstat will append result to last argument
-		if ($merge)
-		{
-		    for my $j(0..$#fq1_list)
-		    {
-			push @commands,[$threads,"Generate QC stat","$exe $fq1_list[$j] ".$original_input{$fq1_list[$j]}." $qcstat"]; 
-			push @commands,[$threads,"Generate QC stat","$exe $fq2_list[$j] ".$original_input{$fq2_list[$j]}." $qcstat"] if $fq2_list[$j];
-		    }
-		} else
-		{
-		    push @commands,[$threads,"Generate QC stat","$exe $fq1_list[$i] ".$original_input{$fq1_list[$i]}." $qcstat"]; 
-		    push @commands,[$threads,"Generate QC stat","$exe $fq2_list[$i] ".$original_input{$fq2_list[$i]}." $qcstat"] if $fq2_list[$i];
-		}
-	    } else
-	    {
-		#only bam input, merge is done before QC
-		push @commands,[$threads,"Generate QC stat","$exe $bam_list[$i] ".$original_input{$bam_list[$i]}." $qcstat"]; 
-	    }
-	}
+    for my $sample(SeqMule::SeqUtils->get_attr_enum('sample',@obj_list)) {
+	my @per_sample_obj = grep {$_->sample() eq $sample} @obj_list;
+	my $result_folder = &get_result_folder($sample);
+	my ($qcstat,$stat_prefix);
+	$stat_prefix=File::Spec->catfile($result_folder,$sample);
+	$qcstat=$stat_prefix."_qc_stat.txt";
+
+	#QC stat is handled at &fastqc subroutine
 	#output venn diagram
-	if (my @venn_files= grep { /$result_folder/ } @vcf_files )
 	{
-	    if (@venn_files <= 5 && @venn_files >= 2)
-	    {
-		my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-		push @commands,[$threads,"Generate Venn digram","$seqmule stats -tmpdir $TMPDIR -venn ".join(',',@venn_files)." -prefix $stat_prefix -ref $local_ref ".($sample_in_bam?" -s $sample_in_bam ":"")];
-	    } else
-	    {
+	    #we don't include consensus results as they are extracted from other VCFs
+	    my @venn_obj = grep { $_->filetype eq 'VCF' and $_->caller ne 'consensus'} @per_sample_obj;
+	    my $cmd_common = "$seqmule stats -tmpdir $TMPDIR ".
+	    #each VCF may contain multiple samples
+	    #sample names will match samples associated with obj for FASTQ/BAM with/without merging
+	    " -prefix $stat_prefix -ref $local_ref -s $sample ";
+
+	    if(@venn_obj <= 5 && @venn_obj >=2) {
+		push @commands,[$threads,"Generate Venn digram","$cmd_common -venn ".join(',',(map {$_->file()} @venn_obj))];
+	    } else {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
 	    }
 	}
 	#output alignment and coverage statistics
-	if (my ($bam)=grep { /$result_folder/ } (@bam_for_aln_stat)) #only report one BAM
-	{
+	#only output statistics about one BAM, can be improved later
+	if (my ($bam_obj)=grep { $_->filetype eq 'BAM' } (@per_sample_obj)) {#only report one BAM 
+	    my $bam = $bam_obj->file();
 	    warn "NOTICE: SeqMule only reports statistics from ONE BAM file.\n";
-	    push @commands,[$threads,"Generate alignment and coverage stat","$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix -capture ".($wes?" $capture":"")];
+	    push @commands,[$threads,"Generate alignment and coverage stat",
+		"$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix ".($wes?" -capture $capture ":"")];
 	}
-
 	#output variant statistics
-	if (my @vcf=grep { /$result_folder/ } (@consensus_vcf,@vcf_files))
-	{
+	if (my @vcf_obj = grep { $_->filetype eq 'VCF' } (@per_sample_obj)) {
+	    my @vcf = map{$_->file()} @vcf_obj;
 	    my $genVarStat=File::Spec->catfile($install_dir,"bin/secondary/genVarStat");
-	    push @commands,[$threads,"Generate variant stat","$genVarStat ".($sample_in_bam? " -s $sample_in_bam ":"")." $stat_prefix @vcf"];
+	    push @commands,[$threads,"Generate variant stat","$genVarStat -s $sample $stat_prefix @vcf"];
 	}
     }
 }
 sub mergeVCF
 {
-    #merge all VCFs by original bam file and callers
-    if ($quick)
+    #merge VCF because variants are called over different regions
+    #under quick mode
+    #all VCFs that are supposed to be merged into one VCF
+    #are siblings to each other
+    
+    #first figure out what VCFs to merge (only include rank=0)
+    my @vcf_to_merge_rank0;
+    for my $vcf_obj(@obj_list) {
+	next unless $vcf_obj->rank == 0 and 
+	$vcf_obj->filetype eq 'VCF' and
+	$vcf_obj->sibling > 1;
+	push @vcf_to_merge_rank0,$vcf_obj;
+    }
+
+    for my $vcf_obj(@vcf_to_merge_rank0)
     {
-	my @merged_vcf;
-	#merge all VCFs by signature
-	for my $bam(@bam_files)  #original_bam is for non-gatk variant callers
-	{
-	    my $dir=dirname $bam;
-	    my $base=basename $bam;
-	    $base=~s/\.bam$//i or die "Unknown file type: $base";
-	    my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
+	my @sibling_vcf_obj = ($vcf_obj,$vcf_obj->sibling());
+	#if we decide to merge, remove the VCFs to be merged from VCF pool
+	SeqMule::SeqUtils->rmObjFromArray(
+	    target=>\@sibling_vcf_obj,
+	    all=>\@obj_list,
+	);
+	my ($local_prefix) = $vcf_obj->file() =~ /(.*?)\.vcf$/i;
+	my $merged_vcf_obj = $vcf_obj->clone();
+	my $expect_merged_vcf_obj = $vcf_obj->clone();
+	my $out_file="${local_prefix}_union.vcf";
+	my $expect_out_file="$local_prefix.vcf";
 
-	    for my $caller (@callers)
-	    {
-		next if $caller eq 'soapsnp'; #do nothing for SOAPsnp
-		next if $original_bam_toggle{$caller}; #if true, variant calling is performed on original BAM files (norealign, no recal)
-		my @one_set_vcf = grep { /_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files; #use underscore to avoid possible naming conflicts with user supplied prefix
-		next unless @one_set_vcf>1; #if only one vcf, no need to merge
-		#if we decide to merge, remove the VCFs to be merged from VCF pool
-		@vcf_files = grep { !/_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files; #use underscore to avoid possible naming conflicts with user supplied prefix
+	$merged_vcf_obj->file($out_file);
+	$merged_vcf_obj->parent(@sibling_vcf_obj);
+	$expect_merged_vcf_obj->file($expect_out_file);
+	$expect_merged_vcf_obj->parent($merged_vcf_obj);
+	map {$_->child($merged_vcf_obj)} @sibling_vcf_obj;
 
-		# $out_prefix might contain path
-		my $out_prefix=basename $one_set_vcf[0]; 
-		$out_prefix =~ s/.*_\d+_\.($base.*)\.vcf$/$1/i or die "ERROR: NO VCF file or unexpected file name under quick mode: $out_prefix\n";
-		$out_prefix=File::Spec->catfile($dir,$out_prefix);
+	push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($local_prefix,map{$_->file()}@sibling_vcf_obj)];
+	push @commands,[$threads,"Rename VCF","mv -f $out_file $expect_out_file"];
 
-		my $out_file="${out_prefix}_union.vcf";
-		my $expect_out_file="$out_prefix.vcf";
-
-		push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($out_prefix,@one_set_vcf)];
-		push @commands,[$threads,"Rename VCF","mv $out_file $expect_out_file"];
-		push @merged_vcf,$expect_out_file;
-		push @script_unlink_list,@one_set_vcf;
-		push @script_unlink_list,(map {"$_.idx"} @one_set_vcf);
-	    }
-	}
-	for my $bam(@original_bam_files)  #original_bam is for non-gatk variant callers
-	{
-	    my $dir=dirname $bam;
-	    my $base=basename $bam;
-	    $base=~s/\.bam$//i or die "Unknown file type: $base";
-	    my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
-
-	    for my $caller (@callers)
-	    {
-		next if $caller eq 'soapsnp'; #do nothing for SOAPsnp
-		next unless $original_bam_toggle{$caller}; #only do this for variants from original BAM
-		my @one_set_vcf = grep { /_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files; #use underscore to avoid possible naming conflicts with user supplied prefix
-		next unless @one_set_vcf>1;
-		#if we decide to merge, remove the VCFs to be merged from VCF pool
-		@vcf_files = grep { !/_\d+_\.${base}_$caller.*\.vcf/i } @vcf_files;
-
-		# $out_prefix might contain path
-		my $out_prefix=basename $one_set_vcf[0]; 
-		$out_prefix =~ s/.*_\d+_\.($base.*)\.vcf$/$1/i or die "ERROR: NO VCF file or unexpected file name under quick mode: $out_prefix\n";
-		$out_prefix=File::Spec->catfile($dir,$out_prefix);
-
-		my $out_file="${out_prefix}_union.vcf";
-		my $expect_out_file="$out_prefix.vcf";
-
-		push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($out_prefix,@one_set_vcf)];
-		push @commands,[$threads,"Rename VCF","mv $out_file $expect_out_file"];
-		push @merged_vcf,$expect_out_file;
-		push @script_unlink_list,@one_set_vcf;
-	    }
-	}
-	@vcf_files=(@vcf_files,@merged_vcf); #update global vcf file list
+	push @obj_list,$expect_merged_vcf_obj;
+	#only siblings here!!, why?
+	#the vcf_obj->file() will be used as name of merged VCF
+	#so we need to keep it
+	push @script_unlink_list,(map{$_->file()} $vcf_obj->sibling());
+	push @script_unlink_list,(map {"$_.idx"} (map{$_->file()} @sibling_vcf_obj));
     }
 }
 
 sub getConsensusCall
 {
-
     #merge vcfs by prefix (samplename)
     my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
-    for my $sample(@prefix_list)
-    {
-	my $outdir="${sample}_result";
-	my @one_sample_var=grep { /$outdir/ } @vcf_files;
-	my $out=File::Spec->catfile($outdir,${sample}.($wes? ".extract":"")."_consensus.vcf" );
-	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-	my $cmd;
+    #we regarde "consensus" as a calling method
+    my $caller = "consensus";
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+    my $cmd_common = "$exe stats -tmpdir $TMPDIR -ref $local_ref ".
+    " -jmem $java_mem ".
+    " -t ".($threads>$gatk_nt? $gatk_nt:$threads); #use smaller one
+    $cmd_common .= " -N $minN" if $minN;
 
-	next unless @one_sample_var>1;#at least two files must exist to extract consensus calls
+    for my $sample(SeqMule::SeqUtils->get_attr_enum('sample',@obj_list)) {
+	my @vcf_obj = grep {$_->sample eq $sample and $_->filetype eq 'VCF'} @obj_list;
+
+	#at least 2 VCFs are required for each sample to get consensus
+	next unless @vcf_obj>1;
 	warn
 	"WARNING: user requests to extract consensus calls from at least $minN files,\n",
-	"WARNING: but there only ",scalar(@one_sample_var)," files.\n" 
-	    and next
-	if $minN && @one_sample_var<$minN;
+	"WARNING: but there are only ",scalar(@vcf_obj)," files.\n" and next
+	if $minN && @vcf_obj<$minN;
 
-	$cmd=
-	"$exe stats -tmpdir $TMPDIR -ref $local_ref".
-	" -jmem $java_mem".
-	" -t ".($threads>$gatk_nt? $gatk_nt:$threads). #use smaller one
-	" -c-vcf ".join(",",@one_sample_var).
-	" -p ".
-	File::Spec->catdir($outdir,$sample).
-	($wes? ".extract":"");
-	$cmd.=" -N $minN" if $minN;
+	my $outdir = &get_result_folder($sample);
+	#this is used for seqmule stats command
+	my $out_prefix = File::Spec->catfile($outdir,${sample}.($wes? ".extract":""));
+	my $out = $out_prefix."_consensus.vcf";
+	my $new_vcf_obj = $vcf_obj[0]->clone();
+
+	$new_vcf_obj->caller($caller);
+	$new_vcf_obj->parent(@vcf_obj);
+	$new_vcf_obj->file($out);
+	map {$_->child($new_vcf_obj) } @vcf_obj;
+
+	my $cmd = $cmd_common;
+	$cmd .= " -c-vcf ".join(",",map{$_->file()} @vcf_obj).
+	$cmd .= " -p $out_prefix ";
 	push @commands,[$threads,"Extract consensus calls",$cmd];
-	push @consensus_vcf,$out;
+	push @obj_list,$new_vcf_obj;
+	#right now we keep all VCFs
+	#SeqMule::SeqUtils->rmObjFromArray(
+	#    target=>\@vcf_obj,
+	#    all=>\@obj_list,
+	#);
     }
 }
 
@@ -2932,16 +2451,27 @@ sub extractVar
 {
     #extract variants in BED region
     my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
+    my $cmd_common="$exe stats -tmpdir $TMPDIR ";
+    $cmd_common .= " -capture $capture " if $wes;
     #1.vcf => 1.extract.vcf (seqmule stats default naming rule)
-    for my $vcf(@vcf_files)
+    for my $vcf_obj(@obj_list)
     {
-	if ($vcf=~/(.*)\.vcf$/i)
+	next unless $vcf_obj->filetype eq 'VCF';
+	my $vcf = $vcf_obj->file();
+	if ($vcf =~ /(.*)\.vcf$/i)
 	{
-	    my $out="$1.extract.vcf";
 	    my $local_prefix=$1;
-	    my $cmd="$exe stats -tmpdir $TMPDIR -capture $capture -vcf $vcf -p $local_prefix";
+	    my $out="$local_prefix.extract.vcf";
+	    my $new_vcf_obj = $vcf_obj->clone();
+	    $new_vcf_obj->file($out);
+	    $new_vcf_obj->parent($vcf_obj);
+	    $vcf_obj->child($new_vcf_obj);
+
+	    my $cmd = $cmd_common;
+	    $cmd .= " -vcf $vcf -p $local_prefix";
 	    push @commands,[$threads,"Extract variants in custom regions",$cmd];
-	    $vcf=$out;
+	    $vcf_obj = $new_vcf_obj;
+	    push @removable,$vcf;
 	} else
 	{
 	    die "ERROR: Failed to get VCF prefix (*.vcf format expected): $vcf\n";
@@ -2972,7 +2502,7 @@ sub parsePipeline
 {
     my @advanced_config_lines=&SeqMule::Utils::parsePipeline($advanced);
     $advanced="$analysis_prefix.config";
-    warn "NOTICE: Analysis configuration log will be overwritten: $advanced\n" if -f $advanced;
+    warn "NOTICE: Analysis configuration log will be overwritten: $advanced\n" if -f $advanced or -l $advanced;
     open OUT,'>',$advanced or die "Failed to write to $advanced: $!\n";
     print OUT "#This file is ONLY for LOGGING purposes, so do NOT run SeqMule with it.\n";
 
@@ -2981,7 +2511,6 @@ sub parsePipeline
     for (0..$#advanced_config_lines)
     {
 	my ($program,$subprogram,$option_ref)=@{$advanced_config_lines[$_]};
-
 
 	if ($program=~/^samtools$/i && $subprogram=~/rmdup/i && $capture && $wes)
 	{
@@ -3006,11 +2535,11 @@ sub parsePipeline
     close OUT;
 
     #complain about some particular configuration
-    if ( $merge && grep {/soap/} @aligners )
+    if ( $merge && grep {/soap/} (SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)) )
     {
 	die "ERROR: SOAPaligner alignments cannot be merged.\n";
     }
-    if ($multi_sample_calling && grep { /soapsnp/} @callers)
+    if ($multi_sample_calling && grep { /soapsnp/} SeqMule::SeqUtils->get_attr_enum('caller',@obj_list))
     {
 	die "ERROR: SOAPsnp does not support multi-sample variant calling\n";
     }
@@ -3028,42 +2557,122 @@ sub writeScript
 sub convert64to33
 {
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
-    if ($phred==64 && $fq_toggle)
+    if ($phred==64)
     {
-	if (@fq1_list)
+	for my $i(@obj_list)
 	{
-	    my @out;
-	    for (@fq1_list)
-	    {
-		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
-		$original_input{$file}=$original_input{$_};
-		delete $original_input{$_};
-		push @out,$file;
-	    }
-	    push @commands,[$threads,"Convert phred64 to phred33","$exe @fq1_list @out"];
-	    @fq1_list=@out;
-	    push @script_unlink_list,@out;
-	}
-	if (@fq2_list)
-	{
-	    my @out;
-	    for (@fq2_list)
-	    {
-		my $file=$_;
-		$file=~s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
-		$original_input{$file}=$original_input{$_};
-		delete $original_input{$_};
-		push @out,$file;
-	    }
-	    push @commands,[$threads,"Convert phred64 to phred33","$exe @fq2_list @out"];
-	    @fq2_list=@out;
-	    push @script_unlink_list,@out;
+	    next unless $i->filetype() eq 'FASTQ';
+	    my $newobj = $i->clone();
+	    my $file=$i->file();
+	    $file =~ s/(.*)\.(fq|fastq|fastq\.gz|fq\.gz)$/${1}_phred33.$2/;
+	    $newobj->file($file);
+	    $newobj->parent($i);
+	    $i->child($newobj);
+
+	    push @commands,[$threads,"Convert phred64 to phred33",join(" ",$exe,$i->file(),$newobj->file())];
+	    $i = $newobj;
+	    push @script_unlink_list,$newobj->file();
 	}
 	$phred=33;
     }
 }
 
+sub get_result_folder
+{
+    my $sample = shift;
+    my $result_folder="${sample}_result";
+    mkdir $result_folder unless -d $result_folder;
+    #my $istumor = shift;
+    #if($somatic_toggle)
+    #{
+    #    if($istumor)
+    #    {
+    #        my $tumor_result_folder=File::Spec->catdir($result_folder,"${sample}_tumor_result");
+    #        mkdir $tumor_result_folder unless -d $tumor_result_folder;
+    #        return $tumor_result_folder;
+    #    } else
+    #    {
+    #        my $normal_result_folder=File::Spec->catdir($result_folder,"${sample}_normal_result");
+    #        mkdir $normal_result_folder unless -d $normal_result_folder;
+    #        return $normal_result_folder;
+    #    }
+    #} else
+    #{
+    return $result_folder;
+    #}
+}
+sub merge_bam
+{
+    my $onebam_obj = shift;
+    my @other_bam_obj = @_;
+    my @other_bam_file = map {$_->file()} @other_bam_obj;
+    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
+    my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
+
+    $onebam_obj->ancestor(@other_bam_obj);
+    $onebam_obj->parent(@other_bam_obj);
+    map { $_->child($onebam_obj) } @other_bam_obj;
+
+    #force single sample in each BAM
+    &checkBAMSample($samtools,@other_bam_obj);
+    #check BAM @SQ header
+    push @commands, [$threads,"Check BAM header before merging", "$header_check $samtools ".join(" ",@other_bam_file)];
+
+    if ($force_one_rg)
+    {
+	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
+	push @commands, [$threads,
+	    "Merge BAM into one readgroup",
+	    #readgroup has been changed before calling &merge_bam
+	    #so no need to change it here
+	    "$exe $samtools $threads ".$onebam_obj->rg()." ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+    } elsif ($union_rg)
+    {
+	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
+	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
+	push @commands, [$threads,
+	    "Merge BAM without changing readgroup",
+	    "$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+    } else
+    {
+	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
+	if (&SeqMule::Utils::checkDuplicateRGID($samtools,@other_bam_obj)) 
+	{
+	    die "ERROR: SeqMule cannot decide how to merge BAM files with duplicate readgroup IDs. Please use '--forceOneRG' or '--unionRG' option.\n";
+	} else 
+	{
+	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
+	    push @commands, [$threads,
+		"Merge BAM without changing readgroup",
+		"$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+	}
+    }
+}
+
+#######################HELPER SUBROUTINES#############################
+sub check_obj
+{ #show all attributes of objects, used for debug
+    map {$_->dump()} @_;
+    $|=1; #flush buffer
+}
+sub remove_obj_from_array
+{ #remove obj in target from obj in all
+    my $opt = shift @_;
+    my $target = $opt->{target};
+    my $all = $opt->{all};
+
+    for my $i(@$target)
+    {
+	for my $j(@$all)
+	{
+	    if($i->id() == $j->id())
+	    {
+		$j = undef;
+	    }
+	}
+    }
+    @$all = grep {defined $_} @$all;
+}
 sub get_gatk_nt
 {
     my ($total,$gatk)=@_;
@@ -3079,18 +2688,18 @@ sub get_gatk_nt
 sub checkBAMSample
 {
     my $samtools=shift;
-    my @bam=@_;
+    my @bam_obj=@_;
     my $first_sample;
 
     warn "NOTICE: Checking sample names in BAM...\n";
-    for (@bam)
-    {
-	my @local_sample=&SeqMule::Utils::getBAMSample($samtools,$_);
+    for (@bam_obj) {
+	my @local_sample=&SeqMule::Utils::getBAMSample($samtools,$_->file());
 	die "ERROR: One and only one sample allowed in each BAM, found @local_sample.\n" if @local_sample!=1;
 	$first_sample=$local_sample[0] unless defined $first_sample;
 	die "ERROR: Found two different sample names in BAM input when merging is enabled: $local_sample[0] $first_sample\n" if (defined $first_sample && $first_sample ne $local_sample[0] && $merge);
     }
 }
+#######################END OF HELPER SUBROUTINES#############################
 
 
 __END__
@@ -3118,6 +2727,9 @@ Options:
 				  Default: equal number of files for each samples.
 	-ms			  do multiple-sample variant calling (only valid for GATK,VarScan and SAMtools)
 
+	-a2 <FASTQ>            	  1st FASTQ file (or comma-delimited list) from tumor tissue.
+	-b2 <FASTQ>            	  2nd FASTQ file (or comma-delimited list) from tumor tissue.
+	--bam2 <BAM>		  BAM file (or comma-delimited list) from tumor tissue. Exclusive of FASTQ input.
 	-N <INT>		  if more than one set of variants are generated, extract variants shared by at least INT VCF output
 	--build <hg18,hg19>	  genome build. Default is hg19.
 	--readgroup,-rg <TEXT>    readgroup ID. Specify one ID for all input or a comma-separated list. Default: READGROUP_[SAMPLE NAME]
@@ -3195,12 +2807,12 @@ Options:
 	#--forceOneRG must be used along with -rg to assign same @RG tag to input files
 	#input files belonging to same sample have same @RG tag
 	#--mergingrule 1,1,2 means sample1 has 1 (pair of) input file, sample2 has 1 (pair of) input file, sample3 has 2 (pairs of) input files.
-        seqmule pipeline -a sample1.1.1.fastq,sample2.1.1.fastq,sample3.1.1.fastq,sample3.2.1.fastq -b sample1.1.2.fastq,sample2.1.2.fastq,sample3.1.2.fastq,sample3.2.2.fastq -p sample1o3,sample2o3,sample3o3 -g -merge --forceOneRG -rg READGROUP --mergingrule 1,1,2 -ms
-	
+	seqmule pipeline -a sample1.1.1.fastq,sample2.1.1.fastq,sample3.1.1.fastq,sample3.2.1.fastq -b sample1.1.2.fastq,sample2.1.2.fastq,sample3.1.2.fastq,sample3.2.2.fastq -p sample1o3,sample2o3,sample3o3 -g -merge --forceOneRG -rg READGROUP --mergingrule 1,1,2 -ms
+
 	#merge with default method
 	#if 4 (pairs of) input files are given for 2 samples, each sample gets 2 by default
 	#here multi-sample variant calling is not enabled
-        seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
+	seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
 
 
 =head1 OPTIONS

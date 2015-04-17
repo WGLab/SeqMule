@@ -1,9 +1,9 @@
 #!/usr/bin/env perl
 
-#run GATK full version UnifiedGenotyper
 use strict;
 use warnings;
 use File::Spec;
+use File::Basename qw/basename dirname/;
 use FindBin qw/$RealBin/;
 use lib File::Spec->catdir($RealBin,"..","..","lib");
 use SeqMule::Parallel;
@@ -13,23 +13,31 @@ use Getopt::Long qw/GetOptions/;
 
 my (
     $capture,   $java,    $java_mem,    $gatk,
-    $ref,    $local_threads,    $gatk_nt,    $internal_caller,
-    $vcf, 
+    $ref,    $threads,    $gatk_nt, 
+    $bam,$out,
+    $pl,$goldindel,$dbsnp,$kg,$hapmap,
     $help,$advanced,    $n,$tmpdir,);
-my @bam;
 @ARGV or pod2usage ({-exitval=>2});
+
 GetOptions(
     #input and output
     'bed=s'		=>	\$capture,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
+
+    'pl=s'		=>	\$pl,
+
     'ref=s'		=>	\$ref,
-    'threads=i'		=>	\$local_threads,
+    'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg,
+    'hapmap=s'		=>	\$hapmap,
+    'goldindel=s'	=>	\$goldindel,
+
+    'threads=i'		=>	\$threads,
     'gatk-nt=i'		=>	\$gatk_nt,
-    'internal-caller=s'	=>	\$internal_caller,
-    'bam=s'		=>	\@bam, #specify it multiple times
-    'vcf=s'		=>	\$vcf,
+    'bam=s'		=>	\$bam, #specify it multiple times
+    'out=s'		=>	\$out,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
     'tmpdir=s'		=>	\$tmpdir,
@@ -42,50 +50,38 @@ $help and pod2usage ({-verbose=>1});
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
-if ($internal_caller ne 'haplotypecaller' && $internal_caller ne 'unifiedgenotyper')
-{
-    die "unrecognized internal caller: $internal_caller.\n";
-}
-
-my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
+my $nt = &SeqMule::Utils::get_gatk_nt($threads,$gatk_nt);
 my @cmd;
+my $java_opt = "$java -Xmx$java_mem  -Djava.io.tmpdir=$tmpdir -jar $gatk ";
+my $grp_file = rand($$).".tmp.grp";
 
-{
-    my $cmd;
-
-    $cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $gatk ";
-
-    if ($internal_caller eq 'haplotypecaller')
-    {
-	$cmd.=" -T HaplotypeCaller";
-        $cmd.=" $options{HCadditional} " if $options{HCadditional} ne '';
-    } elsif ($internal_caller eq 'unifiedgenotyper')
-    {
-	$cmd.=" -T UnifiedGenotyper --genotype_likelihoods_model BOTH";
-        $cmd.=" $options{UGadditional} " if $options{UGadditional} ne '';
-    }
-
-    $cmd.=" -R $ref -I ".join(' -I ',@bam)."";
-
-    if (  $nt> 1)
-    {
-	if ($internal_caller eq 'haplotypecaller')
-	{
-	    $cmd.=" -nct $nt";
-	} else
-	{
-	    $cmd.=" -nt $nt";
-	}
-    }
-    $cmd.=" -o $vcf";
-    $cmd.=" -L $capture" if $capture;
-    push @cmd,$cmd;
+if($tmpdir) {
+    $grp_file = File::Spec->catfile($tmpdir,$grp_file);
 }
 
+my @cov=split ',',$options{covariates};
+my $cmd;
 
-#generate shell script and run
-my $script=&SeqMule::Parallel::genTempScript(@cmd);
+$cmd .= $java_opt;
+$cmd .= " -T BaseRecalibrator -R $ref --disable_indel_quals "; #rf BadCigar to skip bad reads
+$cmd.=" -knownSites $dbsnp " if $dbsnp;
+$cmd.=" -knownSites $goldindel " if $goldindel;
+$cmd.=" -nct $threads " if $threads>=2;
+$cmd.=" -I $bam -o $grp_file ";
+$cmd.=" --default_platform $pl " if $pl; #in case RG tag doesn't have platform info
+$cmd.=" -L $capture " if $capture;
+$cmd.=" $options{additional} " if $options{additional} ne '';
+push @cmd,$cmd;
+$cmd = "";
+
+$cmd .= "$java_opt -T PrintReads -R $ref -I $bam -BQSR $grp_file -o $out";
+$cmd .= " -L $capture" if $capture;
+push @cmd,$cmd;
+
+push @cmd,"rm $grp_file";
+my $script = &SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
+#------------------------------------------------------------
 
 
 __END__
@@ -105,9 +101,8 @@ Options:
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
     'ref=s'		=>	\$ref,
-    'threads=i'		=>	\$local_threads,
+    'threads=i'		=>	\$threads,
     'gatk-nt=i'		=>	\$gatk_nt,
-    'internal-caller=s'	=>	\$internal_caller,
     'bam=s'		=>	\@bam, #specify it multiple times
     'vcf=s'		=>	\$vcf,
     'advanced=s'	=>	\$advanced,

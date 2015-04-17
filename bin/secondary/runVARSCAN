@@ -101,6 +101,7 @@ push @cmd,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @ba
 my $checkSampleGT=File::Spec->catfile($RealBin,"checkSampleGT");
 push @cmd,"$checkSampleGT -vcf $vcf_filter -tmpdir $tmpdir ";
 
+=head
 if (@bam>1)
 {
     for (@bam)
@@ -115,6 +116,7 @@ if (@bam>1)
 	push @cmd,"cp $vcf_filter $out";
     }
 }
+=cut
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
