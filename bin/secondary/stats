@@ -549,6 +549,7 @@ sub var_stat
     my $dump;
     my $output;
     my @sample_in_vcf=&SeqMule::Utils::getVCFSample($local_vcf);
+    my $error_tmp = File::Spec->catfile($tmpdir,rand($$).".tmp.err");
 
     if (! defined $sample)
     {
@@ -571,10 +572,10 @@ sub var_stat
     }
     if (defined $sample)
     {
-	$dump=`$vcftools $local_vcf -s $sample 2>/dev/null` or die "Cannot read output from vcf-stats: $!\n";
+	$dump=`$vcftools $local_vcf -s $sample 2>$error_tmp` or die "Cannot read output from vcf-stats: ",`cat $error_tmp`,"\n";
     } else
     {
-	$dump=`$vcftools $local_vcf 2>/dev/null` or die "Cannot read output from vcf-stats: $!\n";
+	$dump=`$vcftools $local_vcf 2>$error_tmp` or die "Cannot read output from vcf-stats: ",`cat $error_tmp`,"\n";
     }
 
     if (0)
