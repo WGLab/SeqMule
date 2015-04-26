@@ -35,6 +35,14 @@ my $RMDUP_MIN_LEN=10_000_000; #remove minimum
 my $SAMTOOLS_SORT_MEM_EXOME = '2G';
 my $SAMTOOLS_SORT_MEM_GENOME = '2G'; #2G has been tested to work with wgs
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
+my %VARIANT_QUAL_PRIORITY_LIST = (
+    gatk_hc => 1,
+    gatk_ug =>2,
+    gatklite => 3,
+    freebayes => 4,
+    samtools =>5,
+    varscan =>6,
+    soapsnp=>7);
 
 #cmd opt
 my (
@@ -856,7 +864,7 @@ sub samtools
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 	my $faidx="$local_ref.fai";
 	my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-	my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -bcftools $bcftools -vcfutils $vcfutils -ref $local_ref ";
+	my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -bcftools $bcftools -vcfutils $vcfutils -ref $local_ref -tmpdir $TMPDIR ";
 
 	#add PATH for bcftools
 	$ENV{PATH}=($ENV{PATH}? $ENV{PATH}.":":"").File::Spec->catdir(dirname($samtools),"bcftools");
@@ -922,11 +930,11 @@ sub freebayes
     my $run_freebayes=&getExe("runFREEBAYES");
     my $freebayes=&getExe( &SeqMule::Utils::getProgramExe("Freebayes") );
     my $samtools=&getExe( &SeqMule::Utils::getProgramExe("samtools") );
-    my $vcf_sort=File::Spec->catfile($install_dir,"bin","secondary","vcfsorter");
+    my $vcfsorter = File::Spec->catfile($install_dir,"bin","secondary","vcfsorter");
     my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
-    my $cmd_common="$run_freebayes -advanced $advanced -n $n -freebayes $freebayes -vcf-sort $vcf_sort -ref $local_ref -samtools $samtools -tmpdir $TMPDIR ";
+    my $cmd_common="$run_freebayes -advanced $advanced -n $n -freebayes $freebayes -vcfsorter $vcfsorter -ref $local_ref -samtools $samtools -tmpdir $TMPDIR ";
 
     my @target_obj;
     if ($options{'originalBAM'})
@@ -1494,7 +1502,7 @@ sub gen_cmd_for_variant_call_task
 	my ($local_prefix) = ($bam_obj_for_this_sample->file() =~ /(.*)\.bam$/i);
 	$local_prefix = $local_prefix.".$i";
 	my $local_vcf = "${local_prefix}_$suffix.vcf";  
-	my $local_vcf_filter = "${local_prefix}_$suffix.filter.vcf"; 
+	#my $local_vcf_filter = "${local_prefix}_$suffix.filter.vcf"; 
 
 	#we create a VCF object for each sample
 	#but only use the first one in analysis
@@ -1507,14 +1515,15 @@ sub gen_cmd_for_variant_call_task
 	$new_vcf_obj->filetype('VCF');
 	$new_vcf_obj->caller($caller);
 
-	if($filter_flag) {
-	    $new_vcf_obj->file($local_vcf_filter);
-	} else {
 	    $new_vcf_obj->file($local_vcf);
+	if($filter_flag) {
+	    #$new_vcf_obj->file($local_vcf_filter);
+	} else {
+	    #$new_vcf_obj->file($local_vcf);
 	    #if a seperate filtering is performed
 	    #then this VCF will NOT have siblings
 	    #all siblings must have been merged before filtering
-	    #otherwise why not do variant calling and filtering together?
+	    #otherwise why not do variant calling and filtering in the same step?
 	    $new_vcf_obj->rank($i);
 	}
 
@@ -1522,7 +1531,8 @@ sub gen_cmd_for_variant_call_task
 	if($j==0) {
 	    my $msg = $suffix; 
 	    my $cmd = $cmd_common;
-	    $cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
+	    #$cmd.=" -vcf $local_vcf -vcf-filter $local_vcf_filter ";
+	    $cmd.=" -vcf $local_vcf ";
 	    $cmd.=" -bed $bed " if $bed;
 	    if($filter_flag) {
 		#parent is all sibling VCFs from variant calling step
@@ -1903,10 +1913,11 @@ sub procFQ
 	for my $j(@fq_idx_range)
 	{
 	    my @rank = (0,1);
-	    my @paired_obj = @rank;
+	    my @paired_obj;
 	    for my $k(@rank) #are we dealing with first or second fastq in a pair?
 	    {
 		my $file = ($k == 0? $fq1_list[$j] : $fq2_list[$j]);
+		next unless $file;
 		my $fq = SeqMule::SeqUtils->new( 	
 		    'file'	=> $file,
 		    'filetype'	=> 'FASTQ',
@@ -1932,8 +1943,10 @@ sub procFQ
 		    ));
 		$paired_obj[$newfq->rank()] = $newfq;
 	    }
-	    $paired_obj[0]->sibling($paired_obj[1]);
-	    $paired_obj[1]->sibling($paired_obj[0]);
+	    if(@paired_obj == 2) {
+		$paired_obj[0]->sibling($paired_obj[1]);
+		$paired_obj[1]->sibling($paired_obj[0]);
+	    }
 	    push @obj_list,@paired_obj;
 	}
     }
@@ -2435,7 +2448,13 @@ sub getConsensusCall
 	map {$_->child($new_vcf_obj) } @vcf_obj;
 
 	my $cmd = $cmd_common;
-	$cmd .= " -c-vcf ".join(",",map{$_->file()} @vcf_obj).
+	$cmd .= " -c-vcf ".join(",",
+	    map{$_->file()} 
+	    (sort 
+	    { $VARIANT_QUAL_PRIORITY_LIST{$a->caller} <=> 
+		$VARIANT_QUAL_PRIORITY_LIST{$b->caller} } 
+	    @vcf_obj)
+	);
 	$cmd .= " -p $out_prefix ";
 	push @commands,[$threads,"Extract consensus calls",$cmd];
 	push @obj_list,$new_vcf_obj;

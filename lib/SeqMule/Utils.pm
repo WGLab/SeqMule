@@ -974,6 +974,7 @@ sub getProgramExe
 	snver           =>      "SNVerIndividual.jar",
 	soapsnp         =>      "soapsnp",
 	vt		=>      "vt",
+	snap		=>	"snap",
     );
     my $program=shift;
 
@@ -1006,6 +1007,7 @@ sub getProgramAlias
 	java	    =>      "java",
 	tabix	    =>	    "tabix",
 	bgzip	    =>	    "bgzip",
+	snap		=>	"SNAP",
     );
 
     my $program=shift;

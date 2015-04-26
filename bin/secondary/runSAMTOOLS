@@ -11,7 +11,7 @@ use SeqMule::Utils;
 use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
-my ($advanced,$n,$help,
+my ($advanced,$n,$help,$tmpdir,
     $bcftools,$samtools,$vcfutils,$vcf,$vcf_filter,$ref,$bed);
 my @bam;
 @ARGV or pod2usage ({-exitval=>2});
@@ -23,10 +23,11 @@ GetOptions(
     'bam=s'		=>	\@bam,
     'vcfutils=s'	=>	\$vcfutils,
     'vcf=s'		=>	\$vcf,
-    'vcf-filter=s'	=>	\$vcf_filter,
+    #'vcf-filter=s'	=>	\$vcf_filter,
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
+    'tmpdir'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
@@ -34,6 +35,7 @@ $help and pod2usage ({-verbose=>1});
 
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
+my $nofilter_vcf = File::Spec->catfile($tmpdir,rand($$).".nofilter.vcf");
 
 my $cmd;
 my @cmd;
@@ -46,7 +48,8 @@ $cmd.=" -C $options{bwaDownGrade}" if ( ($options{bwaDownGrade}) && grep { /_bwa
 $cmd.=" | $bcftools view ";
 $cmd.=" -vcg ";
 $cmd.=" $options{BCFadditional} " if $options{BCFadditional} ne '';
-$cmd.=" - > $vcf";
+#$cmd.=" - > $vcf";
+$cmd.=" - > $nofilter_vcf";
 push @cmd,$cmd;$cmd="";
 
 #filtration
@@ -57,7 +60,8 @@ $cmd.=" -2 $options{minBaseQBias}" if $options{minBaseQBias};
 $cmd.=" -3 $options{minMapQBias}" if $options{minMapQBias};
 $cmd.=" -4 $options{minEndDistBias}" if $options{minEndDistBias};
 $cmd.=" $options{FILTERadditional} " if $options{FILTERadditional} ne '';
-$cmd.=" $vcf | $^X -p -e 's/([^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t)\\./\$1PASS/' > $vcf_filter";
+#$cmd.=" $vcf | $^X -p -e 's/([^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t)\\./\$1PASS/' > $vcf_filter";
+$cmd.=" $nofilter_vcf | $^X -p -e 's/([^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t)\\./\$1PASS/' > $vcf";
 push @cmd,$cmd;$cmd="";
 
 #we don't need this any more, the main program will take care of copying

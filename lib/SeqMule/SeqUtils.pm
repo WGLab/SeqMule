@@ -22,7 +22,7 @@ sub new
 	'file'		=>$arg{'file'} || croak ("No file path\n"),
 	'filetype'	=>$arg{'filetype'} || croak ("No file type\n"),
 	'sample'	=>$arg{'sample'}	|| croak ("No sample\n"), 
-	'rgid'		=>$arg{'rgid'} || 'READGROUP',
+	'rg'		=>$arg{'rg'} || 'READGROUP',
 	'lb'		=>$arg{'lb'} || 'LIBRARY',
 	'pl'    	=>$arg{'pl'} || 'PLATFORM',
 	#ID attribute
@@ -180,17 +180,17 @@ sub lb
 	return $self->{lb};
     }
 }
-sub rgid
+sub rg
 {
-    #get or set rgid obj
+    #get or set rg obj
     my $self = shift;
-    my $rgid = shift;
-    if(defined $rgid)
+    my $rg = shift;
+    if(defined $rg)
     {
-	$self->{rgid} = $rgid;
+	$self->{rg} = $rg;
     } else
     {
-	return $self->{rgid};
+	return $self->{rg};
     }
 }
 sub rmObjFromArray

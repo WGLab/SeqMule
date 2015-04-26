@@ -12,8 +12,8 @@ use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
 my ($advanced,$n,$help,
-    $bed,$freebayes,$samtools,
-    $vcf_sort,$ref,$vcf_filter,$tmpdir,);
+    $bed,$freebayes,$samtools,$nofilter_vcf,
+    $vcf_sort,$ref,$vcf_filter,$tmpdir,$vcf);
 my @bam;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
@@ -23,10 +23,11 @@ GetOptions(
     'bed=s'		=>	\$bed,
     'freebayes=s'	=>	\$freebayes,
     'samtools=s'	=>	\$samtools,
-    'vcf-sort=s'	=>	\$vcf_sort,
+    'vcfsorter=s'	=>	\$vcf_sort,
     'ref=s'		=>	\$ref,
     'bam=s'		=>	\@bam,
-    'vcf-filter=s'	=>	\$vcf_filter,
+    #'vcf-filter=s'	=>	\$vcf_filter,
+    'vcf=s'		=>	\$vcf,
     'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
@@ -36,6 +37,7 @@ $help and pod2usage ({-verbose=>1});
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
+$nofilter_vcf = File::Spec->catfile($tmpdir,rand($$).".nofilter.vcf");
 
 my $cmd;
 my @cmd;
@@ -51,8 +53,10 @@ $cmd.=" --read-snp-limit $options{maxSNP}" if defined $options{maxSNP} && $optio
 $cmd.=" --read-indel-limit $options{maxINDEL}" if defined $options{maxINDEL} && $options{maxINDEL} ne '';
 $cmd.=" --min-coverage $options{minDepth}" if defined $options{minDepth} && $options{minDepth} ne '';
 $cmd.=" -t $bed" if $bed;
+$cmd.=" --genotype-qualities 2>/dev/null "; #output GQ, suppress warnings
 $cmd.=" $options{additional} " if $options{additional} ne '';
-$cmd.=" | $vcf_sort -tmpdir $tmpdir -contig-bed $contig_bed > $vcf_filter ";
+#$cmd.=" | $vcf_sort -tmpdir $tmpdir -contig-bed $contig_bed > $vcf_filter ";
+$cmd.=" | $vcf_sort -tmpdir $tmpdir -contig-bed $contig_bed > $vcf ";
 
 push @cmd,$cmd;$cmd="";
 
