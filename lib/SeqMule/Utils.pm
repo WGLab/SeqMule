@@ -1149,6 +1149,7 @@ sub callers2names
 	freebayes => 'FreeBayes',
 	varscan => 'VarScan',
 	soapsnp => 'SOAPsnp',
+	consensus => 'Consensus',
     );
     for (@_)
     {
