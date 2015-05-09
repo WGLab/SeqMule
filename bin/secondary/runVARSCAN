@@ -14,6 +14,7 @@ use Getopt::Long qw/GetOptions/;
 my ($advanced,$n,$help,
     $samtools,    $java,    $java_mem,    $varscan,
     $ref,
+    $somatic_flag,
     $vcf_filter,    $bed,$tmpdir,);
 my @bam;
 my $BUFFER_SIZE = 1_000_000; #used for gettting input from samtools mpileup
@@ -28,6 +29,7 @@ GetOptions(
     'ref=s'		=>	\$ref,
     'bam=s'		=>	\@bam,
     'vcf-filter=s'	=>	\$vcf_filter,
+    'callSomatic'	=>	\$somatic_flag,
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
@@ -43,46 +45,62 @@ my %options=%{ $steps[$n-1][2] };
 
 my @cmd;
 my $cmd='';
-my $samtools_cmd="$samtools mpileup ";
-$samtools_cmd.=" -l $bed " if $bed;
-$samtools_cmd.=" $options{SAMadditional} " if $options{SAMadditional} ne '';
-$samtools_cmd.=" -B -f $ref @bam | ";
 
-open IN,$samtools_cmd or die "Failed to open samtools pipe: $!\n";
+#samtools command will be same for both situations
+my $samtools_cmd_template = "$samtools mpileup ";
+$samtools_cmd_template .= " -l $bed " if $bed;
+$samtools_cmd_template .= " $options{SAMadditional} " if $options{SAMadditional} ne '';
+$samtools_cmd_template .= " -B -f $ref BAMFILE ";
 
-if (<IN>)
-{
-    #$cmd.=$samtools_cmd;
-    #$cmd.="$java -Xmx$java_mem -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
-    #$cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
-    #$cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
-    #$cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
-    #$cmd.=" --p-value $options{P}" if $options{P};
-    #$cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
-    #$cmd.=" > $vcf_filter";
-    my $varscan_cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
-    $varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
-    $varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
-    $varscan_cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
-    $varscan_cmd.=" --p-value $options{P}" if $options{P};
-    $varscan_cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
-    $varscan_cmd.=" > $vcf_filter";
-    $cmd.="perl -e 'open IN,\"$samtools_cmd\" or die \"Failed to open samtools pipe: $!\\n\";
-    		    my \$buf;
-    		    if(read IN,\$buf,64_000){
-		    open OUT,\"|-\",\"$varscan_cmd\" or die \"Failed to open varscan pipe: $!\\n\";
-		    print OUT \$buf;
-		    while(read IN,\$buf,$BUFFER_SIZE)
-		      {
-		        print OUT \$buf;
-		      }
-		    }'";
-} 
+if($somatic_flag) {
+    my ($vcf_prefix) = $vcf_filter =~ /(.*?)\.vcf$/;
 
-close IN;
+    my $normal_cmd,$tumor_cmd;
+    $normal_cmd = $tumor_cmd = $samtools_cmd_template;
+    $normal_cmd =~ s/BAMFILE/$bam[0]/;
+    $tumor_cmd =~ s/BAMFILE/$bam[1]/;
+
+    $cmd = "bash -c \"$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan <\($normal_cmd\) <\($tumor_cmd\) $vcf_prefix ";
+    $cmd .= " --output-vcf 1 ";
+    $cmd .=" --min-coverage $options{minDepth}" if $options{minDepth};
+    $cmd .=" --p-value $options{P}" if $options{P};
+    $cmd .=" $options{VARSOMATICadditional} " if $options{VARSOMATICadditional} ne '';
+    $cmd .= " \" ";
 push @cmd,$cmd;
-$cmd='';
+$cmd = File::Spec->catfile(combine snp and indel VCF
+	--output-snp - Output file for SNP calls [output.snp]
+	--output-indel - Output file for indel calls [output.indel]
 
+my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
+} else {
+    my $samtools_cmd = $samtools_cmd_template;
+    $samtools_cmd =~ s/BAMFILE/@bam/;
+    open IN,$samtools_cmd or die "Failed to open samtools pipe: $!\n";
+    if (<IN>) {
+	$cmd.=$samtools_cmd;
+	my $varscan_cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
+	$varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
+	$varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
+	$varscan_cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
+	$varscan_cmd.=" --p-value $options{P}" if $options{P};
+	$varscan_cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
+	$varscan_cmd.=" > $vcf_filter";
+	$cmd.="perl -e 'open IN,\"$samtools_cmd\" or die \"Failed to open samtools pipe: $!\\n\";
+	my \$buf;
+	if(read IN,\$buf,64_000){
+	open OUT,\"|-\",\"$varscan_cmd\" or die \"Failed to open varscan pipe: $!\\n\";
+	print OUT \$buf;
+	while(read IN,\$buf,$BUFFER_SIZE)
+	{
+	print OUT \$buf;
+	}
+	}'";
+    } 
+    close IN;
+push @cmd,$cmd;
+}
+
+$cmd='';
 #occasionally, VarScan doesn't generate header even if samtools mpileup has output
 my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
 $cmd="$addheader -caller varscan -vcf $vcf_filter ";
@@ -100,23 +118,6 @@ push @cmd,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @ba
 #make sure number of samples on every line is the same as that specified in header
 my $checkSampleGT=File::Spec->catfile($RealBin,"checkSampleGT");
 push @cmd,"$checkSampleGT -vcf $vcf_filter -tmpdir $tmpdir ";
-
-=head
-if (@bam>1)
-{
-    for (@bam)
-    {
-	my ($new_prefix)= /^(.*)\.bam$/i;
-	if ($vcf_filter=~/_(\d+)_/) #if true, we are under QUICK mode
-	{
-	$new_prefix=File::Spec->catfile((dirname $new_prefix),"_${1}_.".(basename $new_prefix));
-	}
-	my $out="${new_prefix}_varscan.multi-call.filter.vcf";
-#make a copy of final vcf for each prefix (samplename)
-	push @cmd,"cp $vcf_filter $out";
-    }
-}
-=cut
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;

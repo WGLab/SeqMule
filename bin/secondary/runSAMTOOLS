@@ -12,6 +12,7 @@ use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
 my ($advanced,$n,$help,$tmpdir,
+    $somatic_flag,
     $bcftools,$samtools,$vcfutils,$vcf,$vcf_filter,$ref,$bed);
 my @bam;
 @ARGV or pod2usage ({-exitval=>2});
@@ -23,6 +24,7 @@ GetOptions(
     'bam=s'		=>	\@bam,
     'vcfutils=s'	=>	\$vcfutils,
     'vcf=s'		=>	\$vcf,
+    'callSomatic'	=>	\$somatic_flag,
     #'vcf-filter=s'	=>	\$vcf_filter,
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
@@ -64,23 +66,19 @@ $cmd.=" $options{FILTERadditional} " if $options{FILTERadditional} ne '';
 $cmd.=" $nofilter_vcf | $^X -p -e 's/([^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t[^\\t]+\\t)\\./\$1PASS/' > $vcf";
 push @cmd,$cmd;$cmd="";
 
-#we don't need this any more, the main program will take care of copying
-=head
-if (@bam>1) #multi-sample calling
-{
-    for (@bam)
-    {
-	my ($new_prefix)= /^(.*)\.bam$/i;
-	if ($vcf_filter=~/_(\d+)_/) #if true, we are under QUICK mode
-	{
-	$new_prefix=File::Spec->catfile((dirname $new_prefix),"_${1}_.".(basename $new_prefix));
-	}
-	my $out_filter="${new_prefix}_samtools.multi-call.filter.vcf";
-	#make a copy of final vcf for each prefix (samplename)
-	push @cmd,"cp $vcf_filter $out_filter";
-    }
-}
-=cut
+code for somatic calling
+    my @bam = qw/tumor.bam normal.bam/;
+    my $mergebam = "normal_tumor_merge.bam";
+    my $merge_exe = "/home/yunfeiguo/projects/SeqMule_dev/bin/secondary/mergeBAMUnionRG";
+    my $bcftools = "/home/yunfeiguo/projects/SeqMule_dev/exe/samtools/bcftools/bcftools";
+    my $vcfutils = "/home/yunfeiguo/projects/SeqMule_dev/exe/samtools/bcftools/vcfutils.pl";
+    my $out = "samtools_output.bcf";
+    my $vcfout = "samtools_output.vcf";
+    #do not do it right now because samtools is not famous for somatic mutation calling
+    !system("$merge_exe samtools 4 $mergebam /tmp @bam") or die "failed to merge: $!\n";
+    !system("samtools mpileup -DSuf $REF $mergebam | $bcftools view -bvcgT pair - > $out") or die "failed to call: $!\n";
+    !system("$bcftools view $out | $vcfutils varFilter -D 2000 > $vcfout") or die "failed to convert: $!\n";
+
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;

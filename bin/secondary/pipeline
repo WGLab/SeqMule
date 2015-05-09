@@ -63,6 +63,7 @@ my %loc; #record all found exes, files such that no need to search again
 my @prefix_list;
 my $analysis_prefix; #used for report folder, script name etc
 my @merging_rule_list;
+my $somatic_toggle = 0;
 
 #readgroup information
 my @readgroup;
@@ -160,9 +161,10 @@ if ($tumor_bam || $tumor_fq1 || $tumor_fq2){
 	    fq2 => $tumor_fq2,
 	    somatic	=>	1,
 	});
+    $somatic_toggle = 1;
 }
 #option check independent of fastq or bam
-    &optCheck();
+&optCheck();
 &genAnalysisPrefix();
 &advanceConfFileCheck(); 
 &prefixCheck() if $prefix;
@@ -198,6 +200,9 @@ sub proc_input {
     @bam_list= map { &SeqMule::Utils::abs_path_failsafe($_) } @bam_list;
 
     &checkMerge(@fq1_list + @bam_list); #check if merging rule is reasonable based on number of samples and files, this must be done even if merging is not enabled
+    if ($multi_sample_calling && $somatic){
+	die "ERROR: somatic calling and multi-sample calling cannot be done at the same time.\n" 
+    }
     &procFQ({fq1=>\@fq1_list,fq2=>\@fq2_list,somatic=>$somatic,}) if $fq1;
     &procBAM({bam=>\@bam_list,somatic=>$somatic,}) if $bam;
 }
@@ -817,11 +822,8 @@ sub samtools
 		}
 	    }
 	}
-
 	map { push @commands, [$threads,"Index BAM file","$exe index ".$_->file()] } (grep {$_->filetype() eq 'BAM'} @obj_list);
-
-    } elsif($subprogram=~/filter/i)
-    {
+    } elsif($subprogram=~/filter/i) {
 	my $readfilter=File::Spec->catfile($install_dir,"bin","secondary","readFilter");
 	for my $i(@obj_list)
 	{
@@ -839,8 +841,7 @@ sub samtools
 	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
 	    $i=$new_obj;
 	}
-    }elsif ($subprogram=~/mpileup/i) 
-    {
+    }elsif ($subprogram=~/mpileup/i) {
 	my $mode;
 	my $caller = 'samtools';
 	my $bcftools=&getExe("bcftools");
@@ -869,7 +870,7 @@ sub samtools
 	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
 	}
 
-	$mode = ($multi_sample_calling? 'multi':'single');
+	$mode = $multi_sample_calling? 'multi':($somatic_toggle? 'somatic':'single');
 	#previously we have to treat BAMs differently depending on
 	#whether they come from FASTQ files
 	#now we solely depend on aligner of each BAM
@@ -1257,7 +1258,7 @@ sub varscan
 	   die "ERROR: \@target_obj empty for $caller, make sure recalibration and realignment is enabled while\n".
 	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
     }
-    $mode = ($multi_sample_calling? 'multi':'single');
+	$mode = $multi_sample_calling? 'multi':($somatic_toggle? 'somatic':'single');
 
     for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
     {
@@ -1272,7 +1273,6 @@ sub varscan
 	    });
     }
 } 
-
 sub gen_variant_call_cmd
 {
     #for varscan, samtools and freebayes and GATK
@@ -1300,7 +1300,7 @@ sub gen_variant_call_cmd
 	    @bam_obj_for_this_task = shift @bam_obj;
 	    $suffix = $caller;
 	} elsif ($mode eq 'somatic') {
-	    die "ERROR: Freebayes doesn't support somatic variant calling\n" if $caller eq 'freebayes';
+	    die "ERROR: Only VarScan and SAMtools support somatic variant calling\n" if $caller ne 'varscan' or $caller ne 'samtools';
 	    $suffix = $caller.".somatic-call";
 	    #for somatic calling, we need a pair of BAM, normal and tumor
 	    my $random_obj = shift @bam_obj;
@@ -1309,7 +1309,7 @@ sub gen_variant_call_cmd
 	    my @same_sample_obj = grep { $_->sample() eq $random_obj->sample() } @bam_obj;
 
 	    if(@same_sample_obj == 1) {
-		#here we try to put normal first, tumor second
+		#here we put normal first, tumor second
 		if($random_obj->istumor() == 0 && $same_sample_obj[0]->istumor() == 1) {
 		    push @bam_obj_for_this_task,$random_obj,$same_sample_obj[0];
 		} elsif ($random_obj->istumor() == 1 && $same_sample_obj[0]->istumor() == 0) {
@@ -1328,7 +1328,7 @@ sub gen_variant_call_cmd
 		"somatic calling mode, we found ".(scalar @same_sample_obj+1)."\n";
 	    }
 	} else    {
-	    die "ERROR: unrecognized mode ($mode) for samtools variant.\n";
+	    die "ERROR: unrecognized mode ($mode) for variant calling.\n";
 	}
 	my @sample_for_this_task = SeqMule::SeqUtils->get_attr_enum('sample',@bam_obj_for_this_task); 
 	my @sibling_vcf = map {[]} (scalar @sample_for_this_task);
@@ -1453,10 +1453,11 @@ sub gen_cmd_for_variant_call_task
 		$msg .= " variant filtering";
 	    } else {
 		$new_vcf_obj->parent(@bam_obj);
-		map {$cmd.=" -bam ".$_->file()} $new_vcf_obj->parent();
+		map {$cmd.=" -bam ".$_->file()} @bam_obj;#use @bam_obj rather tahn new_vcf_obj->parent because we want to reserve the order(for somatic calling)
 		$msg .= " variant calling";
 	    }
 		map { $_->child($new_vcf_obj) } $new_vcf_obj->parent();
+		$cmd .= " -callSomatic" if (grep{$_->istumor == 1} $new_vcf_obj->parent) > 0;
 	    push @commands,[$local_threads,$msg,$cmd];
 	} else
 	{
@@ -1676,10 +1677,10 @@ sub prefixCheck {
 sub reportParam
 {
     warn "NOTICE: Analysis name: $analysis_prefix\n" if $analysis_prefix;
-    warn "NOTICE: All input is merged on a per-sample basis (after alignment if FASTQ).\n" if $merge;
+    warn "NOTICE: All input is merged on a per-sample basis (after alignment for FASTQ).\n" if $merge;
     warn "NOTICE: Input is exome (or captured) sequencing data\n" if $wes;
     warn "NOTICE: Input is whole genome data\n" if $wgs; 
-    warn "NOTICE: File used for caculating coverage statistics and extracting variants: ",(basename $capture),"\n" if $wes;
+    warn "NOTICE: BED file used for caculating coverage statistics and extracting variants: ",(basename $capture),"\n" if $wes;
     warn "NOTICE: Readgroup : $rg\n";
     warn "NOTICE: Sequencing platform: $pl\n";
     warn "NOTICE: Library : $lb\n";
@@ -2404,12 +2405,10 @@ sub parsePipeline
     close OUT;
 
     #complain about some particular configuration
-    if ( $merge && grep {/soap/} (SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)) )
-    {
+    if ( $merge && grep {/soap/} (SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)) ) {
 	die "ERROR: SOAPaligner alignments cannot be merged.\n";
     }
-    if ($multi_sample_calling && grep { /soapsnp/} SeqMule::SeqUtils->get_attr_enum('caller',@obj_list))
-    {
+    if ($multi_sample_calling && grep { /soapsnp/} SeqMule::SeqUtils->get_attr_enum('caller',@obj_list)) {
 	die "ERROR: SOAPsnp does not support multi-sample variant calling\n";
     }
 

@@ -202,6 +202,7 @@ o_varscan_minBaseQ=20 #minimum average base quality for variant-supporting reads
 o_varscan_P=0.1 #p-value threshold for calling variants. --p-value
 o_varscan_SAMadditional= #extra arguments for samtools mpileup. -B already specified.
 o_varscan_VARadditional= #extra arguments for varscan variant calling. --output-vcf 1 --variants 1 already specified
+o_varscan_VARSOMATICadditional= --min-coverage-normal 8 --min-coverage-tumor 6 --normal-purity 1.00 --tumor-purity 1.00 --somatic-p-value 0.05 #extra arguments for varscan SOMATIC variant calling. --output-vcf 1 already specified
 
 8p_soapsnp=0 #optional variant calling algorithm
 o_soapsnp_althom=0.0005 #novel altHOM prior probability. -r
