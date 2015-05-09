@@ -13,17 +13,19 @@ use Getopt::Long qw/GetOptions/;
 
 my ($advanced,$n,$help,
     $bowtie2,$samtools,$java,$jmem,$sortsam,$ref,$bam,$threads,$rg,$sample,$pl,$lb);
+my @fq;
 my $tmpdir;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'bowtie2=s'		=>	\$bowtie2,
+    'alignerPath=s'	=>	\$bowtie2,
     'samtools=s'	=>	\$samtools,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$jmem,
     'sortsam=s'		=>	\$sortsam,
     'ref=s'		=>	\$ref,
     'bam=s'		=>	\$bam,
+    'fq=s'		=>	\@fq, #specify it multiple times
     'threads=i'		=>	\$threads,
     'rg=s'		=>	\$rg,
     'sample=s'		=>	\$sample,
@@ -42,7 +44,6 @@ $help and pod2usage ({-verbose=>1});
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 
-my @fq=@ARGV;
 my ($bam_prefix)= $bam=~/(.*?)\.bam$/ or die "ERROR: expect *.bam for BAM files: $bam\n";
 my $cmd;
 

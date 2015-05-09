@@ -190,8 +190,8 @@ o_samtools_minStrandBias=0.0001 #minimum P-value for strand bias (given PV4). -1
 o_samtools_minBaseQBias=1e-100 #minimum P-value for baseQ bias. -2 for vcfutils
 o_samtools_minMapQBias=0 #minimum P-value for mapQ bias. -3 for vcfutils
 o_samtools_minEndDistBias=0.0001 #minimum P-value for end distance bias. -4 for vcfutils
-o_samtools_SAMadditional= #extra arguments for samtools mpileup. -uD already specified
-o_samtools_BCFadditional= #extra arguments for bcftools view. -vcg already specified
+o_samtools_SAMadditional= #extra arguments for samtools mpileup. -SuD already specified
+o_samtools_BCFadditional= #extra arguments for bcftools view. -vcg already specified, -T is already set for somatic calling
 o_samtools_FILTERadditional= #extra arguments for vcfutils variant filter
 
 8p_varscan=0 #optional variant calling algorithm

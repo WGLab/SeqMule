@@ -21,7 +21,7 @@ my @fq;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'soap=s'		=>	\$soap,
+    'alignerPath=s'	=>	\$soap,
     'samtools=s'	=>	\$samtools,
     'soap2sam=s'	=>	\$soap2sam,
     'java=s'		=>	\$java,

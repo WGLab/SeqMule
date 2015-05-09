@@ -19,7 +19,7 @@ my @sai;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'bwa=s'		=>	\$bwa,
+    'alignerPath=s'	=>	\$bwa,
     'samtools=s'	=>	\$samtools,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$jmem,

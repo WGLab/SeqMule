@@ -1,5 +1,6 @@
 #!/usr/bin/env perl
 
+#interface for VARSCAN
 use strict;
 use warnings;
 use File::Spec;
@@ -54,8 +55,9 @@ $samtools_cmd_template .= " -B -f $ref BAMFILE ";
 
 if($somatic_flag) {
     my ($vcf_prefix) = $vcf_filter =~ /(.*?)\.vcf$/;
-
-    my $normal_cmd,$tumor_cmd;
+    my $snpvcf = "$vcf_prefix.snp.vcf";
+    my $indelvcf = "$vcf_prefix.indel.vcf";
+    my ($normal_cmd,$tumor_cmd);
     $normal_cmd = $tumor_cmd = $samtools_cmd_template;
     $normal_cmd =~ s/BAMFILE/$bam[0]/;
     $tumor_cmd =~ s/BAMFILE/$bam[1]/;
@@ -66,12 +68,14 @@ if($somatic_flag) {
     $cmd .=" --p-value $options{P}" if $options{P};
     $cmd .=" $options{VARSOMATICadditional} " if $options{VARSOMATICadditional} ne '';
     $cmd .= " \" ";
-push @cmd,$cmd;
-$cmd = File::Spec->catfile(combine snp and indel VCF
-	--output-snp - Output file for SNP calls [output.snp]
-	--output-indel - Output file for indel calls [output.indel]
-
-my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
+    push @cmd,$cmd;
+    my $seqmule_stats = File::Spec->catfile($RealBin,"stats");
+#combine snp and indel
+    push @cmd,"$seqmule_stats -u-vcf $snpvcf,$indelvcf -p $vcf_prefix  -ref $ref";
+#change output file name
+    push @cmd,"mv -f $vcf_prefix.union.vcf $vcf_filter";
+    #we don't need separate snp and indel VCFs
+    push @cmd,"rm -f $snpvcf $indelvcf";
 } else {
     my $samtools_cmd = $samtools_cmd_template;
     $samtools_cmd =~ s/BAMFILE/@bam/;
@@ -97,7 +101,7 @@ my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
 	}'";
     } 
     close IN;
-push @cmd,$cmd;
+    push @cmd,$cmd;
 }
 
 $cmd='';
@@ -122,45 +126,4 @@ push @cmd,"$checkSampleGT -vcf $vcf_filter -tmpdir $tmpdir ";
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 
-
 __END__
-
-
-=head1 NAME
-
-SeqMule an automatic pipeline for next-generation sequencing data analysis
-
-=head1 SYNOPSIS
-
-Options:
-
-    #input and output
-    'samtools=s'	=>	\$samtools,
-    'bcftools=s'	=>	\$bcftools,
-    'ref=s'		=>	\$ref,
-    'bam=s'		=>	\@bam,
-    'vcfutils=s'	=>	\$vcfutils,
-    'vcf=s'		=>	\$vcf,
-    'vcf-filter=s'	=>	\$vcf_filter,
-    'bed=s'		=>	\$bed,
-    'advanced=s'	=>	\$advanced,
-    'n=i'		=>	\$n,
-    'tmpdir=s'		=>	\$tmpdir,
-    #other
-    'help|h'	        =>	\$help,
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<--help>
-
-Show detaild help.
-
-=back
-
-=head1 DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
-
-=cut
