@@ -83,14 +83,15 @@ for my $q("","-quick")
 		    $mem="12g";
 		}
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
-		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
-		#push @cmd, "$starting_point $q --advanced $j";
+		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+
+		#no qsub
+		push @cmd, "$starting_point $q --advanced $j";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		#&exec(@cmd) if grep{$count==$_} (84,86,88,90,92,96,98);
-		&exec(@cmd) and exit if $j =~ /snap/i;
+		&exec(@cmd) if $count == 0;
 		$count++;
 	}
     }

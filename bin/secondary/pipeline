@@ -357,6 +357,7 @@ sub bwa
 	    alignerPath=>$bwa,
 	    alignerWrapper=>$runbwa,
 	    ref=>$local_ref,
+	    n	=>	$n,
 	});
 }
 
@@ -390,6 +391,7 @@ sub bwa_mem
 	    alignerPath=>$bwa,
 	    alignerWrapper=>$runBwamemCMD,
 	    ref=>$local_ref,
+	    n	=>	$n,
 	});
 }
 
@@ -421,6 +423,7 @@ sub snap {
 	    alignerPath=>$snap,
 	    alignerWrapper=>$runSnapCMD,
 	    ref=>$local_ref,
+	    n	=>	$n,
 	});
 }
 sub bowtie
@@ -458,6 +461,7 @@ sub bowtie
 	    alignerPath=>$bowtie,
 	    alignerWrapper=>$runBowtieCMD,
 	    ref=>$local_ref,
+	    n	=>	$n,
 	});
 }
 sub bowtie2 {
@@ -494,6 +498,7 @@ sub bowtie2 {
 	    alignerPath=>$bowtie2,
 	    alignerWrapper=>$runBowtie2CMD,
 	    ref=>$local_ref,
+	    n	=>	$n,
 	});
 }
 sub soap {
@@ -517,6 +522,7 @@ sub soap {
 	    alignerPath=>$exe,
 	    alignerWrapper=>$runsoap,
 	    ref=>$local_ref,
+	    n	=>	$n,
 	});
 } 
 sub gen_aligner_cmd {
@@ -526,6 +532,7 @@ sub gen_aligner_cmd {
     my $aligner_wrapper = $local_opt->{alignerWrapper};
     my $aligner_path = $local_opt->{alignerPath};
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
+    my $n = $local_opt->{n};
 
     #check if all index files are present
 
@@ -547,9 +554,7 @@ sub gen_aligner_cmd {
 
 	push @local_fq,map {$_->file()} (@local_fq_obj);
 
-	shared:
 	$cmd.="$aligner_wrapper ";
-	" -threads $threads ";
 	if($local_bam_obj->istumor) {
 	    #so internally, tumor and normal samples with same prefix are considered as coming from same sample
 	    #this is not ideal because tumor and normal samples should have different sample names
@@ -587,7 +592,6 @@ sub gen_aligner_cmd {
 	    $local_soapaln_obj->aligner($aligner);
 	    map{$_->child($local_soapaln_obj)} (@local_fq_obj);
 
-	    $cmd .= " $runsoap ";
 	    $cmd .= " -soap2sam $exe_soap2sam ";
 	    $cmd.=" -soapaln $alnfile";
 
@@ -624,7 +628,7 @@ sub samtools
 		    $_->filetype eq 'BAM' &&
 		    $_->sample() eq $sample &&
 		    #here we assume that all ancestors are of the same file type
-		    $_->ancestor()[0]->filtype() eq 'FASTQ'
+		    (($_->ancestor())[0])->filtype() eq 'FASTQ'
 		    } @obj_list;
 		    #remove the unmerged BAM from obj_list
 		    #they will no longer be processed
@@ -1516,7 +1520,7 @@ sub reportParam
     warn "NOTICE: Readgroup : $rg\n";
     warn "NOTICE: Sequencing platform: $pl\n";
     warn "NOTICE: Library : $lb\n";
-    warn "NOTICE: Phred scoring scheme : $phred\n" if $fq1;
+    warn "NOTICE: Phred scoring scheme : $phred\n" if $normal_fq1;
     warn "NOTICE: Reference genome build is $buildver\n";
     warn "NOTICE: dbsnp$dbsnpver will be used for variant calling and recalibration.\n";
     warn "NOTICE: Java memory usage is limited to $java_mem\n";
@@ -1598,13 +1602,11 @@ sub procFQ {
     }
     unless ($merge) {
 	die "ERROR: number of prefixes must equal number of FASTQ files\n" 
-	if ($fq1 && $#prefix_list != $#fq1_list);
+	if (@fq1_list && $#prefix_list != $#fq1_list);
     }
 
     die "ERROR: number of FASTQ files for 1st and 2nd read pair must be equal!\n" 
-    if (@fq_list && $#fq1_list != $#fq2_list);
-
-
+    if (@fq1_list && $#fq1_list != $#fq2_list);
 
     for my $i(0..$#prefix_list) {
 	#create symlinks such that all corresponding output have consistent prefix
@@ -1662,8 +1664,7 @@ sub procFQ {
 sub procBAM {
     my $local_opt = shift;
     my $somatic = $local_opt->{somatic};
-    my @fq1_list = @{$local_opt->{fq1}};
-    my @fq2_list = @{$local_opt->{fq2}};
+    my @bam_list = $local_opt->{bam};
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
     if (grep { $_ !~ /\.bam$/ } @bam_list) {
@@ -1708,18 +1709,19 @@ sub procBAM {
 	    push @obj_list,$onebam;
 	}
     } else {
-	if($prefix)
-	{
+	if($prefix) {
 	    $#bam_list==$#prefix_list 
 		or die "ERROR: Prefixes for BAM files are optional.\nIf specified, they must equal to BAM files unless merging is used.\n";
-	} else
-	{
-	    @prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} (split /,/,$bam); #in case the file is symbolic link
-	    die "ERROR: Duplicate BAM sample found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
+	} else {
+	    if($somatic) {
+		die "ERROR: Prefixes must be explicitly specified for BAM input in somatic calling mode.\n";
+	    } else {
+		@prefix_list=map { my $base=basename $_; $base =~ /(.*)\.bam$/i ;$1} @bam_list; #in case the file is symbolic link
+		die "ERROR: Duplicate BAM sample found: @prefix_list\nSeqMule cannot use BAM file names as prefixes.\nPlease specify prefix explicitly with '-prefix'.\n" unless @prefix_list == &SeqMule::Utils::uniq(@prefix_list);
+	    }
 	}
 
-	for my $i(0..$#prefix_list)
-	{
+	for my $i(0..$#prefix_list) {
 	    my $result_folder = &get_result_folder($prefix_list[$i]);
 	    my $original_bam = SeqMule::SeqUtils->new( 	
 		'file'	=> $bam_list[$i],
@@ -1744,8 +1746,7 @@ sub procBAM {
 	&checkBAMSample($samtools,@obj_list);
     }
     #check contig, try to resolve inconsistency
-    for my $local_bam_obj(@obj_list)
-    {
+    for my $local_bam_obj(@obj_list) {
 	next unless $local_bam_obj->filetype() eq 'BAM';
 	#compare chromosome name in ref and BED, complain if they don't match
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
@@ -1757,20 +1758,15 @@ sub procBAM {
 		type2=>'bam',
 		file2=>$local_bam, 
 	    });
-	if ($chr_compare==0)
-	{
+	if ($chr_compare==0) {
 	    die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
-	} elsif ($chr_compare==1)
-	{ 
+	} elsif ($chr_compare==1) { 
 	    warn "NOTICE: contig names in BAM file and reference match with each other.\n";
-	} elsif ($chr_compare==2)
-	{
+	} elsif ($chr_compare==2) {
 	    warn "WARNING: contig names in BAM file do NOT match reference.\n";
-	    if ($no_resolve_conflict)
-	    {
+	    if ($no_resolve_conflict) {
 		die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BAM file.\n";
-	    } else
-	    {
+	    } else {
 		#try remove or add 'chr'
 		#check @SQ tags, try to fix inconsistent tags
 		warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
@@ -1824,7 +1820,7 @@ sub confOptCheck
 	die "ERROR: Illegal build version $buildver, use hg18 or hg19\n";
     }  #standardize build version
     die "Only support ILLUMINA and IONTORRENT.\n" unless ($pl =~ /illumina|iontorrent/i);
-    if ($fq1)
+    if ($normal_fq1)
     { 
 	die "ERROR: Illegal Phred score scheme: use 1 (auto-detect), 33 or 64\n" 
 	unless ($phred==1 or $phred==33 or $phred==64);
