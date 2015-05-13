@@ -339,7 +339,6 @@ sub bwa
     my %options=%{$opt_ref};
 
     my $bwa=&getExe(&SeqMule::Utils::getProgramExe("bwa")); 
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runbwa=File::Spec->catfile($install_dir,"bin","secondary","runBWA");
     my $local_ref;
     my $aligner = "bwa";
@@ -353,159 +352,12 @@ sub bwa
 	symlink $original,$link unless -e $link;
 	$local_ref=$link;
     }
-    &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
-    &gen_aligner_cmd({aligner=>$aligner,alignerPath=>$bwa,
+    &gen_aligner_cmd({
+	    aligner=>$aligner,
+	    alignerPath=>$bwa,
+	    alignerWrapper=>$runbwa,
 	    ref=>$local_ref,
 	});
-    sub gen_aligner_cmd {
-	my $local_opt = shift;
-	my $local_ref = $local_opt->{ref};
-	my $aligner = $local_opt->{aligner};
-	my $aligner_path = $local_opt->{alignerPath};
-
-    for my $i(@obj_list) {
-	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
-	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my @sai;
-	my $local_bam_obj = $i->clone();
-	my $local_bam="${local_prefix}_$aligner.sort.bam";
-	my $cmd;
-
-	$local_bam_obj->aligner($aligner);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	map{$_->child($local_bam_obj)} (@local_fq_obj);
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-
-	shared:
-	$cmd.="$runBwamemCMD ";
-	" -threads $threads ".
-	" -sample ".$local_bam_obj->sample().
-	" -rg ".$local_bam_obj->rg().
-	" -pl ".$local_bam_obj->pl().
-	" -lb ".$local_bam_obj->lb().
-	" -tmpdir $TMPDIR".
-	-advanced $advanced -n $n
-	" -bam ".$local_bam_obj->file().
-	" @local_fq";
-	-alignerPath $bwa
-	-samtools $samtools ".
-	-ref $local_ref ".
-	shared;
-
-	$cmd = "$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem".
-	" -sortsam $sortsam -ref $local_ref -bam $local_bam ".
-	" -threads $threads ".
-	" -rg ".$i->rg().
-	" -sample ".$i->sample.
-	" -pl ".$i->pl().
-	" -lb ".$i->lb().
-	" -tmpdir $TMPDIR";
-	map {$cmd.=" -fq $_ ";} @local_fq;
-	if($aligner eq 'bwa') {
-	push @sai,map {"${local_prefix}_$aligner.$_.sai"; } (0..$#local_fq_obj);
-	push @script_unlink_list,@sai;
-	map {$cmd.=" -sai $_ ";} @sai;
-    } elsif ($aligner eq 'soap') {
-	my $local_sam="${local_prefix}_$aligner.sam";
-	my $local_bam="${local_prefix}_${aligner}.sort.bam";
-	my $unpaired="${local_prefix}_${aligner}_unpaired.soapout";
-	my $unmapped="${local_prefix}_${aligner}_unmapped.soapout";
-	my $alnfile="${local_prefix}_${aligner}.soapaln";
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my $local_bam_obj = $i->clone();
-	my $local_soapaln_obj = $i->clone();
-	my $cmd;
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	$local_bam_obj->aligner($aligner);
-	$local_soapaln_obj->file($alnfile);
-	$local_soapaln_obj->parent(@local_fq_obj);
-	$local_soapaln_obj->filetype('SOAPALN');
-	$local_soapaln_obj->aligner($aligner);
-	map{$_->child($local_bam_obj,$local_soapaln_obj)} (@local_fq_obj);
-
-	$cmd.=" $runsoap ";
-	$cmd.=" -soap $exe ";
-	$cmd.=" -index $local_real_index ";
-	$cmd.=" -n $n -advanced $advanced ".
-	" -bam ".$local_bam_obj->file().
-	" -rg ".$local_bam_obj->rg().
-	" -sample ".$local_bam_obj->sample().
-	" -pl ".$local_bam_obj->pl().
-	" -lb ".$local_bam_obj->lb();
-	$cmd.=" -sam $local_sam ";
-	$cmd.=" -sortsam $sortsam ";
-	$cmd.=" -java $java -jmem $java_mem ";
-	$cmd.=" -samtools $samtools ";
-	$cmd.=" -soap2sam $exe_soap2sam ";
-	$cmd.=" -threads $threads";
-	$cmd.=" -unmapped $unmapped";
-	if (@local_fq == 2) {    
-	    $cmd.=" -fq $local_fq[0] -fq $local_fq[1] -soapaln $alnfile -unpaired $unpaired";
-	} else {
-	    $cmd.="-fq $local_fq[0] -soapaln $alnfile";
-	}
-	push @commands,[$threads,"SOAP2 alignment",$cmd];
-
-	push @script_unlink_list,$local_sam,$unpaired,$unmapped;
-	push @obj_list,$local_bam_obj,$local_soapaln_obj;
-	push @removable,$local_bam,$alnfile;
-    }
-
-    }
-
-	push @commands,[$threads,"$aligner alignment",$cmd];
-	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
-    }
-
-    }
-
-    for my $i(@obj_list) {
-	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
-	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my @sai;
-	my $local_bam_obj = $i->clone();
-	my $local_bam="${local_prefix}_$aligner.sort.bam";
-	my $cmd;
-
-	$local_bam_obj->aligner($aligner);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	map{$_->child($local_bam_obj)} (@local_fq_obj);
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-
-	push @sai,map {"${local_prefix}_$aligner.$_.sai"; } (0..$#local_fq_obj);
-	push @script_unlink_list,@sai;
-
-	$cmd = "$runbwa -advanced $advanced -n $n -bwa $bwa -samtools $samtools -java $java -jmem $java_mem".
-	" -sortsam $sortsam -ref $local_ref -bam $local_bam ".
-	" -threads $threads ".
-	" -rg ".$i->rg().
-	" -sample ".$i->sample.
-	" -pl ".$i->pl().
-	" -lb ".$i->lb().
-	" -tmpdir $TMPDIR";
-	map {$cmd.=" -fq $_ ";} @local_fq;
-	map {$cmd.=" -sai $_ ";} @sai;
-
-	push @commands,[$threads,"BWA-BACKTRACK alignment",$cmd];
-	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
-    }
 }
 
 sub bwa_mem
@@ -516,18 +368,15 @@ sub bwa_mem
     my %options=%{$opt_ref};
 
     my $bwa=&getExe(&SeqMule::Utils::getProgramExe("bwa")); 
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runBwamemCMD=File::Spec->catfile($install_dir,"bin","secondary","runBWA-MEM");
     my $local_ref;
     my $aligner = "bwamem";
 
     die "ERROR: BWA-MEM cannot handle Phred 64 base quality score\n" if $phred == 64;
 
-    if ($ref) 
-    {
+    if ($ref) {
 	$local_ref=$ref;
-    } else
-    {
+    } else {
 	$local_ref=($buildver eq 'hg19'? $HG19REF:$HG18REF);
 	my $original=File::Spec->catfile($install_dir,"database",$local_ref);
 	my $link=File::Spec->catfile($install_dir,"database","bwa",$local_ref);
@@ -536,108 +385,43 @@ sub bwa_mem
 	$local_ref=$link;
     }
 
-    &index_check("bwa",$local_ref) or die "BWA index file(s) missing\n";
-
-    for my $i(@obj_list)
-    {
-	next unless $i->filetype eq 'FASTQ' and $i->rank == 0 ;
-	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my $local_bam_obj = $i->clone();
-	my $local_bam="${local_prefix}_$aligner.sort.bam";
-	my $cmd;
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-	$local_bam_obj->aligner($aligner);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	map{$_->child($local_bam_obj)} (@local_fq_obj);
-
-
-	$cmd.="$runBwamemCMD -advanced $advanced -n $n -bwa $bwa -samtools $samtools ".
-	" -java $java -jmem $java_mem -sortsam $sortsam -ref $local_ref ".
-	" -bam ".$local_bam_obj->file().
-	" -threads $threads ".
-	" -rg ".$local_bam_obj->rg().
-	" -sample ".$local_bam_obj->sample().
-	" -pl ".$local_bam_obj->pl().
-	" -lb ".$local_bam_obj->lb().
-	" -tmpdir $TMPDIR".
-	" @local_fq";
-
-	push @commands,[$threads,"BWA alignment",$cmd];
-	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
-    }
+    &gen_aligner_cmd({
+	    aligner=>$aligner,
+	    alignerPath=>$bwa,
+	    alignerWrapper=>$runBwamemCMD,
+	    ref=>$local_ref,
+	});
 }
 
-sub snap
-{
+sub snap {
     #output example
     #./bwa mem -R '@RG\tID:foo\tSM:bar' -M -t 12 ~/projects/seqmule_main/database/bwa/human_g1k_v37.fasta ../s4.1.fastq ../s4.2.fastq
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
 
     my $snap=&getExe(&SeqMule::Utils::getProgramExe("snap")); 
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runSnapCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNAP");
-    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
     my $local_ref;
     my $aligner = "snap";
 
     die "ERROR: SNAP cannot handle Phred+64 score\n" if $phred == 64;
 
-    if ($ref) 
-    {
+    if ($ref) {
 	$local_ref=$ref;
-    } else
-    {
+    } else {
 	$local_ref=($buildver eq 'hg19'? $HG19REF:$HG18REF);
 	my $original=File::Spec->catfile($install_dir,"database",$local_ref);
 	my $link=File::Spec->catfile($install_dir,"database","snap",$local_ref);
 	$local_ref=$link;
     }
-
-    &index_check("snap",$local_ref) or die "ERROR: SNAP index file(s) missing\n";
-
     #this part can be improved
     #SNAP can run multiple alignments without reloading index
-    for my $i(@obj_list)
-    {
-	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
-	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my $local_bam_obj = $i->clone();
-	my $local_bam="${local_prefix}_$aligner.sort.bam";
-	my $cmd;
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->aligner($aligner);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	map{$_->child($local_bam_obj)} (@local_fq_obj);
-
-	$cmd.="$runSnapCMD -advanced $advanced -n $n -snap $snap -samtools $samtools ".
-	" -ref $local_ref ".
-	" -bam ".$local_bam_obj->file().
-	" -threads $threads ".
-	" -rg ".$local_bam_obj->rg().
-	" -sample ".$local_bam_obj->sample().
-	" -pl ".$local_bam_obj->pl().
-	" -lb ".$local_bam_obj->lb().
-	" -sortmem ".($wes? $SAMTOOLS_SORT_MEM_EXOME:$SAMTOOLS_SORT_MEM_GENOME).
-	" -tmpdir $TMPDIR".
-	" -interleave_fq $interleave_fq ".
-	" @local_fq";
-
-	push @commands,[$threads,"SNAP alignment",$cmd];
-	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
-    }
+    &gen_aligner_cmd({
+	    aligner=>$aligner,
+	    alignerPath=>$snap,
+	    alignerWrapper=>$runSnapCMD,
+	    ref=>$local_ref,
+	});
 }
 sub bowtie
 {
@@ -645,15 +429,11 @@ sub bowtie
     my %options=%{$opt_ref};
 
     my $bowtie=&getExe(&SeqMule::Utils::getProgramExe("bowtie")); 
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runBowtieCMD=File::Spec->catfile($install_dir,"bin","secondary","runBOWTIE");
-    my $local_real_index;
+    my $local_ref;
     my $aligner = "bowtie";
-
-
     #check if all indexes exist; keep the real name of the indexes
-    if ($bowtie_index_prefix)
-    {
+    if ($bowtie_index_prefix) {
 	#bowtie index can also appear in bowtie dir, in env
 	my $exe_folder=dirname(&SeqMule::Utils::abs_path_failsafe($bowtie));
 
@@ -662,7 +442,7 @@ sub bowtie
 	push @index_pres, File::Spec->catfile($ENV{BOWTIE_INDEXES},$bowtie_index_prefix) if defined $ENV{BOWTIE_INDEXES};
 	for (@index_pres) {
 	    if (&index_check("bowtie",$_)) {
-		$local_real_index=$_;
+		$local_ref=$_;
 		last;
 	    }
 	}
@@ -670,56 +450,22 @@ sub bowtie
 	my ($hg18_pre)= $HG18REF=~/(.*)\.(.*)$/;
 	my ($hg19_pre)= $HG19REF=~/(.*)\.(.*)$/;
 	my $default_index=File::Spec->catfile($install_dir,"database","bowtie",($buildver eq 'hg18' ? $hg18_pre : $hg19_pre));
-
-	if (&index_check("bowtie",$default_index)) {
-	    $local_real_index=$default_index;
-	} 
+	    $local_ref=$default_index;
     } 
-    die "ERROR: No bowtie indexe files (prefix.1.ebwt etc.) found\n" unless $local_real_index;
 
-    for my $i(@obj_list)
-    {
-	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
-	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my $local_bam_obj = $i->clone();
-	my $local_bam="${local_prefix}_$aligner.sort.bam";
-	my $cmd;
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->aligner($aligner);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	map{$_->child($local_bam_obj)} (@local_fq_obj);
-
-	$cmd="$runBowtieCMD -advanced $advanced -n $n -bowtie $bowtie ".
-	" -samtools $samtools -java $java -jmem $java_mem -sortsam $sortsam ".
-	" -ref $local_real_index ".
-	" -bam ".$local_bam_obj->file().
-	" -threads $threads ".
-	" -rg ".$local_bam_obj->rg().
-	" -sample ".$local_bam_obj->sample().
-	" -pl ".$local_bam_obj->pl().
-	" -lb ".$local_bam_obj->lb().
-	" -tmpdir $TMPDIR".
-	" @local_fq";
-
-	push @commands,[$threads,"Bowtie alignment",$cmd];
-	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
-    }
+    &gen_aligner_cmd({
+	    aligner=>$aligner,
+	    alignerPath=>$bowtie,
+	    alignerWrapper=>$runBowtieCMD,
+	    ref=>$local_ref,
+	});
 }
-
-sub bowtie2
-{
+sub bowtie2 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
     my $bowtie2=&getExe(&SeqMule::Utils::getProgramExe("bowtie2")); 
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
     my $runBowtie2CMD=File::Spec->catfile($install_dir,"bin","secondary","runBOWTIE2");
-    my $local_real_index;
+    my $local_ref;
     my $aligner = "bowtie2";
 
     #check if all indexes exist; keep the real name of the indexes
@@ -733,7 +479,7 @@ sub bowtie2
 	push @index_pres, File::Spec->catfile($ENV{BOWTIE2_INDEXES},$bowtie2_index_prefix) if defined $ENV{BOWTIE2_INDEXES};
 	for (@index_pres) {
 	    if (&index_check("bowtie",$_)) {
-		$local_real_index=$_;
+		$local_ref=$_;
 		last;
 	    }
 	}
@@ -741,15 +487,50 @@ sub bowtie2
 	my ($hg18_pre)= $HG18REF=~/(.*)\.(.*)$/;
 	my ($hg19_pre)= $HG19REF=~/(.*)\.(.*)$/;
 	my $default_index=File::Spec->catfile($install_dir,"database","bowtie2",($buildver eq 'hg18' ? $hg18_pre : $hg19_pre));
-
-	if (&index_check("bowtie2",$default_index)) {
-	    $local_real_index=$default_index;
-	} 
+	    $local_ref=$default_index;
     } 
-    die "No index files ({prefix}.1.bt2 etc.) found\n" unless $local_real_index;
+    &gen_aligner_cmd({
+	    aligner=>$aligner,
+	    alignerPath=>$bowtie2,
+	    alignerWrapper=>$runBowtie2CMD,
+	    ref=>$local_ref,
+	});
+}
+sub soap {
+    my ($n,$program,$subprogram,$opt_ref)=@_;
+    my %options=%{$opt_ref};
+    my $exe=&getExe(&SeqMule::Utils::getProgramExe("soap")); 
+    my $runsoap=File::Spec->catfile($install_dir,"bin","secondary","runSOAP");
+    my $local_ref;
+    my $aligner = "soap";
 
-    for my $i(@obj_list)
-    {
+    if ($soap_index_prefix) {
+	    $local_ref=$soap_index_prefix;
+    } else {
+	my $hg18_pre="$HG18REF.index";
+	my $hg19_pre="$HG19REF.index";
+	my $default_index=File::Spec->catfile($install_dir,"database","soap",($buildver eq 'hg18'? $hg18_pre:$hg19_pre));
+	    $local_ref=$default_index;
+    } 
+    &gen_aligner_cmd({
+	    aligner=>$aligner,
+	    alignerPath=>$exe,
+	    alignerWrapper=>$runsoap,
+	    ref=>$local_ref,
+	});
+} 
+sub gen_aligner_cmd {
+    my $local_opt = shift;
+    my $local_ref = $local_opt->{ref};
+    my $aligner = $local_opt->{aligner};
+    my $aligner_wrapper = $local_opt->{alignerWrapper};
+    my $aligner_path = $local_opt->{alignerPath};
+    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
+
+    #check if all index files are present
+
+	(defined $local_ref and &index_check($aligner,$local_ref)) or die "ERROR: $aligner index file(s) missing ($local_ref)\n";
+    for my $i(@obj_list) {
 	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
 	my @local_fq_obj = ($i,$i->sibling());
@@ -758,108 +539,70 @@ sub bowtie2
 	my $local_bam="${local_prefix}_$aligner.sort.bam";
 	my $cmd;
 
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-	$local_bam_obj->file($local_bam);
 	$local_bam_obj->aligner($aligner);
+	$local_bam_obj->file($local_bam);
 	$local_bam_obj->parent(@local_fq_obj);
 	$local_bam_obj->filetype('BAM');
 	map{$_->child($local_bam_obj)} (@local_fq_obj);
 
-	$cmd="$runBowtie2CMD -advanced $advanced -n $n -bowtie2 $bowtie2 ".
-	" -samtools $samtools -java $java -jmem $java_mem ".
-	" -sortsam $sortsam -ref $local_real_index ".
-	" -bam ".$local_bam_obj->file().
-	" -threads $threads ".
-	" -rg ".$local_bam_obj->rg().
-	" -sample ".$local_bam_obj->sample().
+	push @local_fq,map {$_->file()} (@local_fq_obj);
+
+	shared:
+	$cmd.="$aligner_wrapper ";
+	" -threads $threads ";
+	if($local_bam_obj->istumor) {
+	    #so internally, tumor and normal samples with same prefix are considered as coming from same sample
+	    #this is not ideal because tumor and normal samples should have different sample names
+	    #but if they have different sample names, then we need to devise anotehr way to know they are a pair of samples
+	    #to be used in somatic calling (e.g. add individual ID to obj??)
+	    $cmd .= " -sample ".$local_bam_obj->sample()."_tumor";
+	} else {
+	    $cmd .= " -sample ".$local_bam_obj->sample();
+	}
+	$cmd .= " -rg ".$local_bam_obj->rg().
 	" -pl ".$local_bam_obj->pl().
 	" -lb ".$local_bam_obj->lb().
 	" -tmpdir $TMPDIR".
-	" @local_fq";
+	" -advanced $advanced -n $n ".
+	" -bam ".$local_bam_obj->file().
+	" -alignerPath $aligner_path ".
+	" -samtools $samtools ".
+	" -threads $threads".
+	" -ref $local_ref ";
+	map {$cmd .= " -fq $_ ";} @local_fq;
 
-	push @commands,[$threads,"Bowtie2 alignment",$cmd];
+	if($aligner eq 'bwa') {
+	    my @sai;
+	    push @sai,map {"${local_prefix}_$aligner.$_.sai"; } (0..$#local_fq_obj);
+	    push @script_unlink_list,@sai;
+	    map {$cmd.=" -sai $_ ";} @sai;
+	} elsif ($aligner eq 'soap') {
+	    my $alnfile="${local_prefix}_${aligner}.soapaln";
+	    my $local_soapaln_obj = $i->clone();
+	    my $exe_soap2sam = File::Spec->catfile($install_dir,"bin","soap2sam.pl");
+
+	    $local_soapaln_obj->file($alnfile);
+	    $local_soapaln_obj->parent(@local_fq_obj);
+	    $local_soapaln_obj->filetype('SOAPALN');
+	    $local_soapaln_obj->aligner($aligner);
+	    map{$_->child($local_soapaln_obj)} (@local_fq_obj);
+
+	    $cmd .= " $runsoap ";
+	    $cmd .= " -soap2sam $exe_soap2sam ";
+	    $cmd.=" -soapaln $alnfile";
+
+	    push @obj_list,$local_soapaln_obj;
+	    push @removable,$alnfile;
+	} elsif ($aligner eq 'snap') {
+    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
+	$cmd .= " -interleave_fq $interleave_fq ";
+}
+
+	push @commands,[$threads,"$aligner alignment",$cmd];
 	push @obj_list,$local_bam_obj;
 	push @removable,$local_bam;
     }
 }
-sub soap {
-    my ($n,$program,$subprogram,$opt_ref)=@_;
-    my %options=%{$opt_ref};
-    my $exe=&getExe(&SeqMule::Utils::getProgramExe("soap")); 
-    my $exe_soap2sam=File::Spec->catfile($install_dir,"bin","soap2sam.pl");
-    my $runsoap=File::Spec->catfile($install_dir,"bin","secondary","runSOAP");
-    my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools")); 
-    my $local_real_index;
-    my $aligner = "soap";
-
-    if ($soap_index_prefix) {
-	if (&index_check("soap",$soap_index_prefix)) {
-	    $local_real_index=$soap_index_prefix;
-	}
-    } else {
-	my $hg18_pre="$HG18REF.index";
-	my $hg19_pre="$HG19REF.index";
-	my $default_index=File::Spec->catfile($install_dir,"database","soap",($buildver eq 'hg18'? $hg18_pre:$hg19_pre));
-	if (&index_check("soap",$default_index)) {
-	    $local_real_index=$default_index;
-	} 
-    } 
-    die "ERROR: No SOAP index files ({prefix}.amb etc.) found\n" unless $local_real_index;
-    #generate command for multiple input files
-    for my $i(@obj_list)
-    {
-	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
-	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
-	my $local_sam="${local_prefix}_$aligner.sam";
-	my $local_bam="${local_prefix}_${aligner}.sort.bam";
-	my $unpaired="${local_prefix}_${aligner}_unpaired.soapout";
-	my $unmapped="${local_prefix}_${aligner}_unmapped.soapout";
-	my $alnfile="${local_prefix}_${aligner}.soapaln";
-	my @local_fq_obj = ($i,$i->sibling());
-	my @local_fq;
-	my $local_bam_obj = $i->clone();
-	my $local_soapaln_obj = $i->clone();
-	my $cmd;
-
-	push @local_fq,map {$_->file()} (@local_fq_obj);
-	$local_bam_obj->file($local_bam);
-	$local_bam_obj->parent(@local_fq_obj);
-	$local_bam_obj->filetype('BAM');
-	$local_bam_obj->aligner($aligner);
-	$local_soapaln_obj->file($alnfile);
-	$local_soapaln_obj->parent(@local_fq_obj);
-	$local_soapaln_obj->filetype('SOAPALN');
-	$local_soapaln_obj->aligner($aligner);
-	map{$_->child($local_bam_obj,$local_soapaln_obj)} (@local_fq_obj);
-
-	$cmd.=" $runsoap ";
-	$cmd.=" -soap $exe ";
-	$cmd.=" -index $local_real_index ";
-	$cmd.=" -n $n -advanced $advanced ".
-	" -bam ".$local_bam_obj->file().
-	" -rg ".$local_bam_obj->rg().
-	" -sample ".$local_bam_obj->sample().
-	" -pl ".$local_bam_obj->pl().
-	" -lb ".$local_bam_obj->lb();
-	$cmd.=" -sam $local_sam ";
-	$cmd.=" -sortsam $sortsam ";
-	$cmd.=" -java $java -jmem $java_mem ";
-	$cmd.=" -samtools $samtools ";
-	$cmd.=" -soap2sam $exe_soap2sam ";
-	$cmd.=" -threads $threads";
-	$cmd.=" -unmapped $unmapped";
-	if (@local_fq == 2) {    
-	    $cmd.=" -fq $local_fq[0] -fq $local_fq[1] -soapaln $alnfile -unpaired $unpaired";
-	} else {
-	    $cmd.="-fq $local_fq[0] -soapaln $alnfile";
-	}
-	push @commands,[$threads,"SOAP2 alignment",$cmd];
-
-	push @script_unlink_list,$local_sam,$unpaired,$unmapped;
-	push @obj_list,$local_bam_obj,$local_soapaln_obj;
-	push @removable,$local_bam,$alnfile;
-    }
-} 
 sub samtools
 {
     my ($n,$program,$subprogram,$opt_ref)=@_;
