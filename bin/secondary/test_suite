@@ -29,9 +29,9 @@ my $basic_ms;
 my @config_files=glob "$config_folder/*.config";
 
 #$basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
-$basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
-$basic_merge="$exe pipeline -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
-$basic_ms="$exe pipeline -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
+$basic="$exe pipeline -ow -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
+$basic_merge="$exe pipeline -ow -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
+$basic_ms="$exe pipeline -ow -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
 
 chdir $test_folder or die "Can't enter $test_folder: $!\n";
 my $count=0;
@@ -86,12 +86,12 @@ for my $q("","-quick")
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 
 		#no qsub
-		push @cmd, "$starting_point $q --advanced $j";
+		push @cmd, "$starting_point $q --advanced $j -nr";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count == 0;
+		&exec(@cmd) if $count >= 1 && $count <= 10;
 		$count++;
 	}
     }

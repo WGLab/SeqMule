@@ -45,6 +45,7 @@ go_bowtie2= #index prefix for bowtie2
 go_soap= #index prefix for soap
 go_jmem= #max java memory
 go_gatknt= #number of threads for GATK
+go_tmpdir= #folder for holding temporary data
 
 
 #Quality control

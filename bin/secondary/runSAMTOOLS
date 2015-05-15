@@ -30,7 +30,7 @@ GetOptions(
     'bed=s'		=>	\$bed,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
-    'tmpdir'		=>	\$tmpdir,
+    'tmpdir=s'		=>	\$tmpdir,
     #other
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
