@@ -1243,7 +1243,7 @@ sub samtools
 	} else {
 	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	   die "ERROR: \@target_obj empty for $caller, make sure recalibration and realignment is enabled while\n".
-	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
+	   "originalBAM is NOT in use. Or you can turn on originalBAM.\n" unless @target_obj;
 	}
 
 	$mode = $multi_sample_calling? 'multi':($somatic_toggle? 'somatic':'single');
@@ -1308,7 +1308,7 @@ sub freebayes
     } else {
 	@target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	   die "ERROR: \@target_obj empty for $caller, make sure recalibration and realignment is enabled while\n".
-	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
+	   "originalBAM is NOT in use. Or you can turn on originalBAM.\n" unless @target_obj;
     }
 
     $mode = ($multi_sample_calling? 'multi':'single');
@@ -1389,7 +1389,7 @@ sub gatk
 	} else {
 	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	   die "ERROR: \@target_obj empty for $caller, make sure recalibration and realignment is enabled while\n".
-	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
+	   "originalBAM is NOT in use. Or you can turn on originalBAM.\n" unless @target_obj;
 	}
 	$mode = ($multi_sample_calling? 'multi':'single');
 
@@ -1484,7 +1484,7 @@ sub gen_gatk_realign_recal_cmd {
     if($local_bam_obj->realn == 1 || $local_bam_obj->recal == 1) {
 	$local_bam_obj = $newbam_obj;
     } else {
-	push @obj_list,$new_obj;
+	push @obj_list,$newbam_obj;
 
     }
 	#$local_bam_obj = $newbam_obj; 
@@ -1559,22 +1559,20 @@ sub gatk_full
 	my @target_obj;
 	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
 
-
-	if ($options{'originalBAM'})
-	{
+	warn "1562";
+	check_obj(@obj_list);
+	if ($options{'originalBAM'}) {
 	    #this step is to make sure we use BAM files without realn or recal if users want to
 	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
-	} else
-	{
+	} else {
 	    @target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	   die "ERROR: \@target_obj empty for $caller, make sure recalibration and realignment is enabled while\n".
-	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
+	   "originalBAM is NOT in use. Or you can turn on originalBAM.\n" unless @target_obj;
 	}
 
 	$mode = ($multi_sample_calling? 'multi':'single');
 
-	for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list))
-	{
+	for my $i(SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)) {
 	    #do multi-sample calling for bam files from the same aligner
 	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
 	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
@@ -1649,7 +1647,7 @@ sub varscan
     } else {
 	@target_obj = grep {$_->realn() == 1 || $_->recal() == 1} @obj_list;
 	   die "ERROR: \@target_obj empty for $caller, make sure recalibration and realignment is enabled while\n".
-	   "originalBAM is in use. Or you can turn off originalBAM.\n" unless @target_obj;
+	   "originalBAM is NOT in use. Or you can turn on originalBAM.\n" unless @target_obj;
     }
 	$mode = $multi_sample_calling? 'multi':($somatic_toggle? 'somatic':'single');
 
@@ -2361,13 +2359,13 @@ sub index_check
 	return
 	(-e "$prefix.1.bt2" && -e "$prefix.2.bt2" && -e "$prefix.3.bt2" && -e "$prefix.4.bt2" && -e "$prefix.rev.1.bt2" && -e "$prefix.rev.2.bt2");
 
-    } elsif ($program=~/^bwa$/i)
+    } elsif ($program=~/^bwa|bwamem$/i)
     {
 	return (-e "$prefix.amb" && -e  "$prefix.bwt" && -e "$prefix.pac" && -e "$prefix.ann" && -e "$prefix.fai" && -e "$prefix.sa");
     } elsif ($program=~/^snap$/i)
     {
 	return (-e File::Spec->catfile($prefix,"Genome") && -e  File::Spec->catfile($prefix,"GenomeIndex") && -e File::Spec->catfile($prefix,"GenomeIndexHash") && -e File::Spec->catfile($prefix,"OverflowTable"));
-    } else { die "Unrecognized program for index check\n"}
+    } else { die "Unrecognized program ($program) for index check\n"}
 }
 #######################END OF HELPER SUBROUTINES#############################
 

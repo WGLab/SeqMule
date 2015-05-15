@@ -19,6 +19,7 @@ my $original="../advanced_config";
     my $out="bowtie2_gatklite_norealn_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
+    "s/gatklite_originalBAM=0/gatklite_originalBAM=1/;".
     "s/gatklite_variant=0/gatklite_variant=1/;";
     &procOriginal($out,$regex);
 }
@@ -38,6 +39,7 @@ my $original="../advanced_config";
     "s/gatklite_realign=0/gatklite_realign=1/;".
     "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     &procOriginal($out,$regex);
 }
 
@@ -49,6 +51,7 @@ my $original="../advanced_config";
     "s/gatklite_realign=0/gatklite_realign=1/;".
     "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -57,6 +60,7 @@ my $original="../advanced_config";
     my $out="bowtie2_samtools.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -64,6 +68,7 @@ my $original="../advanced_config";
     my $out="bowtie2_freebayes.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
+    "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
     "s/freebayes=0/freebayes=1/;";
     &procOriginal($out,$regex);
 }
@@ -87,6 +92,7 @@ my $original="../advanced_config";
     my $out="bowtie2_gatk_UnifiedGenotyper_norealn_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
+    "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
     &procOriginal($out,$regex);
 }
@@ -111,6 +117,7 @@ my $original="../advanced_config";
     my $out="bowtie2_gatk_HaplotypeCaller_norealn_norecal.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
+    "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
@@ -129,6 +136,7 @@ my $original="../advanced_config";
     "s/gatk_realign=0/gatk_realign=1/;".
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -139,6 +147,7 @@ my $original="../advanced_config";
     "s/gatk_realign=0/gatk_realign=1/;".
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -151,6 +160,7 @@ my $original="../advanced_config";
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -162,6 +172,7 @@ my $original="../advanced_config";
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -179,6 +190,7 @@ my $original="../advanced_config";
     my $out="bwa_gatklite_norealn_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
+    "s/gatklite_originalBAM=0/gatklite_originalBAM=1/;".
     "s/gatklite_variant=0/gatklite_variant=1/;";
     &procOriginal($out,$regex);
 }
@@ -197,6 +209,7 @@ my $original="../advanced_config";
     "s/gatklite_variant=0/gatklite_variant=1/;".
     "s/gatklite_realign=0/gatklite_realign=1/;".
     "s/gatklite_recal=0/gatklite_recal=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -208,6 +221,7 @@ my $original="../advanced_config";
     "s/gatklite_realign=0/gatklite_realign=1/;".
     "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -215,6 +229,7 @@ my $original="../advanced_config";
     my $out="bwa_samtools.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -222,6 +237,7 @@ my $original="../advanced_config";
     my $out="bwa_freebayes.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
+    "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
     "s/freebayes=0/freebayes=1/;";
     &procOriginal($out,$regex);
 }
@@ -245,6 +261,7 @@ my $original="../advanced_config";
     my $out="bwa_gatk_UnifiedGenotyper_norealn_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
+    "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
     &procOriginal($out,$regex);
 }
@@ -269,6 +286,7 @@ my $original="../advanced_config";
     my $out="bwa_gatk_HaplotypeCaller_norealn_norecal.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
+    "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
@@ -287,6 +305,7 @@ my $original="../advanced_config";
     "s/gatk_realign=0/gatk_realign=1/;".
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -297,6 +316,7 @@ my $original="../advanced_config";
     "s/gatk_realign=0/gatk_realign=1/;".
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -308,6 +328,7 @@ my $original="../advanced_config";
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -319,6 +340,7 @@ my $original="../advanced_config";
     "s/gatk_recal=0/gatk_recal=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -347,6 +369,7 @@ my $original="../advanced_config";
 #    "s/gatklite_variant=0/gatklite_variant=1/;".
 #    "s/gatklite_realign=0/gatklite_realign=1/;".
 #    "s/gatklite_recal=0/gatklite_recal=1/;".
+#    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -358,6 +381,7 @@ my $original="../advanced_config";
 #    "s/gatklite_realign=0/gatklite_realign=1/;".
 #    "s/gatklite_recal=0/gatklite_recal=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;".
+#    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
 #    "s/varscan=0/varscan=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -365,6 +389,7 @@ my $original="../advanced_config";
     my $out="bwa_backtrack_samtools.config";
     my $regex=
     "s/bwa=0/bwa=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -379,6 +404,7 @@ my $original="../advanced_config";
 #    my $out="bwa_backtrack_freebayes.config";
 #    my $regex=
 #    "s/bwa=0/bwa=1/;".
+#    "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
 #    "s/freebayes=0/freebayes=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -406,6 +432,7 @@ my $original="../advanced_config";
 #    my $regex=
 #    "s/bowtie=0/bowtie=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;".
+#    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
 #    "s/varscan=0/varscan=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -413,6 +440,7 @@ my $original="../advanced_config";
     my $out="bowtie1_samtools.config";
     my $regex=
     "s/bowtie=0/bowtie=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
     &procOriginal($out,$regex);
 }
@@ -420,6 +448,7 @@ my $original="../advanced_config";
 #    my $out="bowtie1_freebayes.config";
 #    my $regex=
 #    "s/bowtie=0/bowtie=1/;".
+#    "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
 #    "s/freebayes=0/freebayes=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -436,6 +465,7 @@ my $original="../advanced_config";
     my $regex=
     "s/snap=0/snap=1/;".
     "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
+    "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
     "s/freebayes=0/freebayes=1/;";
     &procOriginal($out,$regex);
 }
@@ -445,7 +475,9 @@ my $original="../advanced_config";
     "s/snap=0/snap=1/;".
     "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
     "s/freebayes=0/freebayes=1/;".
+    "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -478,6 +510,11 @@ sub procOriginal
 	s/freebayes=\s*\d/freebayes=0/;
 	s/snver=\s*\d/snver=0/;
 	s/snap=\s*\d/snap=0/;
+	s/gatk_originalBAM=1/gatk_originalBAM=0/;
+	s/gatklite_originalBAM=1/gatklite_originalBAM=0/;
+	s/samtools_originalBAM=1/samtools_originalBAM=0/;
+	s/varscan_originalBAM=1/varscan_originalBAM=0/;
+	s/freebayes_originalBAM=1/freebayes_originalBAM=0/;
 	eval $regex;
 	print OUT;
     }
