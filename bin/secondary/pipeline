@@ -1426,7 +1426,6 @@ sub gen_gatk_realign_recal_cmd {
     my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
     my $run_gatk;
     my @newbam_obj_list;
-    my @oldbam_obj_list; #we need to remove old BAM obj: unless they are neither realigned nor recaled, they will not be used
 
     if($version eq 'gatklite') {
 	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatklite"));
@@ -1458,8 +1457,15 @@ sub gen_gatk_realign_recal_cmd {
 
     for my $local_bam_obj(@obj_list) 
     {
+
+	if($local_bam_obj->filetype() ne 'BAM' or
+	    ($local_bam_obj->realn && $operation eq 'realn') or
+	    ($local_bam_obj->recal && $operation eq 'recal') or
+	    #if an obj has a child, then it is not the latest obj generated
+	    ($local_bam_obj->child() >= 1) ) { 
+	    next;
+	}
 	next unless $local_bam_obj->filetype() eq 'BAM';
-	push @oldbam_obj_list,$local_bam_obj;
 	my $local_bam = $local_bam_obj->file();
 	my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
 	my $newbam_obj = $local_bam_obj->clone();
@@ -1481,24 +1487,17 @@ sub gen_gatk_realign_recal_cmd {
 	push @commands,[$threads,"Index BAM files","$exe_samtools index $newbam"];
 	#it's possible that some variant callers will use non-recal non-realn BAM
 	#so we still keep the old BAM in @obj_list
-    if($local_bam_obj->realn == 1 || $local_bam_obj->recal == 1) {
-	$local_bam_obj = $newbam_obj;
-    } else {
-	push @obj_list,$newbam_obj;
+	if($local_bam_obj->realn == 1 || $local_bam_obj->recal == 1) {
+	    $local_bam_obj = $newbam_obj;
+	} else {
+	    push @obj_list,$newbam_obj;
 
-    }
+	}
 	#$local_bam_obj = $newbam_obj; 
 	warn "1483";
 	#push @newbam_obj_list,$newbam_obj;
 	push @removable,$newbam;
     }
-    #we need to remove old BAM obj: unless they are neither realigned nor recaled, they will not be used
-    #@oldbam_obj_list = grep {$_->realn == 1 || $_->recal == 1} @oldbam_obj_list;
-    #SeqMule::SeqUtils->rmObjFromArray (
-    #    target=>\@oldbam_obj_list,
-    #    all=>\@obj_list,
-    #);
-    #push @obj_list,@newbam_obj_list;
     warn "1487";
     check_obj(@obj_list);
 }
@@ -1799,8 +1798,7 @@ sub gen_cmd_for_variant_call_task
     #
     #here we want to create a VCF for 
     #each sample
-    for my $j(0..$#sample)
-    {
+    for my $j(0..$#sample) {
 	my ($bam_obj_for_this_sample) = grep { $_->sample() eq $sample[$j] } @bam_obj;
 	my ($local_prefix) = ($bam_obj_for_this_sample->file() =~ /(.*)\.bam$/i);
 	$local_prefix = $local_prefix.".$i";
@@ -1829,7 +1827,6 @@ sub gen_cmd_for_variant_call_task
 	    #otherwise why not do variant calling and filtering in the same step?
 	    $new_vcf_obj->rank($i);
 	}
-
 	#only the first one is child of BAM input
 	if($j==0) {
 	    my $msg = $suffix; 

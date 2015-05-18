@@ -14,6 +14,7 @@ use Getopt::Long qw/GetOptions/;
 my (
     $capture,   $java,    $java_mem,    $gatk,
     $ref,    $local_threads,    $gatk_nt, 
+    $pl,$kg,$hapmap,$goldindel,$dbsnp,
     $bam,$out,
     $help,$advanced,    $n,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
@@ -25,6 +26,11 @@ GetOptions(
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
     'ref=s'		=>	\$ref,
+    'pl=s'		=>	\$pl, #platform
+    'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg, #1000 genomes database
+    'hapmap=s'		=>	\$hapmap, #hapmap database
+    'goldindel=s'	=>	\$goldindel, #mills golden indel database
     'threads=i'		=>	\$local_threads,
     'gatk-nt=i'		=>	\$gatk_nt,
     'bam=s'		=>	\$bam, #specify it multiple times

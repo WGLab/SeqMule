@@ -52,6 +52,7 @@ my $original="../advanced_config";
     "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -161,6 +162,7 @@ my $original="../advanced_config";
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -173,6 +175,7 @@ my $original="../advanced_config";
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -222,6 +225,7 @@ my $original="../advanced_config";
     "s/gatklite_recal=0/gatklite_recal=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -329,6 +333,7 @@ my $original="../advanced_config";
     "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -341,6 +346,7 @@ my $original="../advanced_config";
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
@@ -382,6 +388,7 @@ my $original="../advanced_config";
 #    "s/gatklite_recal=0/gatklite_recal=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;".
 #    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+#    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
 #    "s/varscan=0/varscan=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -433,6 +440,7 @@ my $original="../advanced_config";
 #    "s/bowtie=0/bowtie=1/;".
 #    "s/samtools_mpileup=0/samtools_mpileup=1/;".
 #    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+#    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
 #    "s/varscan=0/varscan=1/;";
 #    &procOriginal($out,$regex);
 #}
@@ -478,6 +486,7 @@ my $original="../advanced_config";
     "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
