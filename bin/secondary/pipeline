@@ -151,6 +151,7 @@ $help||@ARGV and pod2usage ({-verbose=>1});
 &prefixCheck() if $prefix;
 &confOptCheck(); #check again after options are deteremined
 &proc_input ({
+	there is a bug with importing input
 	bam => $normal_bam,
 	fq1 => $normal_fq1,
 	fq2 => $normal_fq2,
@@ -1690,7 +1691,7 @@ sub gen_variant_call_cmd
 	    @bam_obj_for_this_task = shift @bam_obj;
 	    $suffix = $caller;
 	} elsif ($mode eq 'somatic') {
-	    die "ERROR: Only VarScan and SAMtools support somatic variant calling\n" if $caller ne 'varscan' or $caller ne 'samtools';
+	    die "ERROR: Only VarScan and SAMtools support somatic variant calling: $caller\n" if $caller ne 'varscan' and $caller ne 'samtools';
 	    $suffix = $caller.".somatic-call";
 	    #for somatic calling, we need a pair of BAM, normal and tumor
 	    my $random_obj = shift @bam_obj;

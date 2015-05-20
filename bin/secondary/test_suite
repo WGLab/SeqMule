@@ -12,6 +12,7 @@ my $jmem="2500m";
 my $gatknt=4;
 my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/SeqMule/testrun/test";
+my $data_folder="/home/yunfeiguo/projects/SeqMule/example_data";
 my $config_folder="/home/yunfeiguo/projects/SeqMule_dev/misc/predefined_config";
 #for no merge, no ms
 my $first_fq="part.1.fastq";
@@ -28,17 +29,14 @@ my @tumor_fq = ("tumor_R1.fastq.gz","tumor_R2.fastq.gz");
 my $somatic_prefix = "R12somatic";
 my $somatic_capture="/home/yunfeiguo/projects/SeqMule/testrun/test/merge_capture.bed";
 
-my $basic; 
-my $basic_merge;
-my $basic_ms;
-my $basic_somatic;
+for ($first_fq,$second_fq,@first_fq,@second_fq,@normal_fq,@tumor_fq) {$_ = File::Spec->catfile($data_folder,$_); } ;
 my @config_files=glob "$config_folder/*.config";
 
 #$basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
-$basic="$exe pipeline -ow -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
-$basic_merge="$exe pipeline -ow -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
-$basic_ms="$exe pipeline -ow -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
-$basic_somatic = "$exe pipeline -ow -a $normal_fq[0] -b $normal_fq[1] -a2 $tumor_fq[0] -b2 $tumor_fq[1] -capture $somatic_capture -e -t $ncpu -rg PatientX -jmem $jmem -prefix PatientXsomatic -gatknt $gatknt";
+my $basic="$exe pipeline -ow -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
+my $basic_merge="$exe pipeline -ow -merge --forceOneRG -rg colonRG -prefix $merge_prefix -a ".join(',',@first_fq)." -b ".join(',',@second_fq)." -e -t $ncpu -jmem $jmem -gatknt $gatknt -capture $merge_capture";
+my $basic_ms="$exe pipeline -ow -a ".join(',',@first_fq,$first_fq)." -b ".join(',',@second_fq,$second_fq)." -rg colon1,colon2,part -capture default -e -t $ncpu -jmem $jmem -ms -prefix one,two,three -gatknt $gatknt";
+my $basic_somatic = "$exe pipeline -ow -a $normal_fq[0] -b $normal_fq[1] -a2 $tumor_fq[0] -b2 $tumor_fq[1] -capture $somatic_capture -e -t $ncpu -rg PatientX -jmem $jmem -prefix PatientXsomatic -gatknt $gatknt";
 
 chdir $test_folder or die "Can't enter $test_folder: $!\n";
 my $count=0;
@@ -98,7 +96,7 @@ for my $q("","-quick")
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 0 && $count <=20;
+		&exec(@cmd) if $j=~/varscan|samtools/i && $j!~/gatk|freebayes/i && $count >= 0 && $count <=0;
 		$count++;
 	}
     }
