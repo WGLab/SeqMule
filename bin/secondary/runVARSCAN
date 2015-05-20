@@ -79,28 +79,31 @@ if($somatic_flag) {
 } else {
     my $samtools_cmd = $samtools_cmd_template;
     $samtools_cmd =~ s/BAMFILE/@bam/;
-    open IN,$samtools_cmd or die "Failed to open samtools pipe: $!\n";
-    if (<IN>) {
-	$cmd.=$samtools_cmd;
-	my $varscan_cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
-	$varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
-	$varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
-	$varscan_cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
-	$varscan_cmd.=" --p-value $options{P}" if $options{P};
-	$varscan_cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
-	$varscan_cmd.=" > $vcf_filter";
-	$cmd.="perl -e 'open IN,\"$samtools_cmd\" or die \"Failed to open samtools pipe: $!\\n\";
-	my \$buf;
-	if(read IN,\$buf,64_000){
-	open OUT,\"|-\",\"$varscan_cmd\" or die \"Failed to open varscan pipe: $!\\n\";
-	print OUT \$buf;
-	while(read IN,\$buf,$BUFFER_SIZE)
-	{
-	print OUT \$buf;
-	}
-	}'";
-    } 
-    close IN;
+    if(open IN,$samtools_cmd) {
+	if (<IN>) {
+	    $cmd.=$samtools_cmd;
+	    my $varscan_cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
+	    $varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
+	    $varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
+	    $varscan_cmd.=" --min-avg-qual $options{minBaseQ}" if $options{minBaseQ};
+	    $varscan_cmd.=" --p-value $options{P}" if $options{P};
+	    $varscan_cmd.=" $options{VARadditional} " if $options{VARadditional} ne '';
+	    $varscan_cmd.=" > $vcf_filter";
+	    $cmd.="perl -e 'open IN,\"$samtools_cmd\" or die \"Failed to open samtools pipe: $!\\n\";
+	    my \$buf;
+	    if(read IN,\$buf,64_000){
+	    open OUT,\"|-\",\"$varscan_cmd\" or die \"Failed to open varscan pipe: $!\\n\";
+	    print OUT \$buf;
+	    while(read IN,\$buf,$BUFFER_SIZE)
+	    {
+	    print OUT \$buf;
+	    }
+	    }'";
+	} 
+	close IN;
+    } else {
+	warn "Failed to open samtools pipe (possibly insufficient coverage in target region): $!\n";
+    }
     push @cmd,$cmd;
 }
 

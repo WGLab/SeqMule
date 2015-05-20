@@ -1168,7 +1168,7 @@ sub samtools
 		    $_->filetype eq 'BAM' &&
 		    $_->sample() eq $sample &&
 		    #here we assume that all ancestors are of the same file type
-		    (($_->ancestor())[0])->filtype() eq 'FASTQ'
+		    (($_->ancestor())[0])->filetype() eq 'FASTQ'
 		    } @obj_list;
 		    #remove the unmerged BAM from obj_list
 		    #they will no longer be processed
