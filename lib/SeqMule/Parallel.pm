@@ -4,7 +4,6 @@ package SeqMule::Parallel;
 
 use strict;
 use warnings;
-use Fcntl qw/:flock/;
 use File::Spec;
 
 my $debug=0;
@@ -96,11 +95,10 @@ sub writeParallelCMD
 #    warn "NOTICE: Commands written to $file\n";
 #}
 
-sub single_line_exec
-{
-    die "Usage: &single_line_exec(<script>,<step number>,<command and arguments>)\n" unless @_>=3;
+sub single_line_exec {
+    die "Usage: &single_line_exec(<log folder>,<JOBID>,<step number>,<command and arguments>)\n" unless @_>=3;
 
-    my ($script,$n,@cmd)=@_;
+    my ($logdir,$jobid,$n,@cmd)=@_;
     my @out;
     my $cmd_string=join(" ",@cmd);
     my $start_time=time;
@@ -112,54 +110,45 @@ sub single_line_exec
     {
 	warn "DEBUG: about to fork for $msg\n" if $debug;
 	my $pid=fork;
-	if ($pid)
-	{
+	if ($pid) {
 	    #parent
 	    &writePID($script,$n,$pid);
+	    &wait2start($logdir,$n,$jobid,$pid);
 	    my $deceased_pid=wait;
-	    if ($deceased_pid==$pid)
-	    {
+	    if ($deceased_pid==$pid) {
 		#got the exit status of child
-		if ($? == 0)
-		{
+		if ($? == 0) {
 		    $success=1;
-		} else
-		{
+		} else {
 		    $success=0;
 		}
-	    } else
-	    {
+	    } else {
 		warn "WARNING: Didn't get child exit status\n";
 		$success=0;
 	    }
-	} elsif (defined $pid)
-	{
+	} elsif (defined $pid) {
 	    #real execution code
 	    exec @cmd or die "ERROR: Command not found: @cmd\n";
-	} else
-	{
+	} else {
 	    $success=0;
 	}
     }
 
-    if ($success)
-    {
+    if ($success) {
 	my $time=`date`;chomp $time;
 	my $total_min=&getTotalMin($start_time);
 
-	&start2finish($script,$n);
+	&start2finish($logdir,$n,$jobid,$pid);
 	warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
-    } else
-    {
+    } else {
 	my $time=`date`;chomp $time;
 	my $total_min=&getTotalMin($start_time);
 
-	&status2error($script,$n);
+	&status2error($logdir,$n,$jobid,$pid);
 	die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
     }
 }
-sub getTotalMin
-{
+sub getTotalMin {
     my $start=shift;
     my $end=time;
     my $total=($end-$start)/60; 
@@ -296,13 +285,11 @@ sub writeChange
     my @out=@_;
 
     open OUT,'+<',$script or die "Cannot write to $script: $!";
-    flock OUT,LOCK_EX or die "Failed to lock $script: $!";
     warn "DEBUG: began writing $script!\n" if $debug;
     warn "DEBUG: ".scalar @out." lines to write!\n" if $debug;
     seek OUT,0,0;
     truncate OUT,0;
     map { print OUT join("\t",@{$_}),"\n" } @out;
-    flock OUT,LOCK_UN;
     close OUT;
 }
 
@@ -311,8 +298,6 @@ sub readScript
     my $script=shift;
     my @out;
     open IN,'<',$script or die "Cannot read $script: $!";
-    #temporarily remove locking step
-    #flock IN,LOCK_EX or die "Failed to lock $script: $!";
 
     while(<IN>)
     {
@@ -321,7 +306,6 @@ sub readScript
 	next unless @f==7;
 	push @out,[@f];
     }
-    #flock IN,LOCK_UN;
     close IN;
     return @out;
 }

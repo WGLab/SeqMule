@@ -7,6 +7,5 @@ use File::Spec;
 use lib File::Spec->catdir($RealBin,"..","..","lib");
 use SeqMule::Parallel;
 
-die "Usage: $0 <seqmule script> <step> <commands...>\n" unless @ARGV>=3;
-my ($file,$step,@commands)=@ARGV;
+die "Usage: $0 <log folder> <step> <commands...>\n" unless @ARGV>=3;
 &SeqMule::Parallel::single_line_exec(@ARGV);
