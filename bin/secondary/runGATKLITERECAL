@@ -15,6 +15,7 @@ my (
     $capture,   $java,    $java_mem,    $gatk,
     $ref,    $dbsnp,$threads,    $gatk_nt, 
     $bam,$out,
+    $pl,$kg,$hapmap,$goldindel,
     $help,$advanced,    $n,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
 
@@ -26,6 +27,10 @@ GetOptions(
     'gatk=s'		=>	\$gatk,
     'ref=s'		=>	\$ref,
     'dbsnp=s'		=>	\$dbsnp,
+    'pl=s'		=>	\$pl, #platform
+    'kg=s'		=>	\$kg, #1000 genomes database
+    'hapmap=s'		=>	\$hapmap, #hapmap database
+    'goldindel=s'	=>	\$goldindel, #mills golden indel database
     'threads=i'		=>	\$threads,
     'gatk-nt=i'		=>	\$gatk_nt,
     'bam=s'		=>	\$bam, #specify it multiple times

@@ -499,6 +499,7 @@ sub install_R_package
 sub phred_score_check
 {
     my ($readcount,@files)=@_;
+    return undef unless @files;
     warn "Checking Phred score scheme: @files\n";
     #count bases in 0-32&127,33-58,59-126, 3 bins in total
     # 1st bin	1	0	0	0
@@ -974,6 +975,7 @@ sub getProgramExe
 	snver           =>      "SNVerIndividual.jar",
 	soapsnp         =>      "soapsnp",
 	vt		=>      "vt",
+	snap		=>	"snap",
     );
     my $program=shift;
 
@@ -1006,6 +1008,7 @@ sub getProgramAlias
 	java	    =>      "java",
 	tabix	    =>	    "tabix",
 	bgzip	    =>	    "bgzip",
+	snap		=>	"SNAP",
     );
 
     my $program=shift;
@@ -1147,6 +1150,7 @@ sub callers2names
 	freebayes => 'FreeBayes',
 	varscan => 'VarScan',
 	soapsnp => 'SOAPsnp',
+	consensus => 'Consensus',
     );
     for (@_)
     {

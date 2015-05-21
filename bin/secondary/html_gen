@@ -340,7 +340,7 @@ sub genSamplePage
 		if (-f $local_cov)
 		{
 		    print OUT "<h2>Coverage Plot</h2>\n";
-		    print OUT "<img class='center' src='../$local_cov' width=500 height=500>\n";
+		    print OUT "<img class='center' src='../$local_cov' width=500 height=1000>\n";
 		}
 	    }
 	}

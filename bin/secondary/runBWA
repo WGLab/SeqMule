@@ -19,7 +19,7 @@ my @sai;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'bwa=s'		=>	\$bwa,
+    'alignerPath=s'	=>	\$bwa,
     'samtools=s'	=>	\$samtools,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$jmem,
@@ -78,49 +78,3 @@ exec $script;
 
 
 __END__
-
-
-=head1 NAME
-
-SeqMule an automatic pipeline for next-generation sequencing data analysis
-
-=head1 SYNOPSIS
-
-Options:
-
-    #input and output
-    'bwa=s'		=>	\$bwa,
-    'samtools=s'	=>	\$samtools,
-    'java=s'		=>	\$java,
-    'jmem=s'		=>	\$jmem,
-    'sortsam=s'		=>	\$sortsam,
-    'ref=s'		=>	\$ref,
-    'bam=s'		=>	\$bam,
-    'threads=i'		=>	\$threads,
-    'rg=s'		=>	\$rg,
-    'sample=s'		=>	\$sample,
-    'pl=s'		=>	\$pl,
-    'lb=s'		=>	\$lb,
-    'fq=s'		=>	\@fq, #specify it multiple times
-    'sai=s'		=>	\@sai; #specify it multiple times
-    'advanced=s'	=>	\$advanced,
-    'n=i'		=>	\$n,
-    'tmpdir=s'		=>	\$tmpdir,
-    #other
-    'help|h'	        =>	\$help,
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<--help>
-
-Show detaild help.
-
-=back
-
-=head1 DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
-
-=cut

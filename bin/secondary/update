@@ -36,7 +36,7 @@ my (
 
 GetOptions(
     'git'		=>	\$git,
-    'tmpdir'		=>	\$tmpdir,
+    'tmpdir=s'		=>	\$tmpdir,
     'help|h'	        =>	\$help,
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});

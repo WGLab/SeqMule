@@ -17,7 +17,7 @@ my ($tmpdir,$interleave_fq);
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'snap=s'		=>	\$snap,
+    'alignerPath=s'	=>	\$snap,
     'samtools=s'	=>	\$samtools,
     'sortmem=s'		=>	\$sortmem,
     'java=s'		=>	\$java,

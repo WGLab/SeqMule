@@ -1,0 +1,77 @@
+
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+######SNVER needs to be modified###########
+sub snver
+{
+    my $caller='snver';
+    push @callers,$caller;
+
+    my ($n,$program,$subprogram,$opt_ref)=@_;
+    my %options=%{$opt_ref};
+    my $samtools=&getExe("samtools");
+    my $stats=File::Spec->catfile($install_dir,"bin","secondary","stats");
+    my $java="java";
+    my $snver=&getExe("SNVerIndividual.jar");
+    my $runSnverCMD=File::Spec->catfile($install_dir,"bin","secondary","runSNVER");
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+    my $local_threads=($quick? 1 : $threads); #if quick mode, define a local version of $threads, set it to 1
+    my $faidx="$local_ref.fai";
+    my @target_bam_files;
+    my $cmd_common="$runSnverCMD -advanced $advanced -n $n -java $java -jmem $java_mem -snver $snver -stats $stats -ref $local_ref -samtools $samtools -tmpdir $TMPDIR ";
+
+    if ($options{'originalBAM'})
+    {
+	#this step is to make sure we use BAM files without realn or recal
+    } else
+    {
+	#if ($quick && ! @presplit_bam)
+	@target_bam_files=@bam_files;
+    }
+
+    push @commands,[$threads,"Index reference genome","$samtools faidx $local_ref"] unless -e $faidx;
+
+    for my $local_bam(@target_bam_files) 
+    {
+	if ($quick)
+	{
+	    for my $i(1..$threads)
+	    {
+		my $bed=$small_bed[$i-1];
+
+		my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
+		$local_prefix=File::Spec->catfile((dirname $local_prefix),"_${i}_.".(basename $local_prefix));
+		my $cmd_prefix="${local_prefix}_snver";
+		my $local_vcf_filter="${cmd_prefix}.filter.vcf";
+		my $cmd=$cmd_common;
+
+		$cmd.=" -bam $local_bam -prefix $cmd_prefix ";
+		$cmd.=" -bed $bed " if $bed;
+
+		push @commands,[$local_threads,"SNVer variant calling",$cmd];
+		push @vcf_files,$local_vcf_filter;
+	    }
+	} else
+	{
+	    my $bed=$capture;
+	    my ($local_prefix)=$local_bam=~/(.*)\.bam$/i;
+	    my $cmd_prefix="${local_prefix}_snver";
+	    my $local_vcf_filter="${cmd_prefix}.filter.vcf";
+	    my $cmd=$cmd_common;
+
+	    $cmd.=" -bam $local_bam -prefix $cmd_prefix ";
+	    $cmd.=" -bed $bed " if $bed;
+
+	    push @commands,[$local_threads,"SNVer variant calling",$cmd];
+	    push @vcf_files,$local_vcf_filter;
+	}
+    }
+}

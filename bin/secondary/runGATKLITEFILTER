@@ -18,14 +18,14 @@ my (
     $dbsnp,    $kg,    $hapmap,$goldindel,
     $indel,    $indel_filter,
     $snp,    $snp_filter,
-    $vcf_filter,$vcf,
+    $vcf_filter,$vcf_unfiltered,
     $tranches,
     $recal_file,
     $plots,
     $indel_tranches,    $indel_recal_file,    $indel_plots,
     $help,$advanced,    $n,$tmpdir,);
 my @bam;
-my @vcf;
+my @vcf_part;
 @ARGV or pod2usage ({-exitval=>2});
 
 GetOptions(
@@ -44,9 +44,8 @@ GetOptions(
     'hapmap=s'		=>	\$hapmap,
     'goldindel=s'	=>	\$goldindel,
     'bam=s'		=>	\@bam, #specify it multiple times
-    'vcf=s'		=>	\$vcf,
-    'vcf-part=s'	=>	\@vcf,
-    'vcf-filter=s'	=>	\$vcf_filter,
+    'vcf=s'		=>	\$vcf_filter,
+    'vcf-part=s'	=>	\@vcf_part,
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
     'tmpdir=s'		=>	\$tmpdir,
@@ -68,6 +67,7 @@ my $java_opt = "$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $gatk";
 #they will be removed later
 {
     my ($local_prefix)= File::Spec->catfile($tmpdir,rand($$).".gatklite.tmp");
+    $vcf_unfiltered = "${local_prefix}_gatklite.unfiltered.vcf";
     $indel="${local_prefix}_gatklite.indel.vcf";
     $indel_filter="${local_prefix}_gatklite.indel.filter.vcf";
     $snp="${local_prefix}_gatklite.snp.vcf";
@@ -81,26 +81,26 @@ my $java_opt = "$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $gatk";
 
     push @remove,$indel,$indel_filter, $snp, $snp_filter, $indel_tranches, $indel_recal_file, $indel_plots, $tranches, $recal_file, $plots;
 }
-
-if (@vcf && @vcf>1)
-{
+if (@vcf_part && @vcf_part>1) {
     #if multiple input VCF, combine them first
     my $cmd="$java_opt -T CombineVariants -R $ref ";
-    map {$cmd.="--variant $_ " } @vcf;
-    $cmd.=" -o $vcf ".($capture? " -L $capture":"");
+    map {$cmd.="--variant $_ " } @vcf_part;
+    $cmd.=" -o $vcf_unfiltered ".($capture? " -L $capture":"");
     push @cmd,$cmd;
+} elsif(@vcf_part == 1) {
+    push @cmd,"cp $vcf_part[0] $vcf_unfiltered";
+} else {
+    die "ERROR: no -vcf-part argument for $0\n";
 }
 
-if ($options{filter}==1)
-{
+if ($options{filter}==1) {
 #split SNP and INDEL
-    push @cmd, "$java_opt -T SelectVariants -R $ref --variant $vcf -o $indel -selectType INDEL ".($capture? "-L $capture":"");
+    push @cmd, "$java_opt -T SelectVariants -R $ref --variant $vcf_unfiltered -o $indel -selectType INDEL ".($capture? "-L $capture":"");
 
-    push @cmd,"$java_opt -T SelectVariants -R $ref --variant $vcf -o $snp -selectType SNP ".($capture? "-L $capture":"");
+    push @cmd,"$java_opt -T SelectVariants -R $ref --variant $vcf_unfiltered -o $snp -selectType SNP ".($capture? "-L $capture":"");
 #recalibration and filtering
 
-    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR})
-    {
+    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR}) {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
 	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $snp";
@@ -124,13 +124,11 @@ if ($options{filter}==1)
 	$cmd.=" -o $snp_filter";
         $cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
-    } else
-    {
+    } else {
 	warn "NOTICE:BAM input for GATKLite VQSR is too small, use hard filtering for SNPs instead.\n";
 	my $cmd;
 	$cmd.="$java_opt -T VariantFiltration -R $ref --variant $snp";
-	if ($options{snpfilters})
-	{
+	if ($options{snpfilters}) {
 	    for my $filter(split ';',$options{snpfilters})
 	    {
 		my ($filtername,$filterexp)=split ',',$filter;
@@ -148,8 +146,7 @@ if ($options{filter}==1)
 
 
     #indel
-    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_indel_hard_filter_bam_size or $options{forceINDELVQSR})
-    {
+    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_indel_hard_filter_bam_size or $options{forceINDELVQSR}) {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
 	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $indel";
@@ -172,109 +169,27 @@ if ($options{filter}==1)
 	$cmd.=" -o $indel_filter";
         $cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
-    } else
-    {
+    } else {
 	my $cmd;
 	$cmd.="$java_opt -T VariantFiltration -R $ref --variant $indel";
 	$cmd.=" --clusterWindowSize $options{clusterWindowSize}" if $options{clusterWindowSize};
-	if ($options{indelfilters})
-	{
-	    for my $filter(split ';',$options{indelfilters})
-	    {
+	if ($options{indelfilters}) {
+	    for my $filter(split ';',$options{indelfilters}) {
 		my ($filtername,$filterexp)=split ',',$filter;
-		if ($filtername && $filterexp)
-		{
+		if ($filtername && $filterexp) {
 		    $cmd.=" --filterName $filtername --filterExpression '$filterexp' "; #single quote is necessary
 		}
 	    }
 	}
-
 	$cmd.=" -o $indel_filter";
         $cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;
     }
     push @cmd,"$java_opt -T CombineVariants -R $ref --variant $snp_filter --variant $indel_filter -o $vcf_filter ".($capture? " -L $capture":"");
 }
-
-=head
-#make a copy of final_vcf for each sample, with "multi-call" keyword
-if (@bam>1)
-{
-    my $final_vcf=($options{filter}==1? $vcf_filter:$vcf);
-    for (@bam)
-    {
-	my ($new_prefix)= /^(.*)\.bam$/i;
-	my $out="${new_prefix}_gatklite.multi-call".($options{filter}? ".filter":"").".vcf";
-	#make a copy of final vcf for each prefix (samplename)
-	push @cmd,"cp $final_vcf $out";
-    }
-}
-=cut
-
+push @cmd,"rm -rf @remove";
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 
-#------------------------------------------------------------
-
-
-
 __END__
-
-
-=head1 NAME
-
-SeqMule an automatic pipeline for next-generation sequencing data analysis
-
-=head1 SYNOPSIS
-
-Options:
-
-    #input and output
-    'capture=s'		=>	\$capture,
-    'java=s'		=>	\$java,
-    'jmem=s'		=>	\$java_mem,
-    'gatk=s'		=>	\$gatk,
-    'ref=s'		=>	\$ref,
-    'threads=i'		=>	\$local_threads,
-    'gatk-nt=i'		=>	\$gatk_nt,
-    'gatk-hfilter-size=s'=>	\$gatk_hard_filter_bam_size,
-    'gatk-indelfilter-size=s'=>	\$gatk_indel_hard_filter_bam_size,
-    'dbsnp=s'		=>	\$dbsnp,
-    'kg=s'		=>	\$kg,
-    'hapmap=s'		=>	\$hapmap,
-    'goldindel=s'	=>	\$goldindel,
-    'bam=s'		=>	\@bam, #specify it multiple times
-    'indel=s'		=>	\$indel,
-    'indel-filter=s'	=>	\$indel_filter,
-    'snp=s'		=>	\$snp,
-    'snp-filter=s'	=>	\$snp_filter,
-    'vcf=s'		=>	\$vcf,
-    'vcf-filter=s'	=>	\$vcf_filter,
-    'tranches=s'	=>	\$tranches,
-    'recal-file=s'	=>	\$recal_file,
-    'plots=s'		=>	\$plots,
-    'indel-tranches=s'	=>	\$indel_tranches,
-    'indel-recal-file=s'=>	\$indel_recal_file,
-    'indel-plots=s'	=>	\$indel_plots,
-    'advanced=s'	=>	\$advanced,
-    'n=i'		=>	\$n,
-    'tmpdir=s'		=>	\$tmpdir,
-    #other
-    'help|h'	        =>	\$help,
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<--help>
-
-Show detaild help.
-
-=back
-
-=head1 DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
-
-=cut

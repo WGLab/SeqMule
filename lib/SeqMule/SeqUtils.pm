@@ -22,7 +22,7 @@ sub new
 	'file'		=>$arg{'file'} || croak ("No file path\n"),
 	'filetype'	=>$arg{'filetype'} || croak ("No file type\n"),
 	'sample'	=>$arg{'sample'}	|| croak ("No sample\n"), 
-	'rgid'		=>$arg{'rgid'} || 'READGROUP',
+	'rg'		=>$arg{'rg'} || 'READGROUP',
 	'lb'		=>$arg{'lb'} || 'LIBRARY',
 	'pl'    	=>$arg{'pl'} || 'PLATFORM',
 	#ID attribute
@@ -180,17 +180,17 @@ sub lb
 	return $self->{lb};
     }
 }
-sub rgid
+sub rg
 {
-    #get or set rgid obj
+    #get or set rg obj
     my $self = shift;
-    my $rgid = shift;
-    if(defined $rgid)
+    my $rg = shift;
+    if(defined $rg)
     {
-	$self->{rgid} = $rgid;
+	$self->{rg} = $rg;
     } else
     {
-	return $self->{rgid};
+	return $self->{rg};
     }
 }
 sub rmObjFromArray
@@ -281,8 +281,7 @@ sub ancestor
 	return @{$self->{ancestor}};
     }
 }
-sub sibling
-{
+sub sibling {
     #siblings cannot include the obj calling sibling method itself
     #get or set sibling (where current obj comes from)
     my $self = shift;
@@ -392,8 +391,7 @@ sub file
 	return $self->{file};
     }
 }
-sub clone
-{
+sub clone {
     #create a new obj same attributes as self
     #use dclone to implement deep clone, ie, copy reference structure
     #replace dclone with Clone.pm in the future
@@ -427,17 +425,18 @@ sub gen_symlink
 {
     my $self = shift;
     my $new = shift;
+    my $overwrite = shift;
     my $original = $self->file();
 
-    if (-e $new #-e dosenot return true for symbolic links, weird thing!
-	    or -l $new)
-    {
+    if (!$overwrite and (-e $new #-e dosenot return true for symbolic links, weird thing!
+	    or -l $new) ) {
 	if ( (&SeqMule::Utils::abs_path_failsafe($new)) ne (&SeqMule::Utils::abs_path_failsafe($original)))
 	{
 	    die "ERROR: $new exists, and it links to another file, please use another prefix or delete it.\n";
 	}
     }
 
+    !system("rm -rf $new") or croak("ERROR: failed to overwrite $new\n") if $overwrite;
     symlink $original,$new unless -e $new or -l $new;
 
     my $newobj = $self->clone();
