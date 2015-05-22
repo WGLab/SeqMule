@@ -61,6 +61,9 @@ SEQMULE{ID}.JOB{ID}.PID{ID}.started
 #task is finished
 SEQMULE{ID}.JOB{ID}.PID{ID}.finished
 
+#task is finished
+SEQMULE{ID}.JOB{ID}.PID{ID}.error
+
 #task message
 SEQMULE{ID}.msg
 
@@ -80,6 +83,8 @@ sub writeParallelCMD
     write and check the following parameters at the beginning
 my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
 my $LOGDIR = "m/LOGDIR=(.*)\$/";
+
+touch CHANGE_FILES_AT_YOUR_OWN_RISK
 
     for my $i(1..@cmd)
     {
@@ -125,21 +130,25 @@ sub run {
     my $cpu_available=$cpu_total;
 
     croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
-    &firstScan($file,$allcmd,$step);
+    &firstScan({file=>$file,
+	    config=>$config,
+	    step=>$step,
+	    logdir => $logdir,
+	});
 
     warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
     my $start_time=time;
     while (1) {
 	&selectSleep($step_total);
-	if (my $cmd=&checkErr($file)) {
-	    my $cwd=`pwd`;
-	    chomp $cwd;
-	    die "ERROR: $cmd failed\n",
-	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3,
+	if (my $cmd=&checkErr({logdir=>$logdir,config=>$config,file=>$file})) {
+	    my $cwd=`pwd`; chomp $cwd;
+	    die "ERROR: command failed\n",
+	    	$cmd,
+	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
 	        "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
-	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
-	} else
-	{
+	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+	} else {
+	    HERE!!!!
 	    my $elapse_time=time-$start_time;
 	    $cpu_available = $cpu_total-&getUsedCPU($file);
 	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($file))
@@ -404,15 +413,16 @@ my $LOGDIR = "m/LOGDIR=(.*)\$/";
     return @out;
 }
 sub firstScan {
-#clean up unfinished processes
-    my $file = shift;
-    my $config = shift;
-    my $step=shift;
+    my $opt = shift;
+    my $file = $opt->{file};
+    my $config = $opt->{config};
+    my $step= $opt->{step};
+    my $logdir = $opt->{logdir};
     my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
-    for my $i(keys %{$allcmd})
-    {
+#clean up unfinished processes in config
+    for my $i(sort keys %{$allcmd}) {
 	if($step) {
-	    if($i >= $step) {
+	    if($i > $step) {
 		#change all status to waiting
 		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
 	    } elsif ($i <= $step) {
@@ -423,12 +433,17 @@ sub firstScan {
 	    #find last finished step when step is not defined
 	    #change started/error to waiting after last finished step
 	    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
-		next if $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
+		next if defined $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} and 
+		$allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
 		$step = $i;
 	    }
 	}
     }
     $config->write($file);
+
+    #clean up sentinel files
+    !system("rm -rf ".File::Spec->catfile($logdir,"*")) 
+	or croak ("ERROR: failed to clean up existing sentinel files ($logdir): $!\n");
 }
 
 sub getReadableTimestamp {
@@ -458,19 +473,26 @@ sub getTotalStep {
     }
 }
 sub checkErr {
-    my $file=shift;
-    my @lines=&readScript($file);
+    #look for SEQMULE{ID}.JOB{ID}.PID{ID}.error files
+    my $opt = shift;
+    my $logdir = $opt->{logdir};
+    my $config = $opt->{config};
+    my $file = $opt->{file};
+    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
+    my @error_file;
+    my @error_id;
 
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[5]=~/error/i)
-	{
-	    return $f[1];
-	}
+    opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
+    @error_file = grep { /\.$ERROR$/ } readdir($dh);
+    closedir $dh;
+    for my $i(@error) {
+	next unless /SEQMULE(\d+)\.JOB(\d+)\.PID(\d+)\.$ERROR$/;
+	my ($taskid,$jobid,$pid) = ($1,$2,$3);
+	$allcmd->{$taskid}->{$CONFIG_KEYWORD{STATUS}} = $ERROR;
+	push @error_id,$taskid;
     }
-    return undef;
+    $config->write($file);
+    return join("\n",map{$allcmd->{$taskid}->{$CONFIG_KEYWORD{COMMAND}}} @error_id);
 }
 sub getScriptConfig {
     my $file = shift;
