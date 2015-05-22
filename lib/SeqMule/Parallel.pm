@@ -4,10 +4,46 @@ package SeqMule::Parallel;
 
 use strict;
 use warnings;
+use FindBin qw/$RealBin/;
 use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use Config::Tiny;
 
 my $debug=0;
 my $splitter="-" x 10;
+#keywords used for job status
+my $WAIT = "waiting";
+my $START = "started";
+my $FINISH = "finished";
+my $ERROR = "error";
+#keywords used in script file
+my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
+my $LOGDIR = "m/LOGDIR=(.*)\$/";
+
+=head
+#TODO
+#later we may convert this module to OO style to make it more rigorous
+
+#some files used to communicate between processes
+#SEQMULE{ID} tells ID of task in seqmule's script
+#tell monitoring process JOBID and PID
+#if JOBID is not available, use 'JOBNA' replace JOB{ID}.
+
+SEQMULE{ID}.JOB{ID}.PID{ID}
+
+#task is started
+
+SEQMULE{ID}.JOB{ID}.PID{ID}.started
+
+#task is finished
+
+SEQMULE{ID}.JOB{ID}.PID{ID}.finished
+
+#task message
+
+SEQMULE{ID}.msg
+
+=cut
 
 sub writeParallelCMD
 {
@@ -19,6 +55,10 @@ sub writeParallelCMD
     push @out,["#Don't add or remove any line or field",map {""} (1..6)];
     push @out,["#step","command","message","nCPU_requested","nCPU_total","status","pid"]; #pid means job id when qsub is used
     #		0	1	2		3		4	   5	   6
+    #
+    write and check the following parameters at the beginning
+my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
+my $LOGDIR = "m/LOGDIR=(.*)\$/";
 
     for my $i(1..@cmd)
     {
@@ -39,7 +79,6 @@ sub writeParallelCMD
 	$out_line[6]=0;
 	push @out,[@out_line];
     }
-
     open OUT,'>',$file or die "Cannot write to $file: $!";
     for (@out)
     {
@@ -48,310 +87,18 @@ sub writeParallelCMD
     close OUT;
     warn "NOTICE: Commands written to $file\n";
 }
-
-#sub qsub_writeParallelCMD
-#{
-#    warn "NOT IMPLEMENTED YET\n" and exit;
-#
-#    my ($install_dir,$file,$cpu_total,$cpu_per_node,@cmd)=@_;
-#    #@lines is array of arrays, 2nd array consists of [ncpu_request,command]
-#    my @out;
-#    my $mod_status=File::Spec->catfile($install_dir,"bin","secondary","mod_status");
-#
-#    push @out,["#command","nCPU_requested","nCPU_total","status"];
-#
-#    for my $i(1..@cmd)
-#    {
-#	#comments are not allowed
-#	$out[$i]=[];
-#	my $line_no=$i+1;
-#	my $cpu_request=$cmd[$i-1][0] or die;
-#	my $mem_per_cpu=$cmd[$i-1][2] or die;
-#	my $cmd=$cmd[$i-1][1] or die;$cmd=~s/'/'"'"'/; #use string concatenantion to output single quotes
-#	die "ERROR: A node doesn't have enough CPUs you requested\n" unless $cpu_request <= $cpu_per_node;
-#	die "ERROR: Under SGE mode, single quote not allowed for commands: $cmd" if $cmd =~/'/;
-#
-#	${$out[$i]}[0]=
-#	"echo '".
-#	"$mod_status $file $line_no s && ".
-#	"if $cmd;".
-#	"then $mod_status $file $line_no f;".
-#	"else $mod_status $file $line_no e;".
-#	"fi".
-#	"' | qsub -V -cwd".
-#	($cpu_request > 1? " -pe smp $cpu_request -l h_vmem=$mem_per_cpu" : " -l h_vmem=$mem_per_cpu"); #no semicolon here, otherwise this cannot be run in background
-#
-#	push @{$out[$i]},$cmd[$i-1][0];
-#	push @{$out[$i]},$cpu_total;
-#	push @{$out[$i]},"waiting";
-#    }
-#
-#    open OUT,'>',$file or die "Cannot write to $file: $!";
-#    for (@out)
-#    {
-#	print OUT join("\t",@$_),"\n";
-#    }
-#    close OUT;
-#    warn "NOTICE: Commands written to $file\n";
-#}
-
-sub single_line_exec {
-    die "Usage: &single_line_exec(<log folder>,<JOBID>,<step number>,<command and arguments>)\n" unless @_>=3;
-
-    my ($logdir,$jobid,$n,@cmd)=@_;
-    my @out;
-    my $cmd_string=join(" ",@cmd);
-    my $start_time=time;
-    my $msg=&getMsg($script,$n);
-
-
-    #&wait2start($script,$n);
-    my $success;
-    {
-	warn "DEBUG: about to fork for $msg\n" if $debug;
-	my $pid=fork;
-	if ($pid) {
-	    #parent
-	    &writePID($script,$n,$pid);
-	    &wait2start($logdir,$n,$jobid,$pid);
-	    my $deceased_pid=wait;
-	    if ($deceased_pid==$pid) {
-		#got the exit status of child
-		if ($? == 0) {
-		    $success=1;
-		} else {
-		    $success=0;
-		}
-	    } else {
-		warn "WARNING: Didn't get child exit status\n";
-		$success=0;
-	    }
-	} elsif (defined $pid) {
-	    #real execution code
-	    exec @cmd or die "ERROR: Command not found: @cmd\n";
-	} else {
-	    $success=0;
-	}
-    }
-
-    if ($success) {
-	my $time=`date`;chomp $time;
-	my $total_min=&getTotalMin($start_time);
-
-	&start2finish($logdir,$n,$jobid,$pid);
-	warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
-    } else {
-	my $time=`date`;chomp $time;
-	my $total_min=&getTotalMin($start_time);
-
-	&status2error($logdir,$n,$jobid,$pid);
-	die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
-    }
-}
-sub getTotalMin {
-    my $start=shift;
-    my $end=time;
-    my $total=($end-$start)/60; 
-    $total=sprintf("%.1f",$total);
-    return $total;
-}
-sub getMsg
-{
-    my $file=shift;
-    my $n=shift;
-    my @lines=&readScript($file);
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    return $f[2];
-	}
-    }
-    die "ERROR: Can't find message for step $n in $file\n";
-}
-sub wait2start
-{
-    my $file=shift;
-    my $n=shift;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    if ($f[5] =~ /waiting/i)
-	    {
-		$f[5]=~s/waiting/started/i;
-	    } else
-	    {
-		$f[5]="error";
-	    }
-	    $_=[@f];
-	    last;
-	}
-    }
-    &writeChange($file,@lines);
-}
-sub status2error
-{
-    my $file=shift;
-    my $n=shift;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    $f[5]="error";
-	    $_=[@f];
-	    last;
-	}
-    }
-    &writeChange($file,@lines);
-}
-
-sub start2finish
-{
-    my $file=shift;
-    my $n=shift;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    if ($f[5] =~ /started/i)
-	    {
-		$f[5]=~s/started/finished/i;
-	    } else
-	    {
-		$f[5]="error";
-	    }
-	    $_=[@f];
-	    last;
-	}
-    }
-    &writeChange($file,@lines);
-}
-
-sub writePID
-{
-    my $file=shift;
-    my $n=shift;
-    my $pid=shift;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    $f[6] = $pid;
-	    $_=[@f];
-	    last;
-	}
-    }
-    &writeChange($file,@lines);
-}
-sub getRunningPID
-{
-    my $file=shift;
-    my @pid;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[5] eq 'started')
-	{
-	    push @pid,$f[6];
-	}
-    }
-    return @pid;
-}
-sub writeChange
-{
-    my $script=shift;
-    my @out=@_;
-
-    open OUT,'+<',$script or die "Cannot write to $script: $!";
-    warn "DEBUG: began writing $script!\n" if $debug;
-    warn "DEBUG: ".scalar @out." lines to write!\n" if $debug;
-    seek OUT,0,0;
-    truncate OUT,0;
-    map { print OUT join("\t",@{$_}),"\n" } @out;
-    close OUT;
-}
-
-sub readScript
-{
-    my $script=shift;
-    my @out;
-    open IN,'<',$script or die "Cannot read $script: $!";
-
-    while(<IN>)
-    {
-	chomp;
-	my @f=split(/\t/,$_,-1);
-	next unless @f==7;
-	push @out,[@f];
-    }
-    close IN;
-    return @out;
-}
-sub firstScan
-{
-#clean up unfinished processes
-    my $in=shift;
-    my $step=shift;
-    my @lines=&readScript($in);
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if (@f==7)
-	{
-	    if ($step)
-	    {
-		if ($f[0]>=$step)
-		{
-		    $f[5]="waiting";
-		    $f[6]=0;
-		} else
-		{
-		    $f[5]="finished";
-		}
-	    } else
-	    {
-		$f[5] =~ s/started|error/waiting/i; #ignore previous errors
-		$f[6] = 0 if $f[5] !~ /finished/i; #erase previous pid
-	    }
-	}
-	$_=[@f];
-    }
-
-    &writeChange($in,@lines);
-}
-
-sub run
-{
-    #Usage: &run($file,1)
+sub run {
+    croak("Usage: &run(\$file,1,yesno_qsub)\n") unless @_ == 3;
     #1 means enable qsub, 0 means disable it
     my $file=shift; #format:step	cmd	ncpu_require	ncpu_total	status(started,finished,waiting,error)
     my $step=shift;
     my $qsub=shift;
+
+    my $config = &getScriptConfig($file);
+    my $logdir = &getTo
     my $cpu_total=&getTotalCPU($file) or die "ERROR: ZERO total number of CPUs\n";
     my $step_total=&getTotalStep($file) or die "ERROR: Zero steps\n";
+
     my $cpu_available=$cpu_total;
 
     die "ERROR: Negative number of CPUs!\n" if $cpu_total<=0;
@@ -412,15 +159,266 @@ sub run
     }
 }
 
-sub getReadableTimestamp
+#sub qsub_writeParallelCMD
+#{
+#    warn "NOT IMPLEMENTED YET\n" and exit;
+#
+#    my ($install_dir,$file,$cpu_total,$cpu_per_node,@cmd)=@_;
+#    #@lines is array of arrays, 2nd array consists of [ncpu_request,command]
+#    my @out;
+#    my $mod_status=File::Spec->catfile($install_dir,"bin","secondary","mod_status");
+#
+#    push @out,["#command","nCPU_requested","nCPU_total","status"];
+#
+#    for my $i(1..@cmd)
+#    {
+#	#comments are not allowed
+#	$out[$i]=[];
+#	my $line_no=$i+1;
+#	my $cpu_request=$cmd[$i-1][0] or die;
+#	my $mem_per_cpu=$cmd[$i-1][2] or die;
+#	my $cmd=$cmd[$i-1][1] or die;$cmd=~s/'/'"'"'/; #use string concatenantion to output single quotes
+#	die "ERROR: A node doesn't have enough CPUs you requested\n" unless $cpu_request <= $cpu_per_node;
+#	die "ERROR: Under SGE mode, single quote not allowed for commands: $cmd" if $cmd =~/'/;
+#
+#	${$out[$i]}[0]=
+#	"echo '".
+#	"$mod_status $file $line_no s && ".
+#	"if $cmd;".
+#	"then $mod_status $file $line_no f;".
+#	"else $mod_status $file $line_no e;".
+#	"fi".
+#	"' | qsub -V -cwd".
+#	($cpu_request > 1? " -pe smp $cpu_request -l h_vmem=$mem_per_cpu" : " -l h_vmem=$mem_per_cpu"); #no semicolon here, otherwise this cannot be run in background
+#
+#	push @{$out[$i]},$cmd[$i-1][0];
+#	push @{$out[$i]},$cpu_total;
+#	push @{$out[$i]},"waiting";
+#    }
+#
+#    open OUT,'>',$file or die "Cannot write to $file: $!";
+#    for (@out)
+#    {
+#	print OUT join("\t",@$_),"\n";
+#    }
+#    close OUT;
+#    warn "NOTICE: Commands written to $file\n";
+#}
+
+sub single_line_exec {
+    die "Usage: &single_line_exec(<log folder>,<JOBID>,<step number>,<command and arguments>)\n" unless @_>=4;
+
+    my ($logdir,$jobid,$n,@cmd)=@_;
+    my @out;
+    my $cmd_string=join(" ",@cmd);
+    my $start_time=time;
+    my $msg=&getMsg($logdir,$n);
+
+    #&wait2start($script,$n);
+    my $success;
+    {
+	warn "DEBUG: about to fork for $msg\n" if $debug;
+	my $pid=fork;
+	if ($pid) {
+	    #parent
+	    &create_sentinel($logdir,$n,$jobid,$pid,$START);
+	    my $deceased_pid=wait;
+	    if ($deceased_pid==$pid) {
+		#got the exit status of child
+		if ($? == 0) {
+		    $success=1;
+		} else {
+		    $success=0;
+		}
+	    } else {
+		warn "WARNING: Didn't get child exit status\n";
+		$success=0;
+	    }
+	} elsif (defined $pid) {
+	    #real execution code
+	    exec @cmd or die "ERROR: Command not found: @cmd\n";
+	} else {
+	    $success=0;
+	}
+    }
+
+    if ($success) {
+	my $time=`date`;chomp $time;
+	my $total_min=&getTotalMin($start_time);
+
+	    &create_sentinel($logdir,$n,$jobid,$pid,$FINISH);
+	warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
+    } else {
+	my $time=`date`;chomp $time;
+	my $total_min=&getTotalMin($start_time);
+	    &create_sentinel($logdir,$n,$jobid,$pid,$ERROR);
+	die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
+    }
+}
+sub getTotalMin {
+    my $start=shift;
+    my $end=time;
+    my $total=($end-$start)/60; 
+    $total=sprintf("%.1f",$total);
+    return $total;
+}
+sub getMsg {
+    my $logdir=shift;
+    my $n=shift;
+    my $msg_file = File::Spec->catfile($logdir,"SEQMULE$n.msg");
+    my $msg;
+    open IN,'<',$msg_file or croak("ERROR: Can't find message for step $n in $logdir($msg_file): $!\n");
+    while(<IN>) {
+	chomp;
+	$msg .= $_;
+    }
+    close IN;
+    return $msg;
+}
+sub wait2start {
+    my $file=shift;
+    my $n=shift;
+    my @lines=&readScript($file);
+
+    for (@lines)
+    {
+	my @f=@{$_};
+	next if $f[0]=~/^#/;
+	if ($f[0] == $n)
+	{
+	    if ($f[5] =~ /waiting/i)
+	    {
+		$f[5]=~s/waiting/started/i;
+	    } else
+	    {
+		$f[5]="error";
+	    }
+	    $_=[@f];
+	    last;
+	}
+    }
+    &writeChange($file,@lines);
+}
+sub status2error
 {
+    my $file=shift;
+    my $n=shift;
+    my @lines=&readScript($file);
+
+    for (@lines)
+    {
+	my @f=@{$_};
+	next if $f[0]=~/^#/;
+	if ($f[0] == $n)
+	{
+	    $f[5]="error";
+	    $_=[@f];
+	    last;
+	}
+    }
+    &writeChange($file,@lines);
+}
+
+sub create_sentinel {
+
+    my $logdir=shift;
+    my $n=shift;
+    my $jobid = shift;
+    my $pid=shift;
+    my $suffix = shift;
+    my $sentinel = File::Spec->catfile($logdir,"SEQMULE$n.JOB$jobid.PID.$pid.$suffix");
+
+    !system("touch $sentinel") or croak("ERROR: failed to create $sentinel\n");
+
+}
+sub getRunningPID
+{
+    my $file=shift;
+    my @pid;
+    my @lines=&readScript($file);
+
+    for (@lines)
+    {
+	my @f=@{$_};
+	next if $f[0]=~/^#/;
+	if ($f[5] eq 'started')
+	{
+	    push @pid,$f[6];
+	}
+    }
+    return @pid;
+}
+sub writeChange
+{
+    my $script=shift;
+    my @out=@_;
+
+    open OUT,'+<',$script or die "Cannot write to $script: $!";
+    warn "DEBUG: began writing $script!\n" if $debug;
+    warn "DEBUG: ".scalar @out." lines to write!\n" if $debug;
+    seek OUT,0,0;
+    truncate OUT,0;
+    map { print OUT join("\t",@{$_}),"\n" } @out;
+    close OUT;
+}
+
+sub readScript {
+    my $script=shift;
+    my @out;
+    open IN,'<',$script or die "Cannot read $script: $!";
+
+    while(<IN>) {
+	chomp;
+if(eval $CPUTOTAL) { 
+    = "m/CPUTOTAL=(\\d+)/";
+my $LOGDIR = "m/LOGDIR=(.*)\$/";
+	my @f=split(/\t/,$_,-1);
+	if(@f==7) {
+	push @out,[@f];
+    }
+    close IN;
+    return @out;
+}
+sub firstScan {
+#clean up unfinished processes
+    my $in=shift;
+    my $step=shift;
+    my @lines=&readScript($in);
+    for (@lines)
+    {
+	my @f=@{$_};
+	next if $f[0]=~/^#/;
+	if (@f==7)
+	{
+	    if ($step)
+	    {
+		if ($f[0]>=$step)
+		{
+		    $f[5]="waiting";
+		    $f[6]=0;
+		} else
+		{
+		    $f[5]="finished";
+		}
+	    } else
+	    {
+		$f[5] =~ s/started|error/waiting/i; #ignore previous errors
+		$f[6] = 0 if $f[5] !~ /finished/i; #erase previous pid
+	    }
+	}
+	$_=[@f];
+    }
+
+    &writeChange($in,@lines);
+}
+
+sub getReadableTimestamp {
     my $time = `date`;
     chomp $time;
     return($time);
 }
 
-sub convertTime
-{
+sub convertTime {
     my $time=shift;
     my $hr=int($time/3600);
     my $min=int( ($time % 3600)/60);
@@ -429,22 +427,18 @@ sub convertTime
     return $readable_time;
 }
 
-sub getTotalStep
-{
+sub getTotalStep {
     my $file=shift;
     my @lines=&readScript($file);
 
     my @last_f=@{$lines[$#lines]};
-    if ($last_f[0]=~/^(\d+)$/)
-    {
+    if ($last_f[0]=~/^(\d+)$/) {
 	return $1;
-    } else
-    {
+    } else {
 	return 0;
     }
 }
-sub checkErr
-{
+sub checkErr {
     my $file=shift;
     my @lines=&readScript($file);
 
@@ -459,8 +453,50 @@ sub checkErr
     }
     return undef;
 }
-sub getTotalCPU
-{
+sub getScriptConfig {
+    my $file = shift;
+    my @lines=&readScript($file);
+    my $config = {
+	#every one of the following must be defined at the end
+	logdir => undef,
+	cpuTotal => undef,
+	stepTotal => undef,
+	steps => undef,
+    };
+    my $total=0;
+
+    my $logdir = &getTo
+    my $cpu_total=&getTotalCPU($file) or die "ERROR: ZERO total number of CPUs\n";
+    my $step_total=&getTotalStep($file) or die "ERROR: Zero steps\n";
+
+sub getTotalStep {
+    my $file=shift;
+    my @lines=&readScript($file);
+
+    my @last_f=@{$lines[$#lines]};
+    if ($last_f[0]=~/^(\d+)$/) {
+	return $1;
+    } else {
+	return 0;
+    }
+
+    for (@lines) {
+	$CPUTOTAL
+	$LOGDIR
+	my @f=@{$_};
+	next if $f[0]=~/^#/;
+	if ($f[4]=~/^\d+$/)
+	{
+	    $total=$f[4];
+	    last;
+	}
+    }
+    for my $i(keys %{$config}) {
+	croak("ERROR: $i is undefined in $file\n") unless defined $config->{$i};
+    }
+    return $config;
+}
+sub getTotalCPU {
     my $file=shift;
     my @lines=&readScript($file);
     my $total=0;
@@ -476,8 +512,7 @@ sub getTotalCPU
     }
     return $total;
 }
-sub getNextCMD
-{
+sub getNextCMD {
     my $file=shift;
     my @lines=&readScript($file);
     for (@lines)
@@ -491,8 +526,7 @@ sub getNextCMD
     }
     return ();
 }
-sub allDone
-{
+sub allDone {
     my $file=shift;
     my $done=1;
     my @lines=&readScript($file);
@@ -509,8 +543,7 @@ sub allDone
     }
     return $done;
 }
-sub getUsedCPU
-{
+sub getUsedCPU {
     my $file=shift;
     my @lines=&readScript($file);
     my $n=0;
@@ -523,9 +556,7 @@ sub getUsedCPU
     }
     return $n;
 }
-
-sub genTempScript
-{
+sub genTempScript {
     my @cmd=@_;
     my $tmp="/tmp/$$".time()."script";
     open OUT,'>',$tmp or die "Can't write to $tmp: $!\n";

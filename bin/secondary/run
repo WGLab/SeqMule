@@ -37,7 +37,6 @@ $help and pod2usage ({-verbose=>1});
 
 die "ERROR: Script file missing or more than one arguments specified.\n" unless @ARGV==1;
 $script=shift @ARGV;
-
 if ($sge)
 {
     die "NOT IMPLEMENTED YET\n";
@@ -48,11 +47,8 @@ if ($sge)
     $SIG{INT}=\&stop;
     &SeqMule::Parallel::run($script,$step,0);
 }
-
-
 ################SUBROUTINES#####################
-sub stop
-{
+sub stop {
     my @pid=&SeqMule::Parallel::getRunningPID($script);
 
     if (@pid)
