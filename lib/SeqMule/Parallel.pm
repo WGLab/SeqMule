@@ -17,33 +17,54 @@ my $START = "started";
 my $FINISH = "finished";
 my $ERROR = "error";
 #keywords used in script file
-my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
-my $LOGDIR = "m/LOGDIR=(.*)\$/";
+my $CONFIG_FILE_DESC = <<HEREDOC;
+[SETTING_SECTION]
+CPUTOTAL = 1
+LOGDIR = /home/user/analysis
+[CMD_SECTION]
+;STEP# as section name
+[1]
+command = 
+message = 
+nCPU_requested = 
+status =
+JOBID =
+PID = 
+[2]
+...
+HEREDOC
+my %CONFIG_KEYWORD = (
+CPUTOTAL => "CPUTOTAL",
+LOGDIR => "LOGDIR",
+SETTING_SECTION => "SETTING_SECTION",
+CMD_SECTION => "CMD_SECTION",
+COMMAND => "command",
+MESSAGE => "message",
+STATUS => "status",
+NCPU_REQUEST => "nCPU_requested",
+JOBID => "JOBID",
+PID => "PID",
+);
 
-=head
-#TODO
+my $SENTINEL_FILE_DESC = <<HEREDOC;
 #later we may convert this module to OO style to make it more rigorous
 
 #some files used to communicate between processes
 #SEQMULE{ID} tells ID of task in seqmule's script
 #tell monitoring process JOBID and PID
 #if JOBID is not available, use 'JOBNA' replace JOB{ID}.
-
 SEQMULE{ID}.JOB{ID}.PID{ID}
 
 #task is started
-
 SEQMULE{ID}.JOB{ID}.PID{ID}.started
 
 #task is finished
-
 SEQMULE{ID}.JOB{ID}.PID{ID}.finished
 
 #task message
-
 SEQMULE{ID}.msg
 
-=cut
+HEREDOC
 
 sub writeParallelCMD
 {
@@ -94,26 +115,23 @@ sub run {
     my $step=shift;
     my $qsub=shift;
 
-    my $config = &getScriptConfig($file);
-    my $logdir = &getTo
-    my $cpu_total=&getTotalCPU($file) or die "ERROR: ZERO total number of CPUs\n";
-    my $step_total=&getTotalStep($file) or die "ERROR: Zero steps\n";
+    my $config = Config::Tiny->read($file);
+    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
+    my $allsetting = $config->{$CONFIG_KEYWORD{SETTING_SECTION}};
 
+    my $logdir = $allsetting->{$CONFIG_KEYWORD{LOGDIR}} or croak("ERROR: no log folder: $file\n";
+    my $cpu_total = $allsetting->{$CONFIG_KEYWORD{CPUTOTAL}} or croak ("ERROR: no total number of CPUs: $file\n");
+    my $step_total = scalar (keys %{$allcmd}) or croak("ERROR: no steps: $file\n");
     my $cpu_available=$cpu_total;
 
-    die "ERROR: Negative number of CPUs!\n" if $cpu_total<=0;
-    #when you mod the status,  add file LOCK!!!
-    #initiation of another command is done by this subroutine, 
-    #each command of the file is only able to control its own line
-    &firstScan($file,$step);
+    croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
+    &firstScan($file,$allcmd,$step);
 
     warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
     my $start_time=time;
-    while (1)
-    {
-	sleep 1;
-	if (my $cmd=&checkErr($file))
-	{
+    while (1) {
+	&selectSleep($step_total);
+	if (my $cmd=&checkErr($file)) {
 	    my $cwd=`pwd`;
 	    chomp $cwd;
 	    die "ERROR: $cmd failed\n",
@@ -158,6 +176,12 @@ sub run {
 	}
     }
 }
+	sub selectSleep {
+	    #sleep based on # of jobs
+	    my $scaling_factor = 100;
+	    my $step_total = shift;
+	    sleep int($step_total/$scaling_factor + 1);
+	}
 
 #sub qsub_writeParallelCMD
 #{
@@ -381,35 +405,30 @@ my $LOGDIR = "m/LOGDIR=(.*)\$/";
 }
 sub firstScan {
 #clean up unfinished processes
-    my $in=shift;
+    my $file = shift;
+    my $config = shift;
     my $step=shift;
-    my @lines=&readScript($in);
-    for (@lines)
+    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
+    for my $i(keys %{$allcmd})
     {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if (@f==7)
-	{
-	    if ($step)
-	    {
-		if ($f[0]>=$step)
-		{
-		    $f[5]="waiting";
-		    $f[6]=0;
-		} else
-		{
-		    $f[5]="finished";
-		}
-	    } else
-	    {
-		$f[5] =~ s/started|error/waiting/i; #ignore previous errors
-		$f[6] = 0 if $f[5] !~ /finished/i; #erase previous pid
+	if($step) {
+	    if($i >= $step) {
+		#change all status to waiting
+		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
+	    } elsif ($i <= $step) {
+		#change all status to finished
+		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
+	    } 
+	} else {
+	    #find last finished step when step is not defined
+	    #change started/error to waiting after last finished step
+	    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+		next if $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
+		$step = $i;
 	    }
 	}
-	$_=[@f];
     }
-
-    &writeChange($in,@lines);
+    $config->write($file);
 }
 
 sub getReadableTimestamp {
