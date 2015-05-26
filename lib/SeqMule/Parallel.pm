@@ -22,32 +22,43 @@ my $CONFIG_FILE_DESC = <<HEREDOC;
 CPUTOTAL = 1
 LOGDIR = /home/user/analysis
 [CMD_SECTION]
-;STEP# as section name
+;STEP number as section name
 [1]
-command = 
-message = 
-nCPU_requested = 
-status =
-JOBID =
-PID = 
+command = blah
+message = foo
+nCPU_requested = 1 
+status = waiting
+JOBID = 0
+PID = 123
 [2]
 ...
 HEREDOC
 my %CONFIG_KEYWORD = (
-CPUTOTAL => "CPUTOTAL",
-LOGDIR => "LOGDIR",
-SETTING_SECTION => "SETTING_SECTION",
-CMD_SECTION => "CMD_SECTION",
-COMMAND => "command",
-MESSAGE => "message",
-STATUS => "status",
-NCPU_REQUEST => "nCPU_requested",
-JOBID => "JOBID",
-PID => "PID",
+    CPUTOTAL => "CPUTOTAL",
+    LOGDIR => "LOGDIR",
+    SETTING_SECTION => "SETTING_SECTION",
+    CMD_SECTION => "CMD_SECTION",
+    COMMAND => "command",
+    MESSAGE => "message",
+    STATUS => "status",
+    NCPU_REQUEST => "nCPU_requested",
+    JOBID => "JOBID",
+    PID => "PID",
 );
 
 my $SENTINEL_FILE_DESC = <<HEREDOC;
 #later we may convert this module to OO style to make it more rigorous
+
+#for each task XXX, we create a folder XXX inside logdir
+#then in each task folder, create the following files
+PID.XXXX
+JOBID.XXXX
+STATUS.{started|error|finished}
+#the above files are used to determine job status, PID, JOBID
+#why create subfolders? When we want to look at a specific task,
+#we don't have to list all files in logdir, therefore, reducing
+#IO load
+
 
 #some files used to communicate between processes
 #SEQMULE{ID} tells ID of task in seqmule's script
@@ -81,10 +92,10 @@ sub writeParallelCMD
     #		0	1	2		3		4	   5	   6
     #
     write and check the following parameters at the beginning
-my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
-my $LOGDIR = "m/LOGDIR=(.*)\$/";
+    my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
+    my $LOGDIR = "m/LOGDIR=(.*)\$/";
 
-touch CHANGE_FILES_AT_YOUR_OWN_RISK
+    touch CHANGE_FILES_AT_YOUR_OWN_RISK
 
     for my $i(1..@cmd)
     {
@@ -114,8 +125,8 @@ touch CHANGE_FILES_AT_YOUR_OWN_RISK
     warn "NOTICE: Commands written to $file\n";
 }
 sub run {
-    croak("Usage: &run(\$file,1,yesno_qsub)\n") unless @_ == 3;
-    #1 means enable qsub, 0 means disable it
+    croak("Usage: &run(\$file,step#,yesno_qsub)\n") unless @_ == 3;
+    #for yesno_qsub, 1 means enable qsub, 0 means disable it
     my $file=shift; #format:step	cmd	ncpu_require	ncpu_total	status(started,finished,waiting,error)
     my $step=shift;
     my $qsub=shift;
@@ -125,95 +136,96 @@ sub run {
     my $allsetting = $config->{$CONFIG_KEYWORD{SETTING_SECTION}};
 
     my $logdir = $allsetting->{$CONFIG_KEYWORD{LOGDIR}} or croak("ERROR: no log folder: $file\n";
-    my $cpu_total = $allsetting->{$CONFIG_KEYWORD{CPUTOTAL}} or croak ("ERROR: no total number of CPUs: $file\n");
-    my $step_total = scalar (keys %{$allcmd}) or croak("ERROR: no steps: $file\n");
-    my $cpu_available=$cpu_total;
+	my $cpu_total = $allsetting->{$CONFIG_KEYWORD{CPUTOTAL}} or croak ("ERROR: no total number of CPUs: $file\n");
+	my $step_total = scalar (keys %{$allcmd}) or croak("ERROR: no steps: $file\n");
+	my $cpu_available = $cpu_total;
 
-    croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
-    &firstScan({file=>$file,
-	    config=>$config,
-	    step=>$step,
-	    logdir => $logdir,
-	});
+	croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
+	&firstScan({file=>$file,
+		config=>$config,
+		step=>$step,
+		logdir => $logdir,
+	    });
+	!!!
 
-    warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
-    my $start_time=time;
-    while (1) {
-	&selectSleep($step_total);
-	if (my $cmd=&checkErr({logdir=>$logdir,config=>$config,file=>$file})) {
-	    my $cwd=`pwd`; chomp $cwd;
-	    die "ERROR: command failed\n",
-	    	$cmd,
-	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
-	        "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
-	        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-	} else {
-	    my $elapse_time=time-$start_time;
-	    $cpu_available = $cpu_total-&getUsedCPU($allcmd);
-	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($allcmd)) {
-		if($cpu_available>=$cpu_request) {
-		    #if ($qsub) {
-		    #    #record job ID
-		    #    my $job=`$cmd`;
-		    #    my ($id)= $job=~/(\d+)/;
-		    #    &writePID($file,$step,$id);
-		    #} else {
+	warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
+	my $start_time=time;
+	while (1) {
+	    &selectSleep($step_total);
+	    if (my $cmd=&checkErr({logdir=>$logdir,config=>$config,file=>$file})) {
+		my $cwd=`pwd`; chomp $cwd;
+		die "ERROR: command failed\n",
+		$cmd,
+		"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+		"After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
+		"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+	    } else {
+		my $elapse_time=time-$start_time;
+		$cpu_available = $cpu_total-&getUsedCPU($allcmd);
+		if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($allcmd)) {
+		    if($cpu_available>=$cpu_request) {
+			#if ($qsub) {
+			#    #record job ID
+			#    my $job=`$cmd`;
+			#    my ($id)= $job=~/(\d+)/;
+			#    &writePID($file,$step,$id);
+			#} else {
 			#record pid by the execution script
 			system("$cmd &");
 			&wait2start({file=>$file,config=>$config,step=>$step});
 			#}
-		    warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
-		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
+			warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
+			"at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
+		    }
+		} else {
+		    if (&allDone($allcmd)) {
+			warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
+			warn "Total time: ",&convertTime($elapse_time),"\n";
+			last;
+		    }
 		}
-	    } else {
-		if (&allDone($allcmd)) {
-		    warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
-		    warn "Total time: ",&convertTime($elapse_time),"\n";
-		    last;
-		}
+		#check if the 'started' proc is actually running. If not, mark error
+		#the following function needs improvement. For now, just ignore it.
+		#&checkRunningPID($file);
 	    }
-	    #check if the 'started' proc is actually running. If not, mark error
-	    #the following function needs improvement. For now, just ignore it.
-	    #&checkRunningPID($file);
-	}
-	#check if there are finished jobs, change config file accordingly
-	&syncStatusBySentinel({logdir=>$logdir,config=>$config,file=>$file,status=>$FINISH});
-	&checkStart({logdir=>$logdir,config=>$config,file=>$file});
-	sub checkStart {
-	    #sync started tasks with config
-	    #update PID
-	    my $opt = shift;
-	    my $logdir = $opt->{logdir};
-	    my $config = $opt->{config};
-	    my $file = $opt->{file};
-
-	    my $id_ref = &syncStatusBySentinel({logdir=>$logdir,config=>$config,file=>$file,status=>$START});
-	    for my $i(0..$#{$id_ref->{taskid}}) {
-		my $taskid = ${$id_ref->{taskid}}[$i];
-		my $pid = ${$id_ref->{pid}}[$i];
-		$allcmd->{$taskid}->{$CONFIG_KEYWORD{PID}} = $pid;
-	    }
+	    #check if there are finished jobs, change config file accordingly
+	    &syncStatusBySentinel({logdir=>$logdir,config=>$config,file=>$file,status=>$FINISH});
+	    &checkStart({logdir=>$logdir,config=>$config,file=>$file});
 	}
     }
-}
-	sub selectSleep {
-	    #sleep based on # of jobs
-	    my $scaling_factor = 100;
-	    my $step_total = shift;
-	    sleep int($step_total/$scaling_factor + 1);
+    sub checkStart {
+	#sync started tasks with config
+	#update PID
+	my $opt = shift;
+	my $logdir = $opt->{logdir};
+	my $config = $opt->{config};
+	my $file = $opt->{file};
+
+	my $id_ref = &syncStatusBySentinel({logdir=>$logdir,config=>$config,file=>$file,status=>$START});
+	for my $i(0..$#{$id_ref->{taskid}}) {
+	    my $taskid = ${$id_ref->{taskid}}[$i];
+	    my $pid = ${$id_ref->{pid}}[$i];
+	    $allcmd->{$taskid}->{$CONFIG_KEYWORD{PID}} = $pid;
 	}
+    }
+    sub selectSleep {
+	#sleep based on # of jobs
+	my $scaling_factor = 100;
+	my $step_total = shift;
+	sleep int($step_total/$scaling_factor + 1);
+    }
 
 #sub qsub_writeParallelCMD
 #{
 #    warn "NOT IMPLEMENTED YET\n" and exit;
-#
+    #
 #    my ($install_dir,$file,$cpu_total,$cpu_per_node,@cmd)=@_;
 #    #@lines is array of arrays, 2nd array consists of [ncpu_request,command]
 #    my @out;
 #    my $mod_status=File::Spec->catfile($install_dir,"bin","secondary","mod_status");
-#
+    #
 #    push @out,["#command","nCPU_requested","nCPU_total","status"];
-#
+    #
 #    for my $i(1..@cmd)
 #    {
 #	#comments are not allowed
@@ -224,7 +236,7 @@ sub run {
 #	my $cmd=$cmd[$i-1][1] or die;$cmd=~s/'/'"'"'/; #use string concatenantion to output single quotes
 #	die "ERROR: A node doesn't have enough CPUs you requested\n" unless $cpu_request <= $cpu_per_node;
 #	die "ERROR: Under SGE mode, single quote not allowed for commands: $cmd" if $cmd =~/'/;
-#
+    #
 #	${$out[$i]}[0]=
 #	"echo '".
 #	"$mod_status $file $line_no s && ".
@@ -234,12 +246,12 @@ sub run {
 #	"fi".
 #	"' | qsub -V -cwd".
 #	($cpu_request > 1? " -pe smp $cpu_request -l h_vmem=$mem_per_cpu" : " -l h_vmem=$mem_per_cpu"); #no semicolon here, otherwise this cannot be run in background
-#
+    #
 #	push @{$out[$i]},$cmd[$i-1][0];
 #	push @{$out[$i]},$cpu_total;
 #	push @{$out[$i]},"waiting";
 #    }
-#
+    #
 #    open OUT,'>',$file or die "Cannot write to $file: $!";
 #    for (@out)
 #    {
@@ -249,410 +261,444 @@ sub run {
 #    warn "NOTICE: Commands written to $file\n";
 #}
 
-sub single_line_exec {
-    die "Usage: &single_line_exec(<log folder>,<JOBID>,<step number>,<command and arguments>)\n" unless @_>=4;
+    sub single_line_exec {
+	die "Usage: &single_line_exec(<log folder>,<JOBID>,<step number>,<command and arguments>)\n" unless @_>=4;
 
-    my ($logdir,$jobid,$n,@cmd)=@_;
-    my @out;
-    my $cmd_string=join(" ",@cmd);
-    my $start_time=time;
-    my $msg=&getMsg($logdir,$n);
+	my ($logdir,$jobid,$n,@cmd)=@_;
+	my @out;
+	my $cmd_string=join(" ",@cmd);
+	my $start_time=time;
+	my $msg=&getMsg($logdir,$n);
 
-    #&wait2start($script,$n);
-    my $success;
-    {
-	warn "DEBUG: about to fork for $msg\n" if $debug;
-	my $pid=fork;
-	if ($pid) {
-	    #parent
-	    &create_sentinel($logdir,$n,$jobid,$pid,$START);
-	    my $deceased_pid=wait;
-	    if ($deceased_pid==$pid) {
-		#got the exit status of child
-		if ($? == 0) {
-		    $success=1;
+	#&wait2start($script,$n);
+	my $success;
+	{
+	    warn "DEBUG: about to fork for $msg\n" if $debug;
+	    my $pid=fork;
+	    if ($pid) {
+		#parent
+		&create_sentinel($logdir,$n,$jobid,$pid,$START);
+		my $deceased_pid=wait;
+		if ($deceased_pid==$pid) {
+		    #got the exit status of child
+		    if ($? == 0) {
+			$success=1;
+		    } else {
+			$success=0;
+		    }
 		} else {
+		    warn "WARNING: Didn't get child exit status\n";
 		    $success=0;
 		}
+	    } elsif (defined $pid) {
+		#real execution code
+		exec @cmd or die "ERROR: Command not found: @cmd\n";
 	    } else {
-		warn "WARNING: Didn't get child exit status\n";
 		$success=0;
 	    }
-	} elsif (defined $pid) {
-	    #real execution code
-	    exec @cmd or die "ERROR: Command not found: @cmd\n";
-	} else {
-	    $success=0;
 	}
-    }
 
-    if ($success) {
-	my $time=`date`;chomp $time;
-	my $total_min=&getTotalMin($start_time);
+	if ($success) {
+	    my $time=`date`;chomp $time;
+	    my $total_min=&getTotalMin($start_time);
 
-	remove START!
+	    remove START!
 	    &create_sentinel($logdir,$n,$jobid,$pid,$FINISH);
-	warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
-    } else {
-	my $time=`date`;chomp $time;
-	my $total_min=&getTotalMin($start_time);
-	remove START!
-	    &create_sentinel($logdir,$n,$jobid,$pid,$ERROR);
-	die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
-    }
-}
-sub getTotalMin {
-    my $start=shift;
-    my $end=time;
-    my $total=($end-$start)/60; 
-    $total=sprintf("%.1f",$total);
-    return $total;
-}
-sub getMsg {
-    my $logdir=shift;
-    my $n=shift;
-    my $msg_file = File::Spec->catfile($logdir,"SEQMULE$n.msg");
-    my $msg;
-    open IN,'<',$msg_file or croak("ERROR: Can't find message for step $n in $logdir($msg_file): $!\n");
-    while(<IN>) {
-	chomp;
-	$msg .= $_;
-    }
-    close IN;
-    return $msg;
-}
-sub wait2start {
-    my $opt = shift;
-    my $file=$opt->{file};
-    my $step = $opt->{step};
-    my $config = $opt->{config};
-
-    my $step_ref = $config->{$CONFIG_KEYWORD{CMD_SECTION}}->{$step};
-    if ($step_ref->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
-	$step_ref->{$CONFIG_KEYWORD{STATUS}} = $START;
-    } else {
-	#task is not waiting, something goes wrong
-	croak("ERROR: step $step is not waiting\n");
-    }
-    $config->write($file);
-}
-sub status2error
-{
-    my $file=shift;
-    my $n=shift;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    $f[5]="error";
-	    $_=[@f];
-	    last;
-	}
-    }
-    &writeChange($file,@lines);
-}
-
-sub create_sentinel {
-
-    my $logdir=shift;
-    my $n=shift;
-    my $jobid = shift;
-    my $pid=shift;
-    my $suffix = shift;
-    my $sentinel = File::Spec->catfile($logdir,"SEQMULE$n.JOB$jobid.PID.$pid.$suffix");
-
-    !system("touch $sentinel") or croak("ERROR: failed to create $sentinel\n");
-
-}
-sub getRunningPID
-{
-    my $file=shift;
-    my @pid;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[5] eq 'started')
-	{
-	    push @pid,$f[6];
-	}
-    }
-    return @pid;
-}
-sub writeChange
-{
-    my $script=shift;
-    my @out=@_;
-
-    open OUT,'+<',$script or die "Cannot write to $script: $!";
-    warn "DEBUG: began writing $script!\n" if $debug;
-    warn "DEBUG: ".scalar @out." lines to write!\n" if $debug;
-    seek OUT,0,0;
-    truncate OUT,0;
-    map { print OUT join("\t",@{$_}),"\n" } @out;
-    close OUT;
-}
-
-sub readScript {
-    my $script=shift;
-    my @out;
-    open IN,'<',$script or die "Cannot read $script: $!";
-
-    while(<IN>) {
-	chomp;
-if(eval $CPUTOTAL) { 
-    = "m/CPUTOTAL=(\\d+)/";
-my $LOGDIR = "m/LOGDIR=(.*)\$/";
-	my @f=split(/\t/,$_,-1);
-	if(@f==7) {
-	push @out,[@f];
-    }
-    close IN;
-    return @out;
-}
-sub firstScan {
-    my $opt = shift;
-    my $file = $opt->{file};
-    my $config = $opt->{config};
-    my $step= $opt->{step};
-    my $logdir = $opt->{logdir};
-    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
-#clean up unfinished processes in config
-    for my $i(sort keys %{$allcmd}) {
-	if($step) {
-	    if($i > $step) {
-		#change all status to waiting
-		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
-	    } elsif ($i <= $step) {
-		#change all status to finished
-		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
-	    } 
+	    warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
 	} else {
-	    #find last finished step when step is not defined
-	    #change started/error to waiting after last finished step
-	    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
-		next if defined $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} and 
-		$allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
-		$step = $i;
+	    my $time=`date`;chomp $time;
+	    my $total_min=&getTotalMin($start_time);
+	    remove START!
+	    &create_sentinel($logdir,$n,$jobid,$pid,$ERROR);
+	    die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
+	}
+    }
+    sub getTotalMin {
+	my $start=shift;
+	my $end=time;
+	my $total=($end-$start)/60; 
+	$total=sprintf("%.1f",$total);
+	return $total;
+    }
+    sub getMsg {
+	my $logdir=shift;
+	my $n=shift;
+	my $msg_file = File::Spec->catfile($logdir,"SEQMULE$n.msg");
+	my $msg;
+	open IN,'<',$msg_file or croak("ERROR: Can't find message for step $n in $logdir($msg_file): $!\n");
+	while(<IN>) {
+	    chomp;
+	    $msg .= $_;
+	}
+	close IN;
+	return $msg;
+    }
+    sub wait2start {
+	my $opt = shift;
+	my $file=$opt->{file};
+	my $step = $opt->{step};
+	my $config = $opt->{config};
+
+	my $step_ref = $config->{$CONFIG_KEYWORD{CMD_SECTION}}->{$step};
+	if ($step_ref->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
+	    $step_ref->{$CONFIG_KEYWORD{STATUS}} = $START;
+	} else {
+	    #task is not waiting, something goes wrong
+	    croak("ERROR: step $step is not waiting\n");
+	}
+	$config->write($file);
+    }
+    sub status2error
+    {
+	my $file=shift;
+	my $n=shift;
+	my @lines=&readScript($file);
+
+	for (@lines)
+	{
+	    my @f=@{$_};
+	    next if $f[0]=~/^#/;
+	    if ($f[0] == $n)
+	    {
+		$f[5]="error";
+		$_=[@f];
+		last;
 	    }
 	}
-    }
-    $config->write($file);
-
-    #clean up sentinel files
-    !system("rm -rf ".File::Spec->catfile($logdir,"*")) 
-	or croak ("ERROR: failed to clean up existing sentinel files ($logdir): $!\n");
-}
-
-sub getReadableTimestamp {
-    my $time = `date`;
-    chomp $time;
-    return($time);
-}
-
-sub convertTime {
-    my $time=shift;
-    my $hr=int($time/3600);
-    my $min=int( ($time % 3600)/60);
-    my $sec=$time%60;
-    my $readable_time="$hr hr $min min $sec s";
-    return $readable_time;
-}
-
-sub getTotalStep {
-    my $file=shift;
-    my @lines=&readScript($file);
-
-    my @last_f=@{$lines[$#lines]};
-    if ($last_f[0]=~/^(\d+)$/) {
-	return $1;
-    } else {
-	return 0;
-    }
-}
-sub syncStatusBySentinel {
-    #look for SEQMULE{ID}.JOB{ID}.PID{ID}.error files
-    my $logdir = $opt->{logdir};
-    my $status = $opt->{status};
-    my $config = $opt->{config};
-    my $file = $opt->{file};
-    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
-    my @sentinel_file;
-    my (@taskid,@jobid, @pid);
-    opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
-    @sentinel_file = grep { /\.$status$/ } readdir($dh);
-    closedir $dh;
-    for my $i(@sentinel_file) {
-	next unless /SEQMULE(\d+)\.JOB(\d+)\.PID(\d+)\.$status$/;
-	push @taskid,$1;
-	push @jobid,$2;
-	push @pid,$3;
-	$allcmd->{$taskid}->{$CONFIG_KEYWORD{STATUS}} = $status;
-    }
-    $config->write($file);
-    return {taskid=>\@taskid,jobid=>\@jobid,pid=>\@pid};
-}
-sub checkErr {
-    #look for SEQMULE{ID}.JOB{ID}.PID{ID}.error files
-    my $opt = shift;
-    my $logdir = $opt->{logdir};
-    my $config = $opt->{config};
-    my $file = $opt->{file};
-    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
-
-    my $id_ref = &syncStatusBySentinel({logdir=>$logdir,file=>$file,config=>$config,status=>$ERROR});
-    return join("\n",map{$allcmd->{$_}->{$CONFIG_KEYWORD{COMMAND}}} @{$id_ref->{taskid}});
-}
-sub getScriptConfig {
-    my $file = shift;
-    my @lines=&readScript($file);
-    my $config = {
-	#every one of the following must be defined at the end
-	logdir => undef,
-	cpuTotal => undef,
-	stepTotal => undef,
-	steps => undef,
-    };
-    my $total=0;
-
-    my $logdir = &getTo
-    my $cpu_total=&getTotalCPU($file) or die "ERROR: ZERO total number of CPUs\n";
-    my $step_total=&getTotalStep($file) or die "ERROR: Zero steps\n";
-
-sub getTotalStep {
-    my $file=shift;
-    my @lines=&readScript($file);
-
-    my @last_f=@{$lines[$#lines]};
-    if ($last_f[0]=~/^(\d+)$/) {
-	return $1;
-    } else {
-	return 0;
+	&writeChange($file,@lines);
     }
 
-    for (@lines) {
-	$CPUTOTAL
-	$LOGDIR
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[4]=~/^\d+$/)
-	{
-	    $total=$f[4];
-	    last;
-	}
+    sub create_sentinel {
+
+	my $logdir=shift;
+	my $n=shift;
+	my $jobid = shift;
+	my $pid=shift;
+	my $suffix = shift;
+	my $sentinel = File::Spec->catfile($logdir,"SEQMULE$n.JOB$jobid.PID.$pid.$suffix");
+
+	!system("touch $sentinel") or croak("ERROR: failed to create $sentinel\n");
+
     }
-    for my $i(keys %{$config}) {
-	croak("ERROR: $i is undefined in $file\n") unless defined $config->{$i};
-    }
-    return $config;
-}
-sub getTotalCPU {
-    my $file=shift;
-    my @lines=&readScript($file);
-    my $total=0;
-    for (@lines)
+    sub getRunningPID
     {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[4]=~/^\d+$/)
+	my $file=shift;
+	my @pid;
+	my @lines=&readScript($file);
+
+	for (@lines)
 	{
-	    $total=$f[4];
-	    last;
-	}
-    }
-    return $total;
-}
-sub getNextCMD {
-    my $allcmd=shift;
-    for my $i(sort keys %$allcmd) {
-	if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
-	    return (
-		$i,
-		$allcmd->{$i}->{$CONFIG_KEYWORD{COMMAND}},
-		$allcmd->{$i}->{$CONFIG_KEYWORD{MESSAGE}},
-		$allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}},
-	    );
-	}
-    }
-    return ();
-}
-sub allDone {
-    my $allcmd = shift;
-    my $done=1;
-
-    for my $i(values %$allcmd) {
-	if ($i->{$CONFIG_KEYWORD{STATUS}} ne $FINISH) {
-	    $done = 0;
-	}
-    }
-    return $done;
-}
-sub getUsedCPU {
-    my $allcmd=shift;
-    my $n=0;
-
-    for my $i(keys %{$allcmd}) {
-	if ($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
-	    $n += $allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
-	}
-
-    }
-    return $n;
-}
-sub genTempScript {
-    my @cmd=@_;
-    my $tmp="/tmp/$$".time()."script";
-    open OUT,'>',$tmp or die "Can't write to $tmp: $!\n";
-    print OUT "#!/bin/bash\nset -e\n"; #let shell run the script, exit at first error
-    print OUT "set -o pipefail\n"; #let shell run the script, exit at first error
-    print OUT join ("\n",@cmd);
-    close OUT;
-    chmod 0755,$tmp or die "Failed to chmod 755 on $tmp\n";
-    return $tmp;
-}
-
-sub checkRunningPID
-{ #if started, but not running, change status to 'error'
-    #NEEDS IMPROVEMENT OR TESTING
-    my $file=shift;
-    my $waiting_time=10;
-    my $second_check=0;
-    my $second_check_n;
-
-    for my $i(&readScript($file))
-    {
-	my ($n,$status,$pid)=@{$i}[0,5,6];
-	next unless $status eq 'started';
-	unless (kill 0,$pid)
-	{ #try to signal the proc, if not successful, wait a monment, try again, if failed, mark it as error
-	    #this measure avoids false error when the status is not updated immediately upon exit
-	    $second_check=1;
-	    $second_check_n=$n;
-	}
-    }
-    if ($second_check)
-    {
-	sleep $waiting_time;
-	for my $i(&readScript($file))
-	{
-	    my ($n,$status,$pid)=@{$i}[0,5,6];
-	    next unless $n eq $second_check_n;
-	    unless (kill 0,$pid)
-	    { 
-		warn "ERROR: STEP $n was started, but actually not running.\n";
-		&status2error($file,$n);
+	    my @f=@{$_};
+	    next if $f[0]=~/^#/;
+	    if ($f[5] eq 'started')
+	    {
+		push @pid,$f[6];
 	    }
 	}
+	return @pid;
     }
-}
+    sub writeChange
+    {
+	my $script=shift;
+	my @out=@_;
 
-1;
+	open OUT,'+<',$script or die "Cannot write to $script: $!";
+	warn "DEBUG: began writing $script!\n" if $debug;
+	warn "DEBUG: ".scalar @out." lines to write!\n" if $debug;
+	seek OUT,0,0;
+	truncate OUT,0;
+	map { print OUT join("\t",@{$_}),"\n" } @out;
+	close OUT;
+    }
+
+    sub readScript {
+	my $script=shift;
+	my @out;
+	open IN,'<',$script or die "Cannot read $script: $!";
+
+	while(<IN>) {
+	    chomp;
+	    if(eval $CPUTOTAL) { 
+		= "m/CPUTOTAL=(\\d+)/";
+		my $LOGDIR = "m/LOGDIR=(.*)\$/";
+		my @f=split(/\t/,$_,-1);
+		if(@f==7) {
+		    push @out,[@f];
+		}
+		close IN;
+		return @out;
+	    }
+	    sub firstScan {
+		#remove existing sentinel files in logdir
+		#change job status to finished for all jobs after specified step #
+		my $opt = shift;
+		my $file = $opt->{file};
+		my $config = $opt->{config};
+		my $step= $opt->{step};
+		my $logdir = $opt->{logdir};
+		my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
+#clean up unfinished processes in config
+		for my $i(sort keys %{$allcmd}) {
+		    if($step) {
+			if($i > $step) {
+			    #change all status to waiting
+			    $allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
+			} elsif ($i <= $step) {
+			    #change all status to finished
+			    $allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
+			} 
+		    } else {
+			#find last finished step when step is not defined
+			#change started/error to waiting after last finished step
+			if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+			    next if defined $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} and 
+			    $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
+			    $step = $i;
+			}
+		    }
+		}
+		$config->write($file);
+
+		#clean up sentinel files
+		!system("rm -rf ".File::Spec->catfile($logdir,"*")) 
+		    or croak ("ERROR: failed to clean up existing sentinel files ($logdir): $!\n");
+	    }
+
+	    sub getReadableTimestamp {
+		my $time = `date`;
+		chomp $time;
+		return($time);
+	    }
+
+	    sub convertTime {
+		my $time=shift;
+		my $hr=int($time/3600);
+		my $min=int( ($time % 3600)/60);
+		my $sec=$time%60;
+		my $readable_time="$hr hr $min min $sec s";
+		return $readable_time;
+	    }
+
+	    sub getTotalStep {
+		my $file=shift;
+		my @lines=&readScript($file);
+
+		my @last_f=@{$lines[$#lines]};
+		if ($last_f[0]=~/^(\d+)$/) {
+		    return $1;
+		} else {
+		    return 0;
+		}
+	    }
+	    sub syncStatus {
+		#synchronize config file and logdir based on rules described in $SENTINEL_FILE_DESC
+		my $logdir = $opt->{logdir};
+		my $config = $opt->{config};
+		my $file = $opt->{file};
+		my $direction = $opt->{direction}; #log2config, config2log
+		my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
+
+		if($direction eq 'log2config') {
+		    #sync sentinel to config
+		opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
+		while(my $i = readdir($dh) ) {
+		    #$i is relative path
+		    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+			next;
+		    } else {
+			#grab JOBID, PID, status
+		        opendir(my $dh_i,File::Spec->catfile($logdir,$i)) or croak ("ERROR: can't read $i in $logdir: $!\n");
+		my ($jobid, $pid, $status);
+		$jobid = grep { /JOBID\./ } readdir($dh_i);
+		$pid = grep { /PID\./ } readdir($dh_i);
+		$status = grep { /STATUS\./ } readdir($dh_i);
+
+		$jobid =~ s/JOBID\.(\d+)/$1/;
+		$pid =~ s/PID\.(\d+)/$1/;
+		$status =~ s/STATUS\.(\w+)/$1/;
+		    $allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $status;
+		    $allcmd->{$i}->{$CONFIG_KEYWORD{PID}} = $pid;
+		    $allcmd->{$i}->{$CONFIG_KEYWORD{JOBID}} = $jobid;
+		    }
+		}
+		} elsif($direction eq 'config2log') {
+		    #sync config to sentinel
+		    #this can only be done when no tasks are running
+		    #otherwise may mess things up
+
+		} else {
+		    croak("ERROR: unknown $direction\n");
+		}
+		my @sentinel_file;
+		my (@taskid,@jobid, @pid);
+		opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
+		@sentinel_file = grep { /\.$status$/ } readdir($dh);
+		closedir $dh;
+		for my $i(@sentinel_file) {
+		    next unless /SEQMULE(\d+)\.JOB(\d+)\.PID(\d+)\.$status$/;
+		    push @taskid,$1;
+		    push @jobid,$2;
+		    push @pid,$3;
+		    $allcmd->{$taskid}->{$CONFIG_KEYWORD{STATUS}} = $status;
+		}
+		$config->write($file);
+		return {taskid=>\@taskid,jobid=>\@jobid,pid=>\@pid};
+	    }
+	    sub checkErr {
+		#look for SEQMULE{ID}.JOB{ID}.PID{ID}.error files
+		my $opt = shift;
+		my $logdir = $opt->{logdir};
+		my $config = $opt->{config};
+		my $file = $opt->{file};
+		my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
+
+		my $id_ref = &syncStatusBySentinel({logdir=>$logdir,file=>$file,config=>$config,status=>$ERROR});
+		return join("\n",map{$allcmd->{$_}->{$CONFIG_KEYWORD{COMMAND}}} @{$id_ref->{taskid}});
+	    }
+	    sub getScriptConfig {
+		my $file = shift;
+		my @lines=&readScript($file);
+		my $config = {
+		    #every one of the following must be defined at the end
+		    logdir => undef,
+		    cpuTotal => undef,
+		    stepTotal => undef,
+		    steps => undef,
+		};
+		my $total=0;
+
+		my $logdir = &getTo
+		my $cpu_total=&getTotalCPU($file) or die "ERROR: ZERO total number of CPUs\n";
+		my $step_total=&getTotalStep($file) or die "ERROR: Zero steps\n";
+
+		sub getTotalStep {
+		    my $file=shift;
+		    my @lines=&readScript($file);
+
+		    my @last_f=@{$lines[$#lines]};
+		    if ($last_f[0]=~/^(\d+)$/) {
+			return $1;
+		    } else {
+			return 0;
+		    }
+
+		    for (@lines) {
+			$CPUTOTAL
+			$LOGDIR
+			my @f=@{$_};
+			next if $f[0]=~/^#/;
+			if ($f[4]=~/^\d+$/)
+			{
+			    $total=$f[4];
+			    last;
+			}
+		    }
+		    for my $i(keys %{$config}) {
+			croak("ERROR: $i is undefined in $file\n") unless defined $config->{$i};
+		    }
+		    return $config;
+		}
+		sub getTotalCPU {
+		    my $file=shift;
+		    my @lines=&readScript($file);
+		    my $total=0;
+		    for (@lines)
+		    {
+			my @f=@{$_};
+			next if $f[0]=~/^#/;
+			if ($f[4]=~/^\d+$/)
+			{
+			    $total=$f[4];
+			    last;
+			}
+		    }
+		    return $total;
+		}
+		sub getNextCMD {
+		    my $allcmd=shift;
+		    for my $i(sort keys %$allcmd) {
+			if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
+			    return (
+				$i,
+				$allcmd->{$i}->{$CONFIG_KEYWORD{COMMAND}},
+				$allcmd->{$i}->{$CONFIG_KEYWORD{MESSAGE}},
+				$allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}},
+			    );
+			}
+		    }
+		    return ();
+		}
+		sub allDone {
+		    my $allcmd = shift;
+		    my $done=1;
+
+		    for my $i(values %$allcmd) {
+			if ($i->{$CONFIG_KEYWORD{STATUS}} ne $FINISH) {
+			    $done = 0;
+			}
+		    }
+		    return $done;
+		}
+		sub getUsedCPU {
+		    my $allcmd=shift;
+		    my $n=0;
+
+		    for my $i(keys %{$allcmd}) {
+			if ($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
+			    $n += $allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
+			}
+
+		    }
+		    return $n;
+		}
+		sub genTempScript {
+		    my @cmd=@_;
+		    my $tmp="/tmp/$$".time()."script";
+		    open OUT,'>',$tmp or die "Can't write to $tmp: $!\n";
+		    print OUT "#!/bin/bash\nset -e\n"; #let shell run the script, exit at first error
+		    print OUT "set -o pipefail\n"; #let shell run the script, exit at first error
+		    print OUT join ("\n",@cmd);
+		    close OUT;
+		    chmod 0755,$tmp or die "Failed to chmod 755 on $tmp\n";
+		    return $tmp;
+		}
+
+		sub checkRunningPID
+		{ #if started, but not running, change status to 'error'
+		    #NEEDS IMPROVEMENT OR TESTING
+		    my $file=shift;
+		    my $waiting_time=10;
+		    my $second_check=0;
+		    my $second_check_n;
+
+		    for my $i(&readScript($file))
+		    {
+			my ($n,$status,$pid)=@{$i}[0,5,6];
+			next unless $status eq 'started';
+			unless (kill 0,$pid)
+			{ #try to signal the proc, if not successful, wait a monment, try again, if failed, mark it as error
+			    #this measure avoids false error when the status is not updated immediately upon exit
+			    $second_check=1;
+			    $second_check_n=$n;
+			}
+		    }
+		    if ($second_check)
+		    {
+			sleep $waiting_time;
+			for my $i(&readScript($file))
+			{
+			    my ($n,$status,$pid)=@{$i}[0,5,6];
+			    next unless $n eq $second_check_n;
+			    unless (kill 0,$pid)
+			    { 
+				warn "ERROR: STEP $n was started, but actually not running.\n";
+				&status2error($file,$n);
+			    }
+			}
+		    }
+		}
+
+		1;
 
 =head
 
