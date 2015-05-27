@@ -2134,19 +2134,16 @@ sub getConsensusCall
     }
 }
 
-sub extractVar
-{
+sub extractVar {
     #extract variants in BED region
     my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
     my $cmd_common="$exe stats -tmpdir $TMPDIR ";
     $cmd_common .= " -capture $capture " if $wes;
     #1.vcf => 1.extract.vcf (seqmule stats default naming rule)
-    for my $vcf_obj(@obj_list)
-    {
+    for my $vcf_obj(@obj_list) {
 	next unless $vcf_obj->filetype eq 'VCF';
 	my $vcf = $vcf_obj->file();
-	if ($vcf =~ /(.*)\.vcf$/i)
-	{
+	if ($vcf =~ /(.*)\.vcf$/i) {
 	    my $local_prefix=$1;
 	    my $out="$local_prefix.extract.vcf";
 	    my $new_vcf_obj = $vcf_obj->clone();
@@ -2159,15 +2156,12 @@ sub extractVar
 	    push @commands,[$threads,"Extract variants in custom regions",$cmd];
 	    $vcf_obj = $new_vcf_obj;
 	    push @removable,$vcf;
-	} else
-	{
+	} else {
 	    die "ERROR: Failed to get VCF prefix (*.vcf format expected): $vcf\n";
 	}
     }
 }
-
-sub vcf_merge_cmd_gen
-{
+sub vcf_merge_cmd_gen {
     my $out_prefix=shift;
     my @vcf=@_;
     my $exe=File::Spec->catfile($install_dir,"bin","seqmule");
@@ -2184,15 +2178,15 @@ sub vcf_merge_cmd_gen
 
     return $cmd;
 }
-
-
-sub writeScript
-{
+sub writeScript {
     $script_file="${analysis_prefix}.script";
     warn "NOTICE: script file will be overwritten: $script_file\n" if -f $script_file;
-    &SeqMule::Parallel::writeParallelCMD ($install_dir,$script_file,$threads,@commands);
+    &SeqMule::Parallel::writeParallelCMD ({worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
+	    file=>$script_file,
+	    cpu_total=>$threads,
+	    cmd=>\@commands,
+	});
 }
-
 sub convert64to33 {
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
     if ($phred==64) {

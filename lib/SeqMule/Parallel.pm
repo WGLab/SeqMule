@@ -10,6 +10,9 @@ use lib File::Spec->catdir($RealBin,"..","..","lib");
 use Config::Tiny;
 use File::Basename qw/basename/;
 
+#add version number, different versions of config might be incompatible
+my $VERSION = 1.2;
+my %COMPATIBLE_VERSION = {"1.2"=>1};
 my $debug=0;
 my $splitter="-" x 10;
 #keywords used for job status
@@ -20,6 +23,7 @@ my $ERROR = "error";
 #keywords used in script file
 my $CONFIG_FILE_DESC = <<HEREDOC;
 [SETTING_SECTION]
+VERSION = $VERSION
 CPUTOTAL = 1
 LOGDIR = /home/user/analysis
 [CMD_SECTION]
@@ -82,48 +86,45 @@ SEQMULE{ID}.msg
 
 HEREDOC
 
-sub writeParallelCMD
-{
-    my ($install_dir,$file,$cpu_total,@cmd)=@_;
-    #@lines is array of arrays, 2nd array consists of [ncpu_request,command]
+sub writeParallelCMD {
+    croak("Usage: &writeParallelCMD({worker=>path_to_worker,file=>,cpu_total=>,cmd=>,})\n") unless @_ == 1;
+    my $opt = shift;
+    my $worker = $opt->{worker};
+    my $file = $opt->{file};
+    my $cpu_total = $opt->{cpu_total};
+    my @cmd = @{$opt->{cmd}};
+    #@cmd is array of arrays, 2nd array consists of [ncpu_request,command]
     my @out;
-    my $mod_status=File::Spec->catfile($install_dir,"bin","secondary","mod_status");
+    my $config = Config::Tiny->new;
+    my $date = `date +%m%d%Y`;chomp $date;
+    my $logdir = File::Spec->catfile($ENV{PWD},"seqmule.".$date.".$$.logs");
+    !system("mkdir $logdir") or croak("mkdir($logdir): $!\n") unless -d $logdir;
 
-    push @out,["#Don't add or remove any line or field",map {""} (1..6)];
-    push @out,["#step","command","message","nCPU_requested","nCPU_total","status","pid"]; #pid means job id when qsub is used
-    #		0	1	2		3		4	   5	   6
-    #
-    write and check the following parameters at the beginning
-    my $CPUTOTAL = "m/CPUTOTAL=(\\d+)/";
-    my $LOGDIR = "m/LOGDIR=(.*)\$/";
-
-    touch CHANGE_FILES_AT_YOUR_OWN_RISK
-
-    for my $i(1..@cmd)
-    {
+    $config->{$CONFIG_KEYWORD{SETTING_SECTION}} = {
+	$CONFIG_KEYWORD{VERSION} => $VERSION,
+	$CONFIG_KEYWORD{CPUTOTAL} => $cpu_total,
+	$CONFIG_KEYWORD{LOGDIR} => $logdir,
+    };
+    $config->{$CONFIG_KEYWORD{CMD_SECTION}} = {};
+    for my $i(1..@cmd) {
 	#each element of @cmd is array reference [ncpu_request,msg,command]
-	@{$cmd[$i-1]} == 3 or die "3 fields in commands expected.\n";
-	my @out_line;
-	my $cmd_line=$cmd[$i-1][2]; $cmd_line=~s/\t/    /g;
-	die "ERROR: No shell meta characters allowed: $cmd_line\n" if $cmd_line=~/[\?\>\<\|\;\&\$\#\`\(\)]/;
+	@{$cmd[$i-1]} == 3 or croak("3 fields in commands expected (step $i).\n");
+	my $ncpu_request = $cmd[$i-1][0]; #ncpu requested
 	my $msg=$cmd[$i-1][1];
+	my $cmd_line=$cmd[$i-1][2]; 
+	$cmd_line = "$worker $logdir $i $cmd_line";
+	croak("ERROR: No shell meta characters allowed: $cmd_line\n") if $cmd_line=~/[\?\>\<\|\;\&\$\#\`\(\)]/;
 	#comments are not allowed
-	$out_line[0]=$i;
-	$out_line[1]="$mod_status $file $i $cmd_line";
-
-	$out_line[2]=$msg; #message about this command
-	$out_line[3]=$cmd[$i-1][0]; #ncpu requested
-	$out_line[4]=$cpu_total;
-	$out_line[5]="waiting";
-	$out_line[6]=0;
-	push @out,[@out_line];
+	$config->{$CONFIG_KEYWORD{CMD_SECTION}}->{$i} = {
+	    $CONFIG_KEYWORD{command} => $cmd_line,
+	    $CONFIG_KEYWORD{message} => $msg,
+	    $CONFIG_KEYWORD{nCPU_requested} => $ncpu_request,
+	    $CONFIG_KEYWORD{status} => $WAIT,
+	    $CONFIG_KEYWORD{JOBID} => 0,
+	    $CONFIG_KEYWORD{PID} => 0,
+	};
     }
-    open OUT,'>',$file or die "Cannot write to $file: $!";
-    for (@out)
-    {
-	print OUT join("\t",@$_),"\n";
-    }
-    close OUT;
+    $config->write($file);
     warn "NOTICE: Commands written to $file\n";
 }
 sub run {
@@ -210,7 +211,7 @@ sub run {
 #    my ($install_dir,$file,$cpu_total,$cpu_per_node,@cmd)=@_;
 #    #@lines is array of arrays, 2nd array consists of [ncpu_request,command]
 #    my @out;
-#    my $mod_status=File::Spec->catfile($install_dir,"bin","secondary","mod_status");
+#    my $worker=File::Spec->catfile($install_dir,"bin","secondary","worker");
     #
 #    push @out,["#command","nCPU_requested","nCPU_total","status"];
     #
@@ -227,10 +228,10 @@ sub run {
     #
 #	${$out[$i]}[0]=
 #	"echo '".
-#	"$mod_status $file $line_no s && ".
+#	"$worker $file $line_no s && ".
 #	"if $cmd;".
-#	"then $mod_status $file $line_no f;".
-#	"else $mod_status $file $line_no e;".
+#	"then $worker $file $line_no f;".
+#	"else $worker $file $line_no e;".
 #	"fi".
 #	"' | qsub -V -cwd".
 #	($cpu_request > 1? " -pe smp $cpu_request -l h_vmem=$mem_per_cpu" : " -l h_vmem=$mem_per_cpu"); #no semicolon here, otherwise this cannot be run in background
@@ -300,13 +301,6 @@ sub run {
 	    &create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$ERROR});
 	    die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
 	}
-    }
-    sub getTotalMin {
-	my $start=shift;
-	my $end=time;
-	my $total=($end-$start)/60; 
-	$total=sprintf("%.1f",$total);
-	return $total;
     }
     sub getMsg {
 	my $logdir=shift;
@@ -458,12 +452,20 @@ sub run {
 		&syncStatus({logdir=>$logdir,config=>$config,direction=>'config2log'});
 	    }
 
+	    #########time related subroutines############
 	    sub getReadableTimestamp {
 		my $time = `date`;
 		chomp $time;
 		return($time);
 	    }
 
+    sub getTotalMin {
+	my $start=shift;
+	my $end=time;
+	my $total=($end-$start)/60; 
+	$total=sprintf("%.1f",$total);
+	return $total;
+    }
 	    sub convertTime {
 		my $time=shift;
 		my $hr=int($time/3600);
@@ -472,6 +474,7 @@ sub run {
 		my $readable_time="$hr hr $min min $sec s";
 		return $readable_time;
 	    }
+	    ##########################################
 
 	    sub getTotalStep {
 		my $file=shift;
@@ -712,7 +715,7 @@ sub run {
 
 
 #qsub
-echo './mod_status fast.script 2 s && if samtools view -b ../father_bwa.sort.rmdup.bam 1 > father-1.bam;then ./mod_status fast.script 2 f;else ./mod_status fast.script 2 e;fi' | qsub -V -cwd -l h_vmem=2g	1	18	finished
-echo './mod_status fast.script 3 s && if samtools view -b ../father_bwa.sort.rmdup.bam 2 > father-2.bam;then ./mod_status fast.script 3 f;else ./mod_status fast.script 3 e;fi' | qsub -V -cwd -l h_vmem=2g	1	18	finished
+echo './worker fast.script 2 s && if samtools view -b ../father_bwa.sort.rmdup.bam 1 > father-1.bam;then ./worker fast.script 2 f;else ./worker fast.script 2 e;fi' | qsub -V -cwd -l h_vmem=2g	1	18	finished
+echo './worker fast.script 3 s && if samtools view -b ../father_bwa.sort.rmdup.bam 2 > father-2.bam;then ./worker fast.script 3 f;else ./worker fast.script 3 e;fi' | qsub -V -cwd -l h_vmem=2g	1	18	finished
 
 =cut
