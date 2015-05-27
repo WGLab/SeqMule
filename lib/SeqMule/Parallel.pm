@@ -8,6 +8,7 @@ use FindBin qw/$RealBin/;
 use File::Spec;
 use lib File::Spec->catdir($RealBin,"..","..","lib");
 use Config::Tiny;
+use File::Basename qw/basename/;
 
 my $debug=0;
 my $splitter="-" x 10;
@@ -54,7 +55,8 @@ my $SENTINEL_FILE_DESC = <<HEREDOC;
 PID.XXXX
 JOBID.XXXX
 STATUS.{started|error|finished}
-#the above files are used to determine job status, PID, JOBID
+MSG
+#the above files are used to determine job status, PID, JOBID, message
 #why create subfolders? When we want to look at a specific task,
 #we don't have to list all files in logdir, therefore, reducing
 #IO load
@@ -135,79 +137,65 @@ sub run {
     my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
     my $allsetting = $config->{$CONFIG_KEYWORD{SETTING_SECTION}};
 
-    my $logdir = $allsetting->{$CONFIG_KEYWORD{LOGDIR}} or croak("ERROR: no log folder: $file\n";
-	my $cpu_total = $allsetting->{$CONFIG_KEYWORD{CPUTOTAL}} or croak ("ERROR: no total number of CPUs: $file\n");
-	my $step_total = scalar (keys %{$allcmd}) or croak("ERROR: no steps: $file\n");
-	my $cpu_available = $cpu_total;
+    my $logdir = $allsetting->{$CONFIG_KEYWORD{LOGDIR}} or croak("ERROR: no log folder: $file\n");
+    my $cpu_total = $allsetting->{$CONFIG_KEYWORD{CPUTOTAL}} or croak ("ERROR: no total number of CPUs: $file\n");
+    my $step_total = scalar (keys %{$allcmd}) or croak("ERROR: no steps: $file\n");
+    my $cpu_available = $cpu_total;
 
-	croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
-	&firstScan({file=>$file,
-		config=>$config,
-		step=>$step,
-		logdir => $logdir,
-	    });
-	!!!
+    croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
+    &firstScan({file=>$file,
+	    config=>$config,
+	    step=>$step,
+	    logdir => $logdir,
+	});
 
-	warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
-	my $start_time=time;
-	while (1) {
-	    &selectSleep($step_total);
-	    if (my $cmd=&checkErr({logdir=>$logdir,config=>$config,file=>$file})) {
-		my $cwd=`pwd`; chomp $cwd;
-		die "ERROR: command failed\n",
-		$cmd,
-		"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
-		"After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
-		"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-	    } else {
-		my $elapse_time=time-$start_time;
-		$cpu_available = $cpu_total-&getUsedCPU($allcmd);
-		if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($allcmd)) {
-		    if($cpu_available>=$cpu_request) {
-			#if ($qsub) {
-			#    #record job ID
-			#    my $job=`$cmd`;
-			#    my ($id)= $job=~/(\d+)/;
-			#    &writePID($file,$step,$id);
-			#} else {
-			#record pid by the execution script
-			system("$cmd &");
-			&wait2start({file=>$file,config=>$config,step=>$step});
-			#}
-			warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
-			"at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
-		    }
-		} else {
-		    if (&allDone($allcmd)) {
-			warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
-			warn "Total time: ",&convertTime($elapse_time),"\n";
-			last;
-		    }
+    warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
+    my $start_time=time;
+    while (1) {
+	&selectSleep($step_total);
+	&syncStatus({logdir=>$logdir,config=>$config,file=>$file,direction=>'log2config'});
+	if(my $cmd = join("\n",
+		map{$allcmd->{$_}->{$CONFIG_KEYWORD{COMMAND}}} 
+		(grep {$allcmd->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR} (keys %$all_cmd))
+	    ) ) {
+	    #grep failed tasks
+	    my $cwd=`pwd`; chomp $cwd;
+	    die "ERROR: command failed\n",
+	    $cmd,
+	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+	    "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
+	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+	} else {
+	    my $elapse_time=time-$start_time;
+	    $cpu_available = $cpu_total-&getUsedCPU($allcmd);
+	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($allcmd)) {
+		if($cpu_available>=$cpu_request) {
+		    #if ($qsub) {
+		    #    #record job ID
+		    #    my $job=`$cmd`;
+		    #    my ($id)= $job=~/(\d+)/;
+		    #    &writePID($file,$step,$id);
+		    #} else {
+		    #record pid by the execution script
+		    system("$cmd &");
+		    &wait2start({file=>$file,config=>$config,step=>$step});
+		    #}
+		    warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
+		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
 		}
-		#check if the 'started' proc is actually running. If not, mark error
-		#the following function needs improvement. For now, just ignore it.
-		#&checkRunningPID($file);
+	    } else {
+		if (&allDone($allcmd)) {
+		    warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
+		    warn "Total time: ",&convertTime($elapse_time),"\n";
+		    last;
+		}
 	    }
-	    #check if there are finished jobs, change config file accordingly
-	    &syncStatusBySentinel({logdir=>$logdir,config=>$config,file=>$file,status=>$FINISH});
-	    &checkStart({logdir=>$logdir,config=>$config,file=>$file});
+	    #check if the 'started' proc is actually running. If not, mark error
+	    #the following function needs improvement. For now, just ignore it.
+	    #&checkRunningPID($file);
 	}
     }
-    sub checkStart {
-	#sync started tasks with config
-	#update PID
-	my $opt = shift;
-	my $logdir = $opt->{logdir};
-	my $config = $opt->{config};
-	my $file = $opt->{file};
-
-	my $id_ref = &syncStatusBySentinel({logdir=>$logdir,config=>$config,file=>$file,status=>$START});
-	for my $i(0..$#{$id_ref->{taskid}}) {
-	    my $taskid = ${$id_ref->{taskid}}[$i];
-	    my $pid = ${$id_ref->{pid}}[$i];
-	    $allcmd->{$taskid}->{$CONFIG_KEYWORD{PID}} = $pid;
-	}
-    }
+}
     sub selectSleep {
 	#sleep based on # of jobs
 	my $scaling_factor = 100;
@@ -261,55 +249,55 @@ sub run {
 #    warn "NOTICE: Commands written to $file\n";
 #}
 
+    #execute the actual command for each task
+    #create/rm sentinel files accordingly
     sub single_line_exec {
-	die "Usage: &single_line_exec(<log folder>,<JOBID>,<step number>,<command and arguments>)\n" unless @_>=4;
+	die "Usage: &single_line_exec({logdir=><log folder>,step=><step number>,jobid=><JOBID>,cmd=><command and arguments>})\n" unless @_>=4;
 
-	my ($logdir,$jobid,$n,@cmd)=@_;
+	my $opt = shift;
+	my $logdir = $opt->{logdir};
+	my $jobid = $opt->{jobid};
+	my $step = $opt->{step};
+	my $cmd = $opt->{cmd};
 	my @out;
-	my $cmd_string=join(" ",@cmd);
 	my $start_time=time;
-	my $msg=&getMsg($logdir,$n);
+	my $msg=&getMsg($logdir,$step);
 
 	#&wait2start($script,$n);
 	my $success;
-	{
-	    warn "DEBUG: about to fork for $msg\n" if $debug;
-	    my $pid=fork;
-	    if ($pid) {
-		#parent
-		&create_sentinel($logdir,$n,$jobid,$pid,$START);
-		my $deceased_pid=wait;
-		if ($deceased_pid==$pid) {
-		    #got the exit status of child
-		    if ($? == 0) {
-			$success=1;
-		    } else {
-			$success=0;
-		    }
+	warn "DEBUG: about to fork for $msg\n" if $debug;
+	my $pid=fork;
+	if ($pid) {
+	    #parent proc
+	    &create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$START});
+	    my $deceased_pid=wait;
+	    if ($deceased_pid==$pid) {
+		#got the exit status of child
+		if ($? == 0) {
+		    $success=1;
 		} else {
-		    warn "WARNING: Didn't get child exit status\n";
 		    $success=0;
 		}
-	    } elsif (defined $pid) {
-		#real execution code
-		exec @cmd or die "ERROR: Command not found: @cmd\n";
 	    } else {
+		warn "WARNING: Didn't get child exit status\n";
 		$success=0;
 	    }
+	} elsif (defined $pid) {
+	    #real execution code
+	    exec @cmd or die "ERROR: Command not found: @cmd\n";
+	} else {
+	    $success=0;
 	}
 
 	if ($success) {
 	    my $time=`date`;chomp $time;
 	    my $total_min=&getTotalMin($start_time);
-
-	    remove START!
-	    &create_sentinel($logdir,$n,$jobid,$pid,$FINISH);
+	    &create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$FINISH});
 	    warn "[ => SeqMule Execution Status: step $n is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
 	} else {
 	    my $time=`date`;chomp $time;
 	    my $total_min=&getTotalMin($start_time);
-	    remove START!
-	    &create_sentinel($logdir,$n,$jobid,$pid,$ERROR);
+	    &create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$ERROR});
 	    die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $n FAILED at $time, $msg, $total_min min]\n";
 	}
     }
@@ -323,7 +311,7 @@ sub run {
     sub getMsg {
 	my $logdir=shift;
 	my $n=shift;
-	my $msg_file = File::Spec->catfile($logdir,"SEQMULE$n.msg");
+	my $msg_file = File::Spec->catfile($logdir,$n,"MSG");
 	my $msg;
 	open IN,'<',$msg_file or croak("ERROR: Can't find message for step $n in $logdir($msg_file): $!\n");
 	while(<IN>) {
@@ -334,6 +322,11 @@ sub run {
 	return $msg;
     }
     sub wait2start {
+	#modify config for specific step
+	#change status from wait to start
+	#at this point, config is NOT in sync with logdir
+	#this function is used to prevent this particular step being
+	#run twice by paranet proc.
 	my $opt = shift;
 	my $file=$opt->{file};
 	my $step = $opt->{step};
@@ -369,16 +362,18 @@ sub run {
     }
 
     sub create_sentinel {
-
-	my $logdir=shift;
-	my $n=shift;
-	my $jobid = shift;
-	my $pid=shift;
-	my $suffix = shift;
-	my $sentinel = File::Spec->catfile($logdir,"SEQMULE$n.JOB$jobid.PID.$pid.$suffix");
-
-	!system("touch $sentinel") or croak("ERROR: failed to create $sentinel\n");
-
+	#remove existing STATUS files
+	#create STATUS and PID sentinel files
+		my $opt = shift;
+	my $logdir=$opt->{logdir};
+	my $n=$opt->{step};
+	my $pid=$opt->{pid};
+	my $status=$opt->{status};
+	my $sentinel = File::Spec->catfile($logdir,$n,"STATUS.$status");
+	my $pid_file = File::Spec->catfile($logdir,$n,"PID.$pid");
+	!system("rm -f STATUS.*") or croak("failed to rm STATUS.*: $!\n");
+	&touch($sentinel);
+	&touch($pid_file);
     }
     sub getRunningPID
     {
@@ -460,8 +455,7 @@ sub run {
 		$config->write($file);
 
 		#clean up sentinel files
-		!system("rm -rf ".File::Spec->catfile($logdir,"*")) 
-		    or croak ("ERROR: failed to clean up existing sentinel files ($logdir): $!\n");
+		&syncStatus({logdir=>$logdir,config=>$config,direction=>'config2log'});
 	    }
 
 	    sub getReadableTimestamp {
@@ -500,60 +494,60 @@ sub run {
 
 		if($direction eq 'log2config') {
 		    #sync sentinel to config
-		opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
-		while(my $i = readdir($dh) ) {
-		    #$i is relative path
-		    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
-			next;
-		    } else {
-			#grab JOBID, PID, status
-		        opendir(my $dh_i,File::Spec->catfile($logdir,$i)) or croak ("ERROR: can't read $i in $logdir: $!\n");
-		my ($jobid, $pid, $status);
-		$jobid = grep { /JOBID\./ } readdir($dh_i);
-		$pid = grep { /PID\./ } readdir($dh_i);
-		$status = grep { /STATUS\./ } readdir($dh_i);
-
-		$jobid =~ s/JOBID\.(\d+)/$1/;
-		$pid =~ s/PID\.(\d+)/$1/;
-		$status =~ s/STATUS\.(\w+)/$1/;
-		    $allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $status;
-		    $allcmd->{$i}->{$CONFIG_KEYWORD{PID}} = $pid;
-		    $allcmd->{$i}->{$CONFIG_KEYWORD{JOBID}} = $jobid;
+		    opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
+		    while(my $i = readdir($dh) ) {
+			#make sure $i is relative path
+			$i = basename $i;
+			if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+			    #the first few tasks are finished, skip them altogether
+			    next;
+			} else {
+			    #grab JOBID, PID, status
+			    opendir(my $dh_i,File::Spec->catfile($logdir,$i)) or croak ("ERROR: can't read $i in $logdir: $!\n");
+			    my ($jobid, $pid, $status);
+			    while(my $j = readdir($dh_i) ) {
+				$j = basename $j;
+				if(/JOBID\.(\d+)/) {
+				    $jobid = $1;
+				} elsif (/PID\.(\d+)/) {
+				    $pid = $1;
+				} elsif (/STATUS\.(\w+)/) {
+				    $status = $1;
+				}
+			    }
+			    closedir $dh_i;
+			    #consider when these files are temporarily unavailable
+			    $allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $status if $status;
+			    $allcmd->{$i}->{$CONFIG_KEYWORD{PID}} = $pid if $pid;
+			    $allcmd->{$i}->{$CONFIG_KEYWORD{JOBID}} = $jobid if $jobid;
+			}
 		    }
-		}
+		    closedir $dh;
+		    $config->write($file);
 		} elsif($direction eq 'config2log') {
 		    #sync config to sentinel
-		    #this can only be done when no tasks are running
+		    #!!!!!
+		    #this can only be done when NO tasks are running
 		    #otherwise may mess things up
-
+		    #!!!!!
+		    for my $i(sort keys %$allcmd) {
+			if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+			    #the first few tasks are finished, skip them altogether
+			    next;
+			} else {
+			    my $task_dir = File::Spec->catfile($logdir,$i);
+			    my $i_ref = $allcmd->{$i};
+			    !system("rm -rf $task_dir") or croak("failed to rm $task_dir: $!\n");
+			    !system("mkdir $task_dir") or croak("mkdir failed $taskdir: $!\n"); 
+			    &touch(File::Spec->catfile($task_dir,"JOBID.".$i_ref->{$CONFIG_KEYWORD{JOBID}}));
+			    &touch(File::Spec->catfile($task_dir,"PID.".$i_ref->{$CONFIG_KEYWORD{PID}}));
+			    &touch(File::Spec->catfile($task_dir,"STATUS.".$i_ref->{$CONFIG_KEYWORD{STATUS}}));
+			    &writeMsg(File::Spec->catfile($task_dir,"MSG"),$i_ref->{$CONFIG_KEYWORD{MESSAGE}});
+			}
+		    }
 		} else {
-		    croak("ERROR: unknown $direction\n");
+		    croak("ERROR: unknown direction $direction\n");
 		}
-		my @sentinel_file;
-		my (@taskid,@jobid, @pid);
-		opendir(my $dh,$logdir) or croak ("ERROR: can't read $logdir: $!\n");
-		@sentinel_file = grep { /\.$status$/ } readdir($dh);
-		closedir $dh;
-		for my $i(@sentinel_file) {
-		    next unless /SEQMULE(\d+)\.JOB(\d+)\.PID(\d+)\.$status$/;
-		    push @taskid,$1;
-		    push @jobid,$2;
-		    push @pid,$3;
-		    $allcmd->{$taskid}->{$CONFIG_KEYWORD{STATUS}} = $status;
-		}
-		$config->write($file);
-		return {taskid=>\@taskid,jobid=>\@jobid,pid=>\@pid};
-	    }
-	    sub checkErr {
-		#look for SEQMULE{ID}.JOB{ID}.PID{ID}.error files
-		my $opt = shift;
-		my $logdir = $opt->{logdir};
-		my $config = $opt->{config};
-		my $file = $opt->{file};
-		my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
-
-		my $id_ref = &syncStatusBySentinel({logdir=>$logdir,file=>$file,config=>$config,status=>$ERROR});
-		return join("\n",map{$allcmd->{$_}->{$CONFIG_KEYWORD{COMMAND}}} @{$id_ref->{taskid}});
 	    }
 	    sub getScriptConfig {
 		my $file = shift;
@@ -629,9 +623,9 @@ sub run {
 		    return ();
 		}
 		sub allDone {
+		    #check if all tasks are done based on config
 		    my $allcmd = shift;
 		    my $done=1;
-
 		    for my $i(values %$allcmd) {
 			if ($i->{$CONFIG_KEYWORD{STATUS}} ne $FINISH) {
 			    $done = 0;
@@ -647,7 +641,6 @@ sub run {
 			if ($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
 			    $n += $allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
 			}
-
 		    }
 		    return $n;
 		}
@@ -697,6 +690,20 @@ sub run {
 			}
 		    }
 		}
+		sub touch {
+		    for my $i(@_) {
+			unless(-e $i) {
+			    !system("touch $i") or croak("ERROR: failed to touch $i: $!\n");
+			}
+		    }
+		}
+			    sub writeMsg {
+				my $file = shift;
+				my $msg = shift;
+				open OUT,'>',$file or croak("open($file): $!\n");
+				print OUT $msg;
+				close OUT;
+			    }
 
 		1;
 
