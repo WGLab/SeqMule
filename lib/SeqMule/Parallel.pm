@@ -9,11 +9,12 @@ use File::Spec;
 use lib File::Spec->catdir($RealBin,"..","..","lib");
 use Config::Tiny;
 use File::Basename qw/basename/;
+use Carp qw/croak carp/;
 
 #add version number, different versions of config might be incompatible
 my $VERSION = 1.2;
 my %COMPATIBLE_VERSION = ("1.2"=>1);
-my $debug=0;
+my $debug=1;
 my $splitter="-" x 10;
 #keywords used for job status
 my $WAIT = "waiting";
@@ -125,6 +126,7 @@ sub run {
     my $cpu_available = $cpu_total;
 
     croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
+    warn "DEBUG(PID:$$): about to firstscan \n" if $debug;
     &firstScan({file=>$file,
 	    config=>$config,
 	    step=>$step,
@@ -148,6 +150,7 @@ sub run {
 	    "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
 	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 	} else {
+		    warn "DEBUG(PID:$$): no error found, go on\n" if $debug;
 	    my $elapse_time=time-$start_time;
 	    $cpu_available = $cpu_total-&getUsedCPU($config);
 	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($config)) {
@@ -159,6 +162,7 @@ sub run {
 		    #    &writePID($file,$step,$id);
 		    #} else {
 		    #record pid by the execution script
+		    warn "DEBUG(PID:$$): about to execute:\n$cmd\n" if $debug;
 		    system("$cmd &");
 		    &wait2start({file=>$file,config=>$config,step=>$step});
 		    #}
@@ -234,7 +238,7 @@ sub selectSleep {
 #execute the actual command for each task
 #create/rm sentinel files accordingly
 sub single_line_exec {
-    croak("Usage: &single_line_exec({logdir=><log folder>,step=><step number>,cmd=><command and arguments>})\n")unless @_>=4;
+    croak("Usage: &single_line_exec({logdir=><log folder>,step=><step number>,cmd=><command and arguments>})\n")unless @_==1;
     my $opt = shift;
     my $logdir = $opt->{logdir};
     my $step = $opt->{step};
@@ -245,11 +249,11 @@ sub single_line_exec {
 
     #&wait2start($script,$n);
     my $success;
-    warn "DEBUG: about to fork for $msg\n" if $debug;
+    warn "DEBUG(PID:$$): about to fork for $msg\n" if $debug;
     my $pid=fork;
     if ($pid) {
 	#parent proc
-	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$START});
+	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$START});
 	my $deceased_pid=wait;
 	if ($deceased_pid==$pid) {
 	    #got the exit status of child
@@ -272,12 +276,12 @@ sub single_line_exec {
     if ($success) {
 	my $time=`date`;chomp $time;
 	my $total_min=&getTotalMin($start_time);
-	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$FINISH});
+	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$FINISH});
 	warn "[ => SeqMule Execution Status: step $step is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
     } else {
 	my $time=`date`;chomp $time;
 	my $total_min=&getTotalMin($start_time);
-	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$pid,status=>$ERROR});
+	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$ERROR});
 	die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $step FAILED at $time, $msg, $total_min min]\n";
     }
 }
@@ -305,35 +309,16 @@ sub wait2start {
     my $step = $opt->{step};
     my $config = $opt->{config};
 
-    my $step_ref = $config->{$CONFIG_KEYWORD{CMD_SECTION}}->{$step};
+    my $step_ref = $config->{$step};
     if ($step_ref->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
 	$step_ref->{$CONFIG_KEYWORD{STATUS}} = $START;
     } else {
 	#task is not waiting, something goes wrong
 	croak("ERROR: step $step is not waiting\n");
     }
-    $config->write($file);
+    #here we should not sync config with config file
+    #if this proc is stopped somewhere, we end up with incorrect exec status
 }
-sub status2error
-{
-    my $file=shift;
-    my $n=shift;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[0] == $n)
-	{
-	    $f[5]="error";
-	    $_=[@f];
-	    last;
-	}
-    }
-    &writeChange($file,@lines);
-}
-
 sub create_sentinel {
     #remove existing STATUS files
     #create STATUS and PID sentinel files
@@ -342,43 +327,14 @@ sub create_sentinel {
     my $n=$opt->{step};
     my $pid=$opt->{pid};
     my $status=$opt->{status};
-    my $sentinel = File::Spec->catfile($logdir,$n,"STATUS.$status");
-    my $pid_file = File::Spec->catfile($logdir,$n,"PID.$pid");
-    !system("rm -f STATUS.*") or croak("failed to rm STATUS.*: $!\n");
+    my $step_dir = File::Spec->catdir($logdir,$n);
+    my $sentinel = File::Spec->catfile($step_dir,"STATUS.$status");
+    my $pid_file = File::Spec->catfile($step_dir,"PID.$pid");
+    !system("rm -f ".File::Spec->catfile($step_dir,"STATUS.*")) or croak("failed to rm step $n STATUS.*: $!\n");
+    !system("rm -f ".File::Spec->catfile($step_dir,"PID.*")) or croak("failed to rm step $n STATUS.*: $!\n");
     &touch($sentinel);
     &touch($pid_file);
 }
-sub getRunningPID
-{
-    my $file=shift;
-    my @pid;
-    my @lines=&readScript($file);
-
-    for (@lines)
-    {
-	my @f=@{$_};
-	next if $f[0]=~/^#/;
-	if ($f[5] eq 'started')
-	{
-	    push @pid,$f[6];
-	}
-    }
-    return @pid;
-}
-sub writeChange
-{
-    my $script=shift;
-    my @out=@_;
-
-    open OUT,'+<',$script or die "Cannot write to $script: $!";
-    warn "DEBUG: began writing $script!\n" if $debug;
-    warn "DEBUG: ".scalar @out." lines to write!\n" if $debug;
-    seek OUT,0,0;
-    truncate OUT,0;
-    map { print OUT join("\t",@{$_}),"\n" } @out;
-    close OUT;
-}
-
 sub firstScan {
     #remove existing sentinel files in logdir
     #change job status to finished for all jobs after specified step #
@@ -390,10 +346,10 @@ sub firstScan {
 #clean up unfinished processes in config
     for my $i(1..&getTotalStep($config)) {
 	if($step) {
-	    if($i > $step) {
+	    if($i >= $step) {
 		#change all status to waiting
 		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
-	    } elsif ($i <= $step) {
+	    } elsif ($i < $step) {
 		#change all status to finished
 		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
 	    } 
@@ -405,6 +361,18 @@ sub firstScan {
 		$config->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
 		$step = $i;
 	    }
+	}
+    }
+    unless($step) {
+	$step = 1;
+	for my $i(1..&getTotalStep($config)) {
+	    if($i >= $step) {
+		#change all status to waiting
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
+	    } elsif ($i < $step) {
+		#change all status to finished
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
+	    } 
 	}
     }
     $config->write($file);
@@ -439,6 +407,7 @@ sub convertTime {
 
 sub syncStatus {
     #synchronize config file and logdir based on rules described in $SENTINEL_FILE_DESC
+    warn "DEBUG(PID:$$): about to syncstatus \n" if $debug;
     my $opt = shift;
     my $logdir = $opt->{logdir};
     my $config = $opt->{config};
@@ -451,6 +420,7 @@ sub syncStatus {
 	while(my $i = readdir($dh) ) {
 	    #make sure $i is relative path
 	    $i = basename $i;
+	    next unless $i =~ /^\d+$/;
 	    if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
 		#the first few tasks are finished, skip them altogether
 		next;
@@ -460,11 +430,11 @@ sub syncStatus {
 		my ($jobid, $pid, $status);
 		while(my $j = readdir($dh_i) ) {
 		    $j = basename $j;
-		    if(/JOBID\.(\d+)/) {
+		    if($j =~ /JOBID\.(\d+)/) {
 			$jobid = $1;
-		    } elsif (/PID\.(\d+)/) {
+		    } elsif ($j =~ /PID\.(\d+)/) {
 			$pid = $1;
-		    } elsif (/STATUS\.(\w+)/) {
+		    } elsif ($j =~ /STATUS\.(\w+)/) {
 			$status = $1;
 		    }
 		}
@@ -506,6 +476,7 @@ sub getNextCMD {
     my $config=shift;
     for my $i(1..&getTotalStep($config)) {
 	if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
+	    warn "DEBUG(PID:$$): next is step $i\n" if $debug;
 	    return (
 		$i,
 		$config->{$i}->{$CONFIG_KEYWORD{COMMAND}},
@@ -549,46 +520,60 @@ sub genTempScript {
     chmod 0755,$tmp or die "Failed to chmod 755 on $tmp\n";
     return $tmp;
 }
-
-sub checkRunningPID
-{ #if started, but not running, change status to 'error'
-    #NEEDS IMPROVEMENT OR TESTING
+sub getRunningPID {
     my $file=shift;
-    my $waiting_time=10;
-    my $second_check=0;
-    my $second_check_n;
-
-    for my $i(&readScript($file))
-    {
-	my ($n,$status,$pid)=@{$i}[0,5,6];
-	next unless $status eq 'started';
-	unless (kill 0,$pid)
-	{ #try to signal the proc, if not successful, wait a monment, try again, if failed, mark it as error
-	    #this measure avoids false error when the status is not updated immediately upon exit
-	    $second_check=1;
-	    $second_check_n=$n;
+    my $config = Config::Tiny->read($file);
+    my $logdir = $config->{$CONFIG_KEYWORD{SETTING_SECTION}}->{$CONFIG_KEYWORD{LOGDIR}};
+    my @pid;
+    &syncStatus({logdir=>$logdir,config=>$config,file=>$file,direction=>'log2config'});
+    for my $i(1..&getTotalStep($config)) {
+	if ($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
+	    push @pid,$config->{$i}->{$CONFIG_KEYWORD{PID}};
 	}
     }
-    if ($second_check)
-    {
-	sleep $waiting_time;
-	for my $i(&readScript($file))
-	{
-	    my ($n,$status,$pid)=@{$i}[0,5,6];
-	    next unless $n eq $second_check_n;
-	    unless (kill 0,$pid)
-	    { 
-		warn "ERROR: STEP $n was started, but actually not running.\n";
-		&status2error($file,$n);
-	    }
-	}
-    }
+    warn "DEBUG(PID:$$): running PID: @pid\n" if $debug;
+    warn "running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
+    return @pid;
 }
+#sub checkRunningPID
+#{ #if started, but not running, change status to 'error'
+#    #NEEDS IMPROVEMENT OR TESTING
+#    my $file=shift;
+#    my $waiting_time=10;
+#    my $second_check=0;
+#    my $second_check_n;
+#
+#    for my $i(&readScript($file))
+#    {
+#	my ($n,$status,$pid)=@{$i}[0,5,6];
+#	next unless $status eq 'started';
+#	unless (kill 0,$pid)
+#	{ #try to signal the proc, if not successful, wait a monment, try again, if failed, mark it as error
+#	    #this measure avoids false error when the status is not updated immediately upon exit
+#	    $second_check=1;
+#	    $second_check_n=$n;
+#	}
+#    }
+#    if ($second_check)
+#    {
+#	sleep $waiting_time;
+#	for my $i(&readScript($file))
+#	{
+#	    my ($n,$status,$pid)=@{$i}[0,5,6];
+#	    next unless $n eq $second_check_n;
+#	    unless (kill 0,$pid)
+#	    { 
+#		warn "ERROR: STEP $n was started, but actually not running.\n";
+#		&status2error($file,$n);
+#	    }
+#	}
+#    }
+#}
 sub checkVersion {
     my $allsetting = shift;
     my $v =$allsetting->{$CONFIG_KEYWORD{VERSION}};
-    unless($COMPATIBLE_VERSION{$v}) {
-	die "ERROR: incompatible version ($v)\n".
+    unless(defined $v && $COMPATIBLE_VERSION{$v}) {
+	die "ERROR: incompatible execution script version ".($v?$v:'')."\n".
 	"Supported versions: ".join(" ",keys %COMPATIBLE_VERSION)."\n";
     }
 }
