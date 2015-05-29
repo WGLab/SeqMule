@@ -8,4 +8,11 @@ use lib File::Spec->catdir($RealBin,"..","..","lib");
 use SeqMule::Parallel;
 
 die "Usage: $0 <log folder> <step> <commands...>\n" unless @ARGV>=3;
-&SeqMule::Parallel::single_line_exec(@ARGV);
+my $logdir = shift @ARGV;
+my $step = shift @ARGV;
+my $cmd = join(" ",@ARGV);
+&SeqMule::Parallel::single_line_exec({
+	logdir=>$logdir,
+	step=>$step,
+	cmd=>$cmd
+    });

@@ -151,11 +151,10 @@ $help||@ARGV and pod2usage ({-verbose=>1});
 &prefixCheck() if $prefix;
 &confOptCheck(); #check again after options are deteremined
 &proc_input ({
-	there is a bug with importing input
 	bam => $normal_bam,
 	fq1 => $normal_fq1,
 	fq2 => $normal_fq2,
-	somatic	=>	0,
+	tumor	=>	0,
     });
 if ($tumor_bam || $tumor_fq1 || $tumor_fq2){
     die "ERROR: cannot analyze tumor sample without normal sample.\nPlease specify -a,-b,-bam options\n" 
@@ -164,7 +163,7 @@ if ($tumor_bam || $tumor_fq1 || $tumor_fq2){
 	    bam => $tumor_bam,
 	    fq1 => $tumor_fq1,
 	    fq2 => $tumor_fq2,
-	    somatic	=>	1,
+	    tumor	=>	1,
 	});
     $somatic_toggle = 1;
 }
@@ -372,7 +371,7 @@ sub writeLog {
 
 sub procFQ {
     my $local_opt = shift;
-    my $somatic = $local_opt->{somatic};
+    my $tumor = $local_opt->{tumor};
     my @fq1_list = @{$local_opt->{fq1}};
     my @fq2_list = @{$local_opt->{fq2}};
     if ( grep { $_ !~ /\.(fq|fastq|fastq\.gz|fq\.gz)$/i } (@fq1_list,@fq2_list) ) {
@@ -410,7 +409,7 @@ sub procFQ {
 		    'lb'	=> $library[$i],
 		    'pl'    	=> $platform[$i],
 		    'rank'	=> $k,
-		    'istumor'	=> $somatic,
+		    'istumor'	=> $tumor,
 		);
 		$fq->ancestor($fq);
 		my $newfq = $fq->gen_symlink(
@@ -422,6 +421,7 @@ sub procFQ {
 			join(".",$fq->sample(),
 			    ($merge? &SeqMule::Utils::get_rank_by_mergingrule($i,$j,@merging_rule_list) : ()),
 			    $fq->rank(),
+			    ($tumor? "tumor":()),
 			    "fastq",
 			    ($fq->file()=~/\.gz$/i ? "gz" : ()), 
 			)
@@ -444,7 +444,7 @@ sub procFQ {
 
 sub procBAM {
     my $local_opt = shift;
-    my $somatic = $local_opt->{somatic};
+    my $tumor = $local_opt->{tumor};
     my @bam_list = $local_opt->{bam};
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
@@ -459,23 +459,22 @@ sub procBAM {
 	for my $i(0..$#prefix_list) {
 	    my $result_folder = &get_result_folder($prefix_list[$i]);
 	    my $onebam = SeqMule::SeqUtils->new(
-		'file'		=> File::Spec->catfile($result_folder,$prefix_list[$i].".merge.bam"),
+		'file'		=> File::Spec->catfile($result_folder,$prefix_list[$i].($tumor? "tumor":"").".merge.bam"),
 		'filetype'	=> 'BAM',
 		'sample'	=> $prefix_list[$i],
-		'istumor'	=> $somatic,
+		'istumor'	=> $tumor,
 	    );
 	    #although aligner information is unavaiable, we still need it to figure out
 	    #one_aligner_bam later
 	    $onebam->aligner('NA');
 	    my @bam_idx_range = &SeqMule::Utils::gen_idx_range_by_mergingrule($i,@merging_rule_list);
 	    my @one_sample_input_bam;
-	    for my $j(@bam_idx_range)
-	    {
+	    for my $j(@bam_idx_range) {
 		my $obj = SeqMule::SeqUtils->new( 	
 		    'file'	=> $bam_list[$j],
 		    'filetype'	=> 'BAM',
 		    'sample'	=> $prefix_list[$i],
-		    'istumor'	=> $somatic,
+		    'istumor'	=> $tumor,
 		);
 		$obj->aligner('NA');
 		#only one sample is allowed in each BAM, so we can safely 
@@ -499,7 +498,7 @@ sub procBAM {
 		'file'	=> $bam_list[$i],
 		'filetype'	=> 'BAM',
 		'sample'	=> $prefix_list[$i],
-		'istumor'	=> $somatic,
+		'istumor'	=> $tumor,
 	    );
 	    $original_bam->aligner('NA');
 
@@ -510,11 +509,12 @@ sub procBAM {
 	    $original_bam->ancestor($original_bam);
 	    my $newbam = $original_bam->gen_symlink(
 		File::Spec->catfile(
-		    $result_folder,$original_bam->sample().".bam"
+		    $result_folder,$original_bam->sample().
+		    ($tumor? "tumor":"").
+		    ".bam"
 		),$overwrite);
 	    push @obj_list,$newbam;
 	}
-
 	&checkBAMSample($samtools,@obj_list);
     }
     #check contig, try to resolve inconsistency
@@ -714,7 +714,7 @@ sub proc_input {
     my $fq1 = $local_opt->{fq1};
     my $fq2 = $local_opt->{fq2};
     my $bam = $local_opt->{bam};
-    my $somatic = $local_opt->{somatic};
+    my $tumor = $local_opt->{tumor};
 
     &input_opt_check({fq1=>$fq1,fq2=>$fq2,bam=>$bam});
     #parse FQ file names
@@ -725,11 +725,11 @@ sub proc_input {
     @bam_list= map { &SeqMule::Utils::abs_path_failsafe($_) } @bam_list;
 
     &checkMerge(@fq1_list + @bam_list); #check if merging rule is reasonable based on number of samples and files, this must be done even if merging is not enabled
-    if ($multi_sample_calling && $somatic){
+    if ($multi_sample_calling && $tumor){
 	die "ERROR: somatic calling and multi-sample calling cannot be done at the same time.\n" 
     }
-    &procFQ({fq1=>\@fq1_list,fq2=>\@fq2_list,somatic=>$somatic,}) if $fq1;
-    &procBAM({bam=>\@bam_list,somatic=>$somatic,}) if $bam;
+    &procFQ({fq1=>\@fq1_list,fq2=>\@fq2_list,tumor=>$tumor,}) if $fq1;
+    &procBAM({bam=>\@bam_list,tumor=>$tumor,}) if $bam;
 }
 sub checkMerge {
     my $file_count = shift;

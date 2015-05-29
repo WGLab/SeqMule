@@ -96,7 +96,7 @@ for my $q("","-quick")
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $j=~/varscan|samtools/i && $j!~/gatk|freebayes/i && $count >= 0 && $count <=0;
+		&exec(@cmd) if $count == 0;
 		$count++;
 	}
     }
