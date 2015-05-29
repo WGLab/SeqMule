@@ -22,14 +22,13 @@ my $prefix="part";
 my @first_fq=("5181-2_S1-1_L001_R1_001.fastq","5181-2_S1_L001_R1_001.fastq");
 my @second_fq=("5181-2_S1-1_L001_R2_001.fastq","5181-2_S1_L001_R2_001.fastq");
 my $merge_prefix="R12";
-my $merge_capture="/home/yunfeiguo/projects/data/test/merge_capture.bed";
+my $merge_capture="/home/yunfeiguo/projects/SeqMule/testrun/test/merge_capture.bed";
 #for somatic
 my @normal_fq = ("normal_R1.fastq.gz","normal_R2.fastq.gz");
 my @tumor_fq = ("tumor_R1.fastq.gz","tumor_R2.fastq.gz");
 my $somatic_prefix = "R12somatic";
 my $somatic_capture="/home/yunfeiguo/projects/SeqMule/testrun/test/merge_capture.bed";
 
-for ($first_fq,$second_fq,@first_fq,@second_fq,@normal_fq,@tumor_fq) {$_ = File::Spec->catfile($data_folder,$_); } ;
 my @config_files=glob "$config_folder/*.config";
 
 #$basic="$exe pipeline -prefix $prefix -a $first_fq -b $second_fq -e -capture default -t $ncpu -jmem $jmem -gatknt $gatknt";
@@ -81,7 +80,7 @@ for my $q("","-quick")
 		}
 		for (@target_files)
 		{
-		    my $target=File::Spec->catfile($test_folder,$_);
+		    my $target=File::Spec->catfile($data_folder,$_);
 		    push @cmd,"ln -sf $target .";
 		}
 		if($j=~/snap/i)
@@ -96,7 +95,7 @@ for my $q("","-quick")
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $j=~/varscan|samtools/i && $j!~/gatk|freebayes/i && $count >= 0 && $count <=0;
+		&exec(@cmd) if $count == 0;
 		$count++;
 	}
     }
