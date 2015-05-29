@@ -87,7 +87,6 @@ sub writeParallelCMD {
 	$CONFIG_KEYWORD{CPUTOTAL} => $cpu_total,
 	$CONFIG_KEYWORD{LOGDIR} => $logdir,
     };
-    $config->{$CONFIG_KEYWORD{CMD_SECTION}} = {};
     for my $i(1..@cmd) {
 	#each element of @cmd is array reference [ncpu_request,msg,command]
 	@{$cmd[$i-1]} == 3 or croak("3 fields in commands expected (step $i).\n");
@@ -97,7 +96,7 @@ sub writeParallelCMD {
 	$cmd_line = "$worker $logdir $i $cmd_line";
 	croak("ERROR: No shell meta characters allowed: $cmd_line\n") if $cmd_line=~/[\?\>\<\|\;\&\$\#\`\(\)]/;
 	#comments are not allowed
-	$config->{$CONFIG_KEYWORD{CMD_SECTION}}->{$i} = {
+	$config->{$i} = {
 	    $CONFIG_KEYWORD{COMMAND} => $cmd_line,
 	    $CONFIG_KEYWORD{MESSAGE} => $msg,
 	    $CONFIG_KEYWORD{NCPU_REQUEST} => $ncpu_request,
@@ -117,13 +116,12 @@ sub run {
     my $qsub=shift;
 
     my $config = Config::Tiny->read($file);
-    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
     my $allsetting = $config->{$CONFIG_KEYWORD{SETTING_SECTION}};
     &checkVersion($allsetting);
 
     my $logdir = $allsetting->{$CONFIG_KEYWORD{LOGDIR}} or croak("ERROR: no log folder: $file\n");
     my $cpu_total = $allsetting->{$CONFIG_KEYWORD{CPUTOTAL}} or croak ("ERROR: no total number of CPUs: $file\n");
-    my $step_total = scalar (keys %{$allcmd}) or croak("ERROR: no steps: $file\n");
+    my $step_total = &getTotalStep($config);
     my $cpu_available = $cpu_total;
 
     croak("ERROR: Negative number of CPUs!\n") if $cpu_total<=0;
@@ -139,8 +137,8 @@ sub run {
 	&selectSleep($step_total);
 	&syncStatus({logdir=>$logdir,config=>$config,file=>$file,direction=>'log2config'});
 	if(my $cmd = join("\n",
-		map{$allcmd->{$_}->{$CONFIG_KEYWORD{COMMAND}}} 
-		(grep {$allcmd->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR} (keys %$allcmd))
+		map{$config->{$_}->{$CONFIG_KEYWORD{COMMAND}}} 
+		(grep {$config->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR} (1..$step_total))
 	    ) ) {
 	    #grep failed tasks
 	    my $cwd=`pwd`; chomp $cwd;
@@ -151,8 +149,8 @@ sub run {
 	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 	} else {
 	    my $elapse_time=time-$start_time;
-	    $cpu_available = $cpu_total-&getUsedCPU($allcmd);
-	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($allcmd)) {
+	    $cpu_available = $cpu_total-&getUsedCPU($config);
+	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($config)) {
 		if($cpu_available>=$cpu_request) {
 		    #if ($qsub) {
 		    #    #record job ID
@@ -168,7 +166,7 @@ sub run {
 		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
 		}
 	    } else {
-		if (&allDone($allcmd)) {
+		if (&allDone($config)) {
 		    warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
 		    warn "Total time: ",&convertTime($elapse_time),"\n";
 		    last;
@@ -389,23 +387,22 @@ sub firstScan {
     my $config = $opt->{config};
     my $step= $opt->{step};
     my $logdir = $opt->{logdir};
-    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
 #clean up unfinished processes in config
-    for my $i(sort keys %{$allcmd}) {
+    for my $i(1..&getTotalStep($config)) {
 	if($step) {
 	    if($i > $step) {
 		#change all status to waiting
-		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $WAIT;
 	    } elsif ($i <= $step) {
 		#change all status to finished
-		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $FINISH;
 	    } 
 	} else {
 	    #find last finished step when step is not defined
 	    #change started/error to waiting after last finished step
-	    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
-		next if defined $allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} and 
-		$allcmd->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
+	    if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+		next if defined $config->{$i+1}->{$CONFIG_KEYWORD{STATUS}} and 
+		$config->{$i+1}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH;
 		$step = $i;
 	    }
 	}
@@ -440,17 +437,6 @@ sub convertTime {
 }
 ##########################################
 
-sub getTotalStep {
-    my $file=shift;
-    my @lines=&readScript($file);
-
-    my @last_f=@{$lines[$#lines]};
-    if ($last_f[0]=~/^(\d+)$/) {
-	return $1;
-    } else {
-	return 0;
-    }
-}
 sub syncStatus {
     #synchronize config file and logdir based on rules described in $SENTINEL_FILE_DESC
     my $opt = shift;
@@ -458,7 +444,6 @@ sub syncStatus {
     my $config = $opt->{config};
     my $file = $opt->{file};
     my $direction = $opt->{direction}; #log2config, config2log
-    my $allcmd = $config->{$CONFIG_KEYWORD{CMD_SECTION}};
 
     if($direction eq 'log2config') {
 	#sync sentinel to config
@@ -466,7 +451,7 @@ sub syncStatus {
 	while(my $i = readdir($dh) ) {
 	    #make sure $i is relative path
 	    $i = basename $i;
-	    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+	    if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
 		#the first few tasks are finished, skip them altogether
 		next;
 	    } else {
@@ -485,9 +470,9 @@ sub syncStatus {
 		}
 		closedir $dh_i;
 		#consider when these files are temporarily unavailable
-		$allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} = $status if $status;
-		$allcmd->{$i}->{$CONFIG_KEYWORD{PID}} = $pid if $pid;
-		$allcmd->{$i}->{$CONFIG_KEYWORD{JOBID}} = $jobid if $jobid;
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} = $status if $status;
+		$config->{$i}->{$CONFIG_KEYWORD{PID}} = $pid if $pid;
+		$config->{$i}->{$CONFIG_KEYWORD{JOBID}} = $jobid if $jobid;
 	    }
 	}
 	closedir $dh;
@@ -498,13 +483,13 @@ sub syncStatus {
 	#this can only be done when NO tasks are running
 	#otherwise may mess things up
 	#!!!!!
-	for my $i(sort keys %$allcmd) {
-	    if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+	for my $i(1..&getTotalStep($config)) {
+	    if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
 		#the first few tasks are finished, skip them altogether
 		next;
 	    } else {
 		my $task_dir = File::Spec->catfile($logdir,$i);
-		my $i_ref = $allcmd->{$i};
+		my $i_ref = $config->{$i};
 		!system("rm -rf $task_dir") or croak("failed to rm $task_dir: $!\n");
 		!system("mkdir $task_dir") or croak("mkdir failed $task_dir: $!\n"); 
 		&touch(File::Spec->catfile($task_dir,"JOBID.".$i_ref->{$CONFIG_KEYWORD{JOBID}}));
@@ -518,14 +503,14 @@ sub syncStatus {
     }
 }
 sub getNextCMD {
-    my $allcmd=shift;
-    for my $i(sort keys %$allcmd) {
-	if($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
+    my $config=shift;
+    for my $i(1..&getTotalStep($config)) {
+	if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
 	    return (
 		$i,
-		$allcmd->{$i}->{$CONFIG_KEYWORD{COMMAND}},
-		$allcmd->{$i}->{$CONFIG_KEYWORD{MESSAGE}},
-		$allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}},
+		$config->{$i}->{$CONFIG_KEYWORD{COMMAND}},
+		$config->{$i}->{$CONFIG_KEYWORD{MESSAGE}},
+		$config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}},
 	    );
 	}
     }
@@ -533,9 +518,9 @@ sub getNextCMD {
 }
 sub allDone {
     #check if all tasks are done based on config
-    my $allcmd = shift;
+    my $config = shift;
     my $done=1;
-    for my $i(values %$allcmd) {
+    for my $i(map{$config->{$_}} 1..&getTotalStep($config)) {
 	if ($i->{$CONFIG_KEYWORD{STATUS}} ne $FINISH) {
 	    $done = 0;
 	}
@@ -543,12 +528,12 @@ sub allDone {
     return $done;
 }
 sub getUsedCPU {
-    my $allcmd=shift;
+    my $config=shift;
     my $n=0;
 
-    for my $i(keys %{$allcmd}) {
-	if ($allcmd->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
-	    $n += $allcmd->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
+    for my $i(1..&getTotalStep($config)) {
+	if ($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
+	    $n += $config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
 	}
     }
     return $n;
@@ -620,6 +605,11 @@ sub writeMsg {
     open OUT,'>',$file or croak("open($file): $!\n");
     print OUT $msg;
     close OUT;
+}
+sub getTotalStep {
+    my $config = shift;
+    my $step_total = scalar (grep {/^\d+$/} (keys %{$config})) or croak("ERROR: no steps found\n");
+    return $step_total;
 }
 
 1;

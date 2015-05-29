@@ -99,7 +99,13 @@ sub write_string {
 	my $self = shift;
 
 	my $contents = '';
-	foreach my $section ( sort { (($b eq '_') <=> ($a eq '_')) || ($a cmp $b) } keys %$self ) {
+	#Yunfei Guo
+	#@list = (1,10,11,3,9,27,"cmd","_","d","f",999);
+	#sorted = _ cmd d f 1 3 9 10 11 27 999
+	foreach my $section ( sort { (($b eq '_') <=> ($a eq '_')) ||
+	    ( ($a =~ /^\d+$/) <=> ($b =~ /^\d+$/) ) ||
+	    ( ($a =~ /^\d+$/ && $b =~ /^\d+$/) ?  ($a <=> $b) : 0) || 
+	    ($a cmp $b) } keys %$self ) {
 		# Check for several known-bad situations with the section
 		# 1. Leading whitespace
 		# 2. Trailing whitespace
