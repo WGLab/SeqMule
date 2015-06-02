@@ -10,9 +10,9 @@ my $ncpu=4;
 my $mem="6g"; #request larger mem for GATK
 my $jmem="2500m";
 my $gatknt=4;
-my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
+my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/data/test";
-my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
+my $config_folder="/home/yunfeiguo/projects/SeqMule_dev/misc/predefined_config";
 #for no merge, no ms
 my $first_fq="part.1.fastq";
 my $second_fq="part.2.fastq";
@@ -90,7 +90,7 @@ for my $q("","-quick")
 		push @cmd, "cd $test_folder";
 
 		#&exec(@cmd) if grep{$count==$_} (84,86,88,90,92,96,98);
-		&exec(@cmd) if $j=~/snap/i;
+		&exec(@cmd) if $count==0;
 		$count++;
 	}
     }
