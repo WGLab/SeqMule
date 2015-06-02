@@ -10,3 +10,5 @@ rlib/*
 paper/*
 test*
 misc/other_scripts/*
+example_data/*
+testrun/*
