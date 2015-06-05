@@ -7,7 +7,14 @@ use Carp;
 use SeqMule::Utils;
 
 #allowed filetypes
-my %FILETYPE = (FASTQ=>1,BAM=>1,VCF=>1,SOAPALN=>1);
+#STATS is file containing meta data, summary statistics about results
+my %FILETYPE = (FASTQ=>1,
+    BAM=>1,
+    VCF=>1,
+    SOAPALN=>1,
+    STATS=>1, #stats, summary file
+    BAI=>1, #bam index
+);
 my $id = 0;
 sub new
 {
@@ -21,7 +28,7 @@ sub new
     return bless {
 	'file'		=>$arg{'file'} || croak ("No file path\n"),
 	'filetype'	=>$arg{'filetype'} || croak ("No file type\n"),
-	'sample'	=>$arg{'sample'}	|| croak ("No sample\n"), 
+	'sample'	=>($arg{'filetype'} eq 'STATS'? undef : ($arg{'sample'}	|| croak ("No sample\n"))), 
 	'rg'		=>$arg{'rg'} || 'READGROUP',
 	'lb'		=>$arg{'lb'} || 'LIBRARY',
 	'pl'    	=>$arg{'pl'} || 'PLATFORM',
@@ -52,16 +59,14 @@ sub new
     }, $class;
 }
 
-sub dump
-{
+sub dump {
     my $self = shift;
     while (my ($key,$value) = each %{$self}) {
 	print "$key:$value ";
     }
     print "\n";
 }
-sub get_attr_enum
-{
+sub get_attr_enum {
     #add get_attr_enum method for obtaining all different values of a particular
     #attribute across all objects
     my ($class,$attr,@obj) = @_;
@@ -226,8 +231,7 @@ sub rmSelf
 
     $self->_setAttr($attr,[@newarray]);
 }
-sub rmObjArrayDup
-{
+sub rmObjArrayDup {
     #remove duplicate objects from attribute array
     my $self = shift;
     my $attr = shift;
@@ -247,8 +251,7 @@ sub rmObjArrayDup
 
     $self->_setAttr($attr,[@newarray]);
 }
-sub rmArrayDup
-{
+sub rmArrayDup {
     #remove duplicate element(not reference) from attribute array
     my $self = shift;
     my $attr = shift;
@@ -267,8 +270,7 @@ sub rmArrayDup
 
     $self->_setAttr($attr,[@newarray]);
 }
-sub ancestor
-{
+sub ancestor {
     #get or set ancestor (where current obj comes from)
     my $self = shift;
     my @ancestor = @_;
@@ -296,8 +298,7 @@ sub sibling {
 	return @{$self->{sibling}};
     }
 }
-sub parent
-{
+sub parent {
     #get or set parent (where current obj comes from)
     my $self = shift;
     my @parent = @_;
@@ -324,8 +325,7 @@ sub child
 	return @{$self->{child}};
     }
 }
-sub _setAttr
-{
+sub _setAttr {
     #erase everything existing
     #set attr to specified arguments
     my $self = shift;
@@ -333,21 +333,17 @@ sub _setAttr
     my $value = shift;
     $self->{$attr} = $value;
 }
-sub istumor
-{
+sub istumor {
     #get or set tumor flag
     my $self = shift;
     my $istumor = shift;
-    if(defined $istumor)
-    {
+    if(defined $istumor) {
 	$self->{istumor} = $istumor;
-    } else
-    {
+    } else {
 	return $self->{istumor};
     }
 }
-sub sample
-{
+sub sample {
     #get or set sample
     my $self = shift;
     my $sample = shift;
@@ -359,27 +355,21 @@ sub sample
 	return $self->{sample};
     }
 }
-sub filetype
-{
+sub filetype {
     #get or set file path
     my $self = shift;
     my $type = shift;
-    if(defined $type)
-    {
-	if($FILETYPE{$type})
-	{
+    if(defined $type) {
+	if($FILETYPE{$type}) {
 	    $self->{filetype} = $type;
-	} else
-	{
+	} else {
 	    croak("$type is not allowed, use ",keys %FILETYPE," \n");
 	}
-    } else
-    {
+    } else {
 	return $self->{filetype};
     }
 }
-sub file
-{
+sub file {
     #get or set file path
     my $self=shift;
     my $file = shift;

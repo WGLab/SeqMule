@@ -2,29 +2,40 @@
 
 use strict;
 use warnings;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
 
-die "Usage: $0 <fastq or bam file> <alias> <out>\n" unless @ARGV==3;
+my (@file,@alias,$out,$help);
+@ARGV or pod2usage ({-exitval=>2});
+GetOptions(
+    #input and output
+    'file=s'		=>	\@file,
+    'alias=s'		=>	\@alias,
+    'out=s'		=>	\$out,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+die "ERROR: expect same number of files and aliases\n" unless @file == @alias;
 
-my $file=shift @ARGV;
-my $alias=shift @ARGV;
-my $out=shift @ARGV;
+warn "WARNING: existing $out will be removed" and !system("rm -rf $out") if -e $out;
+for my $i(0..$#file) {
+    my $file = $file[$i];
+    my $alias = $alias[$i];
+    die "Input FASTQ file must have .fq or .fastq suffix, input BAM file must have .bam suffix: $file\n" unless $file=~/(.*)\.(fq|fastq|fq\.gz|fastq\.gz|bam)$/i;
 
-die "Input FASTQ file must have .fq or .fastq suffix, input BAM file must have .bam suffix\n" unless $file=~/(.*)\.(fq|fastq|fq\.gz|fastq\.gz|bam)$/i;
-
-my $folder= ($2 eq 'fq' ? $file : $1)."_fastqc";
-my $summary= ($2 eq 'fq' ? $file : $1)."_fastqc/summary.txt";
-open OUT,'>>',$out or die "Can't write to $out: $!\n";
-if (-f $summary)
-{
-    open IN,'<',$summary or die "Cannot open $summary: $!\n";
-    print OUT "$alias=QC stats\n";
-    while(<IN>)
-    {
-	print OUT "$2=$1\n" if /(PASS|FAIL|WARN)\t(.*?)\t/;
+    my $folder= ($2 eq 'fq' ? $file : $1)."_fastqc";
+    my $summary= File::Spec->catfile($folder,"summary.txt");
+    open OUT,'>>',$out or die "Can't write to $out: $!\n";
+    if (-f $summary) {
+	open IN,'<',$summary or die "Cannot open $summary: $!\n";
+	print OUT "$alias=QC stats\n";
+	while(<IN>) {
+	    print OUT "$2=$1\n" if /(PASS|FAIL|WARN)\t(.*?)\t/;
+	}
+	close IN;
+    } else {
+	warn "Cannot find $file report.\n";
     }
-    close IN;
-} else
-{
-    warn "Cannot find $file report.\n";
+    close OUT;
 }
-close OUT;

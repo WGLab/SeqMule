@@ -70,6 +70,16 @@ MSG
 HEREDOC
 
 sub writeParallelCMD {
+    #take an array of hashes
+    #each hash looks like:
+    #{
+    #	     nCPU_requested=>$threads,
+    #        message	=>	"QC assesment on input",
+    #        command	=>	"$fastqc --extract ".($threads >=2 ? " -t $threads ":" ").$i->file(),
+    #        in		=>	[$i],
+    #        out	=>	[],
+    #    }
+    #empty in or out means the no dependency for SeqUtils obj (but rather other existing stuff)
     croak("Usage: &writeParallelCMD({worker=>path_to_worker,file=>,cpu_total=>,cmd=>,})\n") unless @_ == 1;
     my $opt = shift;
     my $worker = $opt->{worker};

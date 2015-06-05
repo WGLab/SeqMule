@@ -16,6 +16,7 @@ my (
     $ref,    $local_threads,    $gatk_nt, 
     $pl,$kg,$hapmap,$goldindel,$dbsnp,
     $bam,$out,
+    $samtools,
     $help,$advanced,    $n,$tmpdir,);
 @ARGV or pod2usage ({-exitval=>2});
 
@@ -23,6 +24,7 @@ GetOptions(
     #input and output
     'bed=s'		=>	\$capture,
     'java=s'		=>	\$java,
+    'samtools=s'	=>	\$samtools,
     'jmem=s'		=>	\$java_mem,
     'gatk=s'		=>	\$gatk,
     'ref=s'		=>	\$ref,
@@ -71,7 +73,8 @@ $cmd.=" -L $capture" if $capture;
 $cmd.=" $options{additional} " if $options{additional} ne '';
 push @cmd,$cmd;
 
-push @cmd,"rm $interval_file";
+push @cmd,"rm -rf $interval_file";
+push @cmd,"$samtools index $out";
 my $script = &SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 #------------------------------------------------------------
