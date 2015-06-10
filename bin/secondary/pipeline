@@ -583,7 +583,7 @@ sub procBAM {
 	    out		=>[$newbam_obj],
 	};
 	$local_bam_obj = $newbam_obj; 
-	push @removable,$newbam_obj->file();
+	push @removable,$newbam_obj;
     }
 }
 
@@ -1162,7 +1162,7 @@ sub gen_aligner_cmd {
 	    $cmd.=" -soapaln $alnfile";
 
 	    push @obj_list,$local_soapaln_obj;
-	    push @removable,$alnfile;
+	    push @removable,$local_soapaln_obj;
 	} elsif ($aligner eq 'snap') {
 	    my $interleave_fq = &getExe(&SeqMule::Utils::getProgramExe("interleave_fastq"));
 	    $cmd .= " -interleave_fq $interleave_fq ";
@@ -1175,7 +1175,7 @@ sub gen_aligner_cmd {
 	    out			=>	[@out_obj_list],
 	};
 	push @obj_list,$local_bam_obj;
-	push @removable,$local_bam;
+	push @removable,$local_bam_obj;
     }
 }
 sub samtools {
@@ -1237,7 +1237,7 @@ sub samtools {
 		    }
 		    #save merged obj in obj_list
 		    push @obj_list,$onebam_obj; 
-		    push @removable,$onebam_obj->file();
+		    push @removable,$onebam_obj();
 		}
 	    }
 	}
@@ -1260,9 +1260,8 @@ sub samtools {
 		command		=>	[$cmd],
 		in		=>	[$i],
 		out		=>	[$new_obj],
-
 	    };
-	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
+	    push @removable,$i; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
 	    $i=$new_obj;
 	}
     }elsif ($subprogram=~/mpileup/i) {
@@ -1330,7 +1329,7 @@ sub samtools {
 		in			=>	[$i],
 		out			=>	[$new_obj],
 	    };
-	    push @removable,$bam; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
+	    push @removable,$i; #this bam is no long essential for downstream analysis, can be deleted at user's discretion
 	    $i = $new_obj;
 	}
     }else {die "ERROR: Unrecognized subprogram for SAMtools: $subprogram\n"}
@@ -1552,7 +1551,7 @@ sub gen_gatk_realign_recal_cmd {
 	#$local_bam_obj = $newbam_obj; 
 	warn "1483";
 	#push @newbam_obj_list,$newbam_obj;
-	push @removable,$newbam;
+	push @removable,$newbam_obj;
     }
     warn "1487";
     check_obj(@obj_list);
@@ -1677,7 +1676,7 @@ sub picard {
 		out			=>	[$newbam_obj],
 	    }
 	    $local_bam_obj = $newbam_obj;
-	    push @removable,$newbam;
+	    push @removable,$newbam_obj;
 	}
     } else {
 	die "ERROR: Unrecognized subprogram for picard: $subprogram\n";
@@ -2023,20 +2022,25 @@ sub genScript
 #copy all results of each individual sample to one folder
 
     unless ($noremove) {
-	&keepUseful;
+	my @removable_files = &keepUseful;
 	push @commands,{
-	    nCPU_requested		=>	$threads,
+	    nCPU_requested		=>	1,
 	    message			=>	"Remove intermediate files",
-	    command			=>	["rm -f @removable"],
-	    in				=>	[],
+	    command			=>	["rm -f @removable_files"],
+	    in				=>	[@removable],
 	    out				=>	[],
 	} if (@removable);
     }
     if (@script_unlink_list) {
 	#-f makes rm keep silent if the file doesn't exist
-	push @commands,[$threads,"Remove temporary files","rm -rf @script_unlink_list"];
+	push @commands,{
+	    nCPU_requested		=>	1,
+	    message			=>	"Remove temporary files",
+	    command			=>	["rm -rf @script_unlink_list"],
+	    in				=>	[@obj_list],
+	    out				=>	[],
+	}
     }
-
     &writeLog;
     &genReport() unless ($nostat);
     #generate analysis script
@@ -2044,11 +2048,13 @@ sub genScript
 }
 sub keepUseful {
     my @index_files;
+    my @removable_files;
     for (@removable) {
-	push @index_files,"$1.bai" if /(.*?)\.bam$/i;
-	push @index_files,"$1.idx" if /(.*?)\.vcf$/i;
+	push @index_files,"$1.bai" if $_->file =~ /(.*?)\.bam$/i;
+	push @index_files,"$1.idx" if $_->file =~ /(.*?)\.vcf$/i;
     }
-    @removable=(@removable,@index_files);
+    push @removable_files,@index_files;
+    return @removable_files;
 }
 sub genReport {
     my $outdir="${analysis_prefix}_report";
@@ -2060,11 +2066,12 @@ sub genReport {
 
     warn "NOTICE: copying configuration file and log file.\n";
     !system("cp -f $advanced $param_file") and !system("cp -f $log $log_file") or die "Failed to copy configuration or log file: $!\n";
-    push @commands,{nCPU_requested	=>	$threads,
+    push @commands,{
+	nCPU_requested	=>	1,
 	message		=>	"Generating html report",
-	command		=>	"$html_gen $outdir @prefix_list",
-	in		=>	obj with STATS type,
-	out		=>	obj with STATS type,
+	command		=>	["$html_gen $outdir @prefix_list"],
+	in		=>	[grep {$_->filetype eq 'STATS'} @obj_list],
+	out		=>	[],
     };
 }
 #generate various stats used in reports
@@ -2086,13 +2093,24 @@ sub genStat
 	{
 	    #we don't include consensus results as they are extracted from other VCFs
 	    my @venn_obj = grep { $_->filetype eq 'VCF' and $_->caller ne 'consensus'} @per_sample_obj;
+	    my $venn_stat_obj = $venn_obj[0]->clone();
+	    $venn_stat_obj->filetype('STATS');
+	    $venn_stat_obj->file('NA'); #this obj is only used for resolving dependency
+	    $venn_stat_obj->parent(@venn_obj);
+	    map {$_->child($_->child,$venn_stat_obj)} @venn_obj;
 	    my $cmd_common = "$seqmule stats -tmpdir $TMPDIR ".
 	    #each VCF may contain multiple samples
 	    #sample names will match samples associated with obj for FASTQ/BAM with/without merging
 	    " -prefix $stat_prefix -ref $local_ref -s $sample ";
 
 	    if(@venn_obj <= 5 && @venn_obj >=2) {
-		push @commands,[$threads,"Generate Venn digram","$cmd_common -venn ".join(',',(map {$_->file()} @venn_obj))];
+		push @commands,{
+		    nCPU_requested		=>	1,
+		    message			=>	"Generate Venn digram",
+		    command			=>	["$cmd_common -venn ".join(',',(map {$_->file()} @venn_obj))],
+		    in				=>	[@venn_obj],
+		    out				=>	[$venn_stat_obj],
+		};
 	    } else {
 		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
 	    }
@@ -2101,15 +2119,36 @@ sub genStat
 	#only output statistics about one BAM, can be improved later
 	if (my ($bam_obj)=grep { $_->filetype eq 'BAM' } (@per_sample_obj)) {#only report one BAM 
 	    my $bam = $bam_obj->file();
+	    my $bam_stat_obj = $bam_obj->clone();
+	    $bam_stat_obj->filetype('STATS');
+	    $bam_stat_obj->file('NA'); #this obj is only used for resolving dependency
+	    $bam_stat_obj->parent($bam_obj);
+	    $bam_obj->child($bam_obj->child,$bam_stat_obj);
 	    warn "NOTICE: SeqMule only reports statistics from ONE BAM file.\n";
-	    push @commands,[$threads,"Generate alignment and coverage stat",
-		"$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix ".($wes?" -capture $capture ":"")];
+	    push @commands,{
+		nCPU_requested			=>	1,
+		messsage			=>	"Generate alignment and coverage stat",
+		command				=>	["$seqmule stats -tmpdir $TMPDIR -bam $bam -aln -prefix $stat_prefix ".($wes?" -capture $capture ":"")],
+		in				=>	[$bam_obj],
+		out				=>	[$bam_stat_obj],
+	    };
 	}
 	#output variant statistics
 	if (my @vcf_obj = grep { $_->filetype eq 'VCF' } (@per_sample_obj)) {
 	    my @vcf = map{$_->file()} @vcf_obj;
+	    my $var_stat_obj = $vcf_obj[0]->clone();
+	    $var_stat_obj->filetype('STATS');
+	    $var_stat_obj->file('NA'); #this obj is only used for resolving dependency
+	    $var_stat_obj->parent(@vcf_obj);
+	    map {$_->child($_->child,$var_stat_obj)} @vcf_obj;
 	    my $genVarStat=File::Spec->catfile($install_dir,"bin/secondary/genVarStat");
-	    push @commands,[$threads,"Generate variant stat","$genVarStat -s $sample $stat_prefix @vcf"];
+	    push @commands,{
+		nCPU_requested			=>	1,
+		message				=>	"Generate variant stat",
+		command				=>	["$genVarStat -s $sample $stat_prefix @vcf"],
+		in				=>	[@vcf_obj],
+		out				=>	[$var_stat_obj],
+	    };
 	}
     }
 }
@@ -2140,8 +2179,8 @@ sub mergeVCF
 	my ($local_prefix) = $vcf_obj->file() =~ /(.*?)\.vcf$/i;
 	my $merged_vcf_obj = $vcf_obj->clone();
 	my $expect_merged_vcf_obj = $vcf_obj->clone();
-	my $out_file="${local_prefix}_union.vcf";
-	my $expect_out_file="$local_prefix.vcf";
+	my $out_file="${local_prefix}_union.vcf"; #file content is correct, name isn't
+	my $expect_out_file="$local_prefix.vcf"; #this is what we want
 
 	$merged_vcf_obj->file($out_file);
 	$merged_vcf_obj->parent(@sibling_vcf_obj);
@@ -2149,9 +2188,16 @@ sub mergeVCF
 	$expect_merged_vcf_obj->parent($merged_vcf_obj);
 	map {$_->child($merged_vcf_obj)} @sibling_vcf_obj;
 
-	push @commands,[$threads,"Merge split VCF",&vcf_merge_cmd_gen($local_prefix,map{$_->file()}@sibling_vcf_obj)];
-	push @commands,[$threads,"Rename VCF","mv -f $out_file $expect_out_file"];
-
+	push @commands,{
+	    nCPU_requested		=>	1,
+	    message			=>	"Merge split VCF",
+	    command			=>	[
+		&vcf_merge_cmd_gen($local_prefix,map{$_->file()}@sibling_vcf_obj),
+		"mv -f $out_file $expect_out_file",
+	    ],
+	    in				=>	[@sibling_vcf_obj],
+	    out				=>	[$expect_merged_vcf_obj],
+	};
 	push @obj_list,$expect_merged_vcf_obj;
 	#only siblings here!!, why?
 	#the vcf_obj->file() will be used as name of merged VCF
@@ -2204,7 +2250,13 @@ sub getConsensusCall
 		@vcf_obj)
 	);
 	$cmd .= " -p $out_prefix ";
-	push @commands,[$threads,"Extract consensus calls",$cmd];
+	push @commands,{
+	    nCPU_requested		=>	1,
+	    message			=>	"Extract consensus calls",
+	    command			=>	[$cmd],
+	    in				=>	[@vcf_obj],
+	    out				=>	[$new_vcf_obj],
+	};
 	push @obj_list,$new_vcf_obj;
 	#right now we keep all VCFs
 	#SeqMule::SeqUtils->rmObjFromArray(
@@ -2233,9 +2285,15 @@ sub extractVar {
 
 	    my $cmd = $cmd_common;
 	    $cmd .= " -vcf $vcf -p $local_prefix";
-	    push @commands,[$threads,"Extract variants in custom regions",$cmd];
+	    push @commands,{
+		nCPU_requested		=>	1,
+		message			=>	"Extract variants in custom regions",
+		command			=>	[$cmd],
+		in			=>	[$vcf_obj],
+		out			=>	[$new_vcf_obj],
+	    };
 	    $vcf_obj = $new_vcf_obj;
-	    push @removable,$vcf;
+	    push @removable,$vcf_obj;
 	} else {
 	    die "ERROR: Failed to get VCF prefix (*.vcf format expected): $vcf\n";
 	}
@@ -2261,7 +2319,8 @@ sub vcf_merge_cmd_gen {
 sub writeScript {
     $script_file="${analysis_prefix}.script";
     warn "NOTICE: script file will be overwritten: $script_file\n" if -f $script_file;
-    &SeqMule::Parallel::writeParallelCMD ({worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
+    &SeqMule::Parallel::writeParallelCMD ({
+	    worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
 	    file=>$script_file,
 	    cpu_total=>$threads,
 	    cmd=>\@commands,
@@ -2283,7 +2342,13 @@ sub convert64to33 {
 	    $newobj->rank($i->rank);
 	    $i->child($newobj);
 
-	    push @commands,[$threads,"Convert phred64 to phred33",join(" ",$exe,$i->file(),$newobj->file())];
+	    push @commands,{
+		nCPU_requested		=>	1,
+		message			=>	"Convert phred64 to phred33",
+		command			=>	join(" ",$exe,$i->file(),$newobj->file())],
+	    	in			=>	[$i],
+		out			=>	[$newobj],
+	    };
 	    $i = $newobj;
 	    push @script_unlink_list,$newobj->file();
 	}
@@ -2319,25 +2384,29 @@ sub merge_bam
     #force single sample in each BAM
     &checkBAMSample($samtools,@other_bam_obj);
     #check BAM @SQ header
-    push @commands, [$threads,"Check BAM header before merging", "$header_check $samtools ".join(" ",@other_bam_file)];
-
-    if ($force_one_rg)
-    {
+    push @commands, {
+	nCPU_requested			=>	1,
+	message				=>	"Check BAM header before merging",
+	command				=>	"$header_check $samtools ".join(" ",@other_bam_file)],
+    	in				=>	[@other_bam_obj],
+	out				=>	[$onebam_obj],
+    };
+    if ($force_one_rg) {
 	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
-	push @commands, [$threads,
-	    "Merge BAM into one readgroup",
+	push @commands, {
+	    nCPU_requested		=>	$threads,
+	    message			=>	"Merge BAM into one readgroup",
+	    command			=>	
 	    #readgroup has been changed before calling &merge_bam
 	    #so no need to change it here
-	    "$exe $samtools $threads ".$onebam_obj->rg()." ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
-    } elsif ($union_rg)
-    {
+	    ["$exe $samtools $threads ".$onebam_obj->rg()." ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)],
+    } elsif ($union_rg) {
 	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
 	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
 	push @commands, [$threads,
 	    "Merge BAM without changing readgroup",
 	    "$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
-    } else
-    {
+    } else {
 	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
 	if (&SeqMule::Utils::checkDuplicateRGID($samtools,@other_bam_obj)) 
 	{
