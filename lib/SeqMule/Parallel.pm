@@ -10,12 +10,15 @@ use lib File::Spec->catdir($RealBin,"..","..","lib");
 use Config::Tiny;
 use File::Basename qw/basename/;
 use Carp qw/croak carp/;
+use SeqMule::SeqUtils;
+use Sort::Topological qw/toposort/;
 
 #add version number, different versions of config might be incompatible
 my $VERSION = 1.2;
 my %COMPATIBLE_VERSION = ("1.2"=>1);
 my $debug=1;
 my $splitter="-" x 10;
+my %TDG; #task dependency graph
 #keywords used for job status
 my $WAIT = "waiting";
 my $START = "started";
@@ -35,8 +38,10 @@ nCPU_requested = 1
 status = waiting
 JOBID = 0
 PID = 123
+dependency = 0
 [2]
 ...
+dependency = 1[,3,4]
 HEREDOC
 my %CONFIG_KEYWORD = (
     CPUTOTAL => "CPUTOTAL",
@@ -49,6 +54,7 @@ my %CONFIG_KEYWORD = (
     JOBID => "JOBID",
     PID => "PID",
     VERSION => "VERSION",
+    DEPENDENCY => "dependency",
 );
 
 my $SENTINEL_FILE_DESC = <<HEREDOC;
@@ -70,15 +76,29 @@ MSG
 HEREDOC
 
 sub writeParallelCMD {
-    #take an array of hashes
-    #each hash looks like:
-    #{
-    #	     nCPU_requested=>$threads,
-    #        message	=>	"QC assesment on input",
-    #        command	=>	"$fastqc --extract ".($threads >=2 ? " -t $threads ":" ").$i->file(),
-    #        in		=>	[$i],
-    #        out	=>	[],
-    #    }
+    #how this function is invoked
+    #&SeqMule::Parallel::writeParallelCMD ({
+    #        worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
+    #        file=>$script_file,
+    #        cpu_total=>$threads,
+    #        cmd=>\@commands,
+    #    });
+    push @commands, {
+	nCPU_requested		=>	$threads,
+	message			=>	"Merge BAM without changing readgroup",
+	command			=>	["$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)],
+	in			=>	[@other_bam_obj],
+	out			=>	[$onebam_obj],
+    };
+    #how to specify a DAG (directed acyclic graph)?
+    my %children = (
+	'a' => [ 'b', 'c' ], #b,c is direct child of a
+	'c' => [ 'x' ],
+	'b' => [ 'x' ],
+	'x' => [ 'y' ],
+	'y' => [ 'z' ],
+	'z' => [ ],
+    );
     #empty in or out means the no dependency for SeqUtils obj (but rather other existing stuff)
     croak("Usage: &writeParallelCMD({worker=>path_to_worker,file=>,cpu_total=>,cmd=>,})\n") unless @_ == 1;
     my $opt = shift;
@@ -98,6 +118,19 @@ sub writeParallelCMD {
 	$CONFIG_KEYWORD{CPUTOTAL} => $cpu_total,
 	$CONFIG_KEYWORD{LOGDIR} => $logdir,
     };
+
+my %children = (
+    'a' => [ 'b', 'c' ],
+    'c' => [ 'x' ],
+    'b' => [ 'x' ],
+    'x' => [ 'y' ],
+    'y' => [ 'z' ],
+    'z' => [ ],
+);
+sub children { @{$children{$_[0]} || []}; } 
+my @unsorted = ( 'z', 'a', 'x', 'c', 'b', 'y' );
+my @sorted = toposort(\&children, \@unsorted);
+
     for my $i(1..@cmd) {
 	#each element of @cmd is array reference [ncpu_request,msg,command]
 	@{$cmd[$i-1]} == 3 or croak("3 fields in commands expected (step $i).\n");
@@ -606,6 +639,10 @@ sub getTotalStep {
     my $step_total = scalar (grep {/^\d+$/} (keys %{$config})) or croak("ERROR: no steps found\n");
     return $step_total;
 }
+sub returnTDGChild {
+    @{$TDG{$_[0]} || []};
+}
+
 
 1;
 

@@ -2316,16 +2316,6 @@ sub vcf_merge_cmd_gen {
 
     return $cmd;
 }
-sub writeScript {
-    $script_file="${analysis_prefix}.script";
-    warn "NOTICE: script file will be overwritten: $script_file\n" if -f $script_file;
-    &SeqMule::Parallel::writeParallelCMD ({
-	    worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
-	    file=>$script_file,
-	    cpu_total=>$threads,
-	    cmd=>\@commands,
-	});
-}
 sub convert64to33 {
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
     if ($phred==64) {
@@ -2361,16 +2351,7 @@ sub convert64to33 {
 	}
     }
 }
-
-sub get_result_folder
-{
-    my $sample = shift;
-    my $result_folder="${sample}_result";
-    mkdir $result_folder unless -d $result_folder;
-    return $result_folder;
-}
-sub merge_bam
-{
+sub merge_bam {
     my $onebam_obj = shift;
     my @other_bam_obj = @_;
     my @other_bam_file = map {$_->file()} @other_bam_obj;
@@ -2383,14 +2364,6 @@ sub merge_bam
 
     #force single sample in each BAM
     &checkBAMSample($samtools,@other_bam_obj);
-    #check BAM @SQ header
-    push @commands, {
-	nCPU_requested			=>	1,
-	message				=>	"Check BAM header before merging",
-	command				=>	"$header_check $samtools ".join(" ",@other_bam_file)],
-    	in				=>	[@other_bam_obj],
-	out				=>	[$onebam_obj],
-    };
     if ($force_one_rg) {
 	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMOneRG");
 	push @commands, {
@@ -2400,28 +2373,52 @@ sub merge_bam
 	    #readgroup has been changed before calling &merge_bam
 	    #so no need to change it here
 	    ["$exe $samtools $threads ".$onebam_obj->rg()." ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)],
+	    in				=>	[@other_bam_obj],
+	    out				=>	[$onebam_obj],
+	};
     } elsif ($union_rg) {
 	my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
 	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-	push @commands, [$threads,
-	    "Merge BAM without changing readgroup",
-	    "$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+	push @commands, {
+	    nCPU_requested		=>	$threads,
+	    message			=>	"Merge BAM without changing readgroup",
+	    command			=>	["$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)],
+	    in				=>	[@other_bam_obj],
+	    out				=>	[$onebam_obj],
+	};
     } else {
 	#check READGROUP ID, they must be unique, o/w use '-forceOneRG' or '-unionRG'
-	if (&SeqMule::Utils::checkDuplicateRGID($samtools,@other_bam_obj)) 
-	{
+	if (&SeqMule::Utils::checkDuplicateRGID($samtools,@other_bam_obj)) {
 	    die "ERROR: SeqMule cannot decide how to merge BAM files with duplicate readgroup IDs. Please use '--forceOneRG' or '--unionRG' option.\n";
-	} else 
-	{
+	} else {
 	    my $exe=File::Spec->catfile($install_dir,"bin","secondary","mergeBAMUnionRG");
-	    push @commands, [$threads,
-		"Merge BAM without changing readgroup",
-		"$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)];
+	    push @commands, {
+		nCPU_requested		=>	$threads,
+		message			=>	"Merge BAM without changing readgroup",
+		command			=>	["$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)],
+		in			=>	[@other_bam_obj],
+		out			=>	[$onebam_obj],
+	    };
 	}
     }
 }
-
+sub writeScript {
+    $script_file="${analysis_prefix}.script";
+    warn "NOTICE: script file will be overwritten: $script_file\n" if -f $script_file;
+    &SeqMule::Parallel::writeParallelCMD ({
+	    worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
+	    file=>$script_file,
+	    cpu_total=>$threads,
+	    cmd=>\@commands,
+	});
+}
 #######################HELPER SUBROUTINES#############################
+sub get_result_folder {
+    my $sample = shift;
+    my $result_folder="${sample}_result";
+    mkdir $result_folder unless -d $result_folder;
+    return $result_folder;
+}
 sub getAlias {
     my $obj = shift;
     my $alias = join("_",(map {basename $_->file()} $obj->ancestor()));
