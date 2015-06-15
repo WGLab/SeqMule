@@ -18,7 +18,7 @@ GetOptions(
 $help and pod2usage ({-verbose=>1});
 die "ERROR: expect same number of files and aliases\n" unless @file == @alias;
 
-warn "WARNING: existing $out will be removed" and !system("rm -rf $out") if -e $out;
+warn "WARNING: existing $out will be removed" and !system("rm -rf $out") or die "ERROR: failed to rm $out\n" if -e $out;
 for my $i(0..$#file) {
     my $file = $file[$i];
     my $alias = $alias[$i];

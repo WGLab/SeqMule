@@ -662,14 +662,12 @@ sub phred64to33
     return 1;
 }
 
-sub uniq
-{
+sub uniq {
     #Usage: @uniq=&Utils::uniq(@array)
     #return unique elements in an array
     my @array=@_;
     my %seen;
     return grep {! $seen{$_}++} @array;
-
 }
 
 sub readBED

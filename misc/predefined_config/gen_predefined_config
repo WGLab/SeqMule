@@ -38,8 +38,8 @@ my $original="../advanced_config";
     "s/gatklite_variant=0/gatklite_variant=1/;".
     "s/gatklite_realign=0/gatklite_realign=1/;".
     "s/gatklite_recal=0/gatklite_recal=1/;".
-    "s/samtools_mpileup=0/samtools_mpileup=1/;";
-    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/samtools_mpileup=0/samtools_mpileup=1/.".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;";
     &procOriginal($out,$regex);
 }
 
@@ -486,6 +486,69 @@ my $original="../advanced_config";
     "s/freebayes_originalBAM=0/freebayes_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
+    "s/varscan=0/varscan=1/;";
+    &procOriginal($out,$regex);
+}
+
+##################FOR SOMATIC CALLING###################
+{
+    my $out="forSomatic_snap_samtools_varscan.config";
+    my $regex=
+    "s/snap=0/snap=1/;".
+    "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
+    "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
+    "s/varscan=0/varscan=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="forSomatic_snap_varscan.config";
+    my $regex=
+    "s/snap=0/snap=1/;".
+    "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
+    "s/varscan=0/varscan=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="forSomatic_snap_samtools.config";
+    my $regex=
+    "s/snap=0/snap=1/;".
+    "s/o_samtools_mapQ=\\d+/o_samtools_mapQ=20/;".
+    "s/samtools_mpileup=0/samtools_mpileup=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="forSomatic_bowtie2_samtools.config";
+    my $regex=
+    "s/bowtie2=0/bowtie2=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/samtools_mpileup=0/samtools_mpileup=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="forSomatic_bowtie2_varscan.config";
+    my $regex=
+    "s/bowtie2=0/bowtie2=1/;".
+    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
+    "s/varscan=0/varscan=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="forSomatic_bwa_samtools.config";
+    my $regex=
+    "s/bwamem=0/bwamem=1/;".
+    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
+    "s/samtools_mpileup=0/samtools_mpileup=1/;";
+    &procOriginal($out,$regex);
+}
+{
+    my $out="forSomatic_bwa_varscan.config";
+    my $regex=
+    "s/bwamem=0/bwamem=1/;".
     "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
     "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);

@@ -62,9 +62,13 @@ sub new
 sub dump {
     my $self = shift;
     while (my ($key,$value) = each %{$self}) {
-	print "$key:$value ";
+	if(ref($value) eq 'ARRAY') {
+	    print STDERR "$key:".scalar(@{$self->{$key}});
+	} else {
+	    print STDERR "$key:$value ";
+	}
     }
-    print "\n";
+    print STDERR "\n";
 }
 sub get_attr_enum {
     #add get_attr_enum method for obtaining all different values of a particular
