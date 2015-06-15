@@ -205,6 +205,13 @@ $(window).load(function() {
 	If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with 'seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa', where '123combo' is the prefix for the merged VCF.
 	</p>
 	<br>
+	<h3 id="q_merge">MERGE MULTIPLE INPUT FILES FOR ANALYSIS</h3>
+	<p>
+	Suppose you sequenced your sample in two lanes (lane1 and lane2), and you got two sets of FASTQ files. Since these files belong to the same sample, you want to combine them together and do variant calling. The following command will combine the FASTQ (after alignment step) files and use the merged file for variant calling.
+	<code>seqmule pipeline -a lane1.1.fastq,lane2.1.fastq -b lane1.2.fastq,lane2.2.fastq -prefix sample -wes -capture default -merge -forceOneRG -rg MyTwoLanes</code>
+	<br>FASTQ files will be aligned first before they are merged. <b>-forceOneRG</b> is used to force same @RG tag in both alignment results. You can also specify two RG tags in <b>-rg</b> option (e.g. <b>-rg LANE1,LANE2</b>).
+	</p> <br>
+	<br>
 	<h3 id="q_caveat">CAVEAT</h3>
 	<p>
 	NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under <b>seqmule/misc/predefined_config</b> folder.<br>
