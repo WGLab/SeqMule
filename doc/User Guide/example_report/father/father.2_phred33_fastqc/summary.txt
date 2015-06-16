@@ -1,0 +1,11 @@
+PASS	Basic Statistics	father.2_phred33.fastq
+PASS	Per base sequence quality	father.2_phred33.fastq
+PASS	Per sequence quality scores	father.2_phred33.fastq
+PASS	Per base sequence content	father.2_phred33.fastq
+PASS	Per base GC content	father.2_phred33.fastq
+WARN	Per sequence GC content	father.2_phred33.fastq
+PASS	Per base N content	father.2_phred33.fastq
+PASS	Sequence Length Distribution	father.2_phred33.fastq
+WARN	Sequence Duplication Levels	father.2_phred33.fastq
+PASS	Overrepresented sequences	father.2_phred33.fastq
+WARN	Kmer Content	father.2_phred33.fastq
