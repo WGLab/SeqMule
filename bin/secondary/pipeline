@@ -2570,23 +2570,29 @@ Options:
 	#generate a copy of 'advanced_config' for modification. You can find some predefined configurations under 'seqmule/misc/predefined_config' folder.
 	seqmule pipeline -advanced
 
-	#run analysis on paired end exome sequencing data. 
-	seqmule pipeline -a s1.1.fastq -b s1.2.fastq -prefix exomeData -threads 12 -rg READGROUP -e -advanced seqmule/misc/predefined_config/bwa_gatk.config -capture SureSelect_v4.bed
-		
+	#run analysis using custom advanced configuration on captured sequencing data. 1.fastq is raw data for first reads in paired-end sequencing, and 2.fastq is for second reads. Number of CPUs is 12, @RG tag is 'READGROUP' plus your sample name which is specified by -prefix. all output files have prefix 'exomeData' followed by an underscore. An html report will be generated automatically using default BED file(from SureSelect manufacturer).
+	seqmule pipeline -a 1.fastq -b 2.fastq -prefix exomeData -threads 12 -rg READGROUP -e -advanced advanced_config -capture default
+
+	#same as above, except that coverage stats will be calculated using custom BED file
+	seqmule pipeline -a 1.fastq -b 2.fastq -prefix exomeData -threads 12 -rg READGROUP -e -advanced advanced_config -capture region.bed
+
 	#same as above except that the data comes from whole-genome sequencing.
-	seqmule pipeline -a s1.1.fastq -b s1.2.fastq -prefix genomeData -threads 12 -rg READGROUP -g -advanced seqmule/misc/predefined_config/snap_freebayes.config
-		
-	#Input is multi-sample, paired-end exome. default pipeline 'bwa+gatklite+samtools+freebayes' will be used.
+	seqmule pipeline -a 1.fastq -b 2.fastq -prefix genomeData -threads 12 -rg READGROUP -g -advanced advanced_config
+
+	#same as above except that no report webpage will be generated
+	seqmule pipeline -a 1.fastq -b 2.fastq -prefix genomeData -threads 12 -rg READGROUP -g -advanced advanced_config -nostat
+
+	#Input is multi-sample, paired-end exome or other captured sequencing data, output files have 'sampleA' prefix for sampleA.1.fq and sampleA.2.fq, and 'sampleB' for sampleB.1.fq and sampleB.2.fq. FQ is just abbreviation for FASTQ. Without custom advanced_config, default pipeline 'bwa+gatk+samtools' will be used.
 	seqmule pipeline -a sampleA.1.fq,sampleB.1.fq -b sampleA.2.fq,sampleB.2.fq -e -prefix sampleA,sampleB -capture default
-		
-	#Input is multi-sample, paired-end exome, with multi-sample variant calling
-	seqmule pipeline -a sampleA.1.fq,sampleB.1.fq -b sampleA.2.fq,sampleB.2.fq -e -prefix sampleA,sampleB -ms
-		
-	#analysis on 3 BAM files for 3 samples. Output files will have same prefixes as BAM files.
+
+	#same as above except that multi-sample variant calling is enabled. Multi-sample variant calling means we assume the two samples come from the same family.
+	seqmule pipeline -a sampleA.1.fq,sampleB.1.fq -b sampleA.2.fq,sampleB.2.fq -e -prefix sampleA,sampleB
+
+	#analysis beginning with BAM files. BAM files store the alignment information of your data. Output files will have same prefixes as BAM files.
 	seqmule pipeline -bam 1.bam,2.bam,3.bam -e -capture default
 
-        #same as above, except the 3 BAM files will be merged (as 1 sample)
-        seqmule pipeline -bam 1.bam,2.bam,3.bam -e -merge -prefix sample -t 12
+	#same as above, except the BAM files will be merged before proceeding. Output has mandatory prefix 'sample' here. Merging is useful when you sequenced your sample multiple times and want to pool the data together. 12 CPUs are used.
+	seqmule pipeline -bam 1.bam,2.bam,3.bam -e -merge -prefix sample -t 12
 
 	#same as above except that the variant calling will be carried out in a parallel fashion. 12 CPUs are used.
 	seqmule pipeline -bam 1.bam,2.bam,3.bam -e -merge -prefix sample -quick -t 12
