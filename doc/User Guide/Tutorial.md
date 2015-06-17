@@ -116,19 +116,17 @@ Each time you run `seqmule pipeline`, a script file *.script will be generated i
 ````
 Every line consists of some tab-delimited fields, the column name is shown on the first line. Any line that is blank or begins with `#` will be ignored. The 1st field shows the step number. 2nd shows the exact command for each step. Second last column shows the status of this step, it can be `finished`, `waiting`, `started` or `error`. The 2nd field begins with `mod_status your_analysis.script step_no`, where `mod_status` is an internal program handling this script. This begining part has nothing to do with analysis itself, so no need to change it. Only change commands after it.
 
-This script is not meant to be changed by users. If you really want to, modify the 2nd field `ONLY`. Do `NOT` add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters (*$><&?;|`) are not allowed.
+This script is not meant to be changed by users. If you really want to, modify the 2nd field `ONLY`. Do `NOT` add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
 
 Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMules explicit programs (e.g. `stats`).
 
 ### GENERATE MENDELIAN ERROR STATISTICS 
 
-Assume you get a VCF with a family trio. The sample ID is `father` for father, `mother` for mother, `son` for offspring, respectively. To generate Mendelian error statistics (e.g. how many genotypes are impossible in son based on parents` genotypes), simply run the following command:
+Assume you get a VCF with a family trio. The sample ID is `father` for father, `mother` for mother, `son` for offspring, respectively. To generate Mendelian error statistics (e.g. how many genotypes are impossible in son based on parents' genotypes), simply run the following command:
 
 	seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother
 
-The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained.
-
-If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with `seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa`, where `123combo` is the prefix for the merged VCF.
+The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained. If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with `seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa`, where `123combo` is the prefix for the merged VCF.
 
 ### CAVEAT 
 
