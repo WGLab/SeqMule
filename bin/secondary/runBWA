@@ -15,11 +15,10 @@ my ($advanced,$n,$help,
     $bwa,$samtools,$java,$jmem,$sortsam,$ref,$bam,$threads,$rg,$sample,$pl,$lb);
 my $tmpdir;
 my @fq;
-my @sai;
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'bwa=s'		=>	\$bwa,
+    'alignerPath=s'	=>	\$bwa,
     'samtools=s'	=>	\$samtools,
     'java=s'		=>	\$java,
     'jmem=s'		=>	\$jmem,
@@ -32,7 +31,6 @@ GetOptions(
     'pl=s'		=>	\$pl,
     'lb=s'		=>	\$lb,
     'fq=s'		=>	\@fq, #specify it multiple times
-    'sai=s'		=>	\@sai, #specify it multiple times
     'advanced=s'	=>	\$advanced,
     'n=i'		=>	\$n,
     'tmpdir=s'		=>	\$tmpdir,
@@ -45,6 +43,7 @@ $help and pod2usage ({-verbose=>1});
 
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
+my @sai = map { File::Spec->catfile($tmpdir,rand($$).".$_.bwabacktrack.sai") } (0..$#fq);
 my @cmd;
 
 for my $i(0..$#fq)
@@ -73,54 +72,10 @@ $cmd .= " - | $samtools sort ".($threads>=2? " -@ $threads":"")." - $bam_prefix"
 push @cmd,$cmd;
 }
 
+push @cmd,"rm -rf @sai";
+
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 
 
 __END__
-
-
-=head1 NAME
-
-SeqMule an automatic pipeline for next-generation sequencing data analysis
-
-=head1 SYNOPSIS
-
-Options:
-
-    #input and output
-    'bwa=s'		=>	\$bwa,
-    'samtools=s'	=>	\$samtools,
-    'java=s'		=>	\$java,
-    'jmem=s'		=>	\$jmem,
-    'sortsam=s'		=>	\$sortsam,
-    'ref=s'		=>	\$ref,
-    'bam=s'		=>	\$bam,
-    'threads=i'		=>	\$threads,
-    'rg=s'		=>	\$rg,
-    'sample=s'		=>	\$sample,
-    'pl=s'		=>	\$pl,
-    'lb=s'		=>	\$lb,
-    'fq=s'		=>	\@fq, #specify it multiple times
-    'sai=s'		=>	\@sai; #specify it multiple times
-    'advanced=s'	=>	\$advanced,
-    'n=i'		=>	\$n,
-    'tmpdir=s'		=>	\$tmpdir,
-    #other
-    'help|h'	        =>	\$help,
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<--help>
-
-Show detaild help.
-
-=back
-
-=head1 DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
-
-=cut

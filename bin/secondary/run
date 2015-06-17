@@ -37,28 +37,22 @@ $help and pod2usage ({-verbose=>1});
 
 die "ERROR: Script file missing or more than one arguments specified.\n" unless @ARGV==1;
 $script=shift @ARGV;
-
-if ($sge)
-{
+if ($sge) {
     die "NOT IMPLEMENTED YET\n";
     warn "Execute via Sun Grid Engine.\n";
     &SeqMule::Parallel::run($script,$step,1);
-} else
-{
+} else {
     $SIG{INT}=\&stop;
     &SeqMule::Parallel::run($script,$step,0);
 }
-
-
 ################SUBROUTINES#####################
-sub stop
-{
+sub stop {
+my $debug = 1;
     my @pid=&SeqMule::Parallel::getRunningPID($script);
-
-    if (@pid)
-    {
-	for my $pid(@pid)
-	{
+    warn "DEBUG(PID:$$):running PID: @pid\n" if $debug;
+    warn "DEBUG(PID:$$):running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
+    if (@pid) {
+	for my $pid(@pid) {
 	    #kill youngest children of pid first, then itself
 	    my @all_pid;
 	    my @next_round=`pgrep -P $pid`;
@@ -67,8 +61,7 @@ sub stop
 	    chomp @next_round;
 	    unshift @all_pid,$pid,@next_round;
 
-	    CHECK_PID: for my $current(@next_round)
-	    {
+	    CHECK_PID: for my $current(@next_round) {
 		my @child=`pgrep -P $current`;
 		chomp @child;
 		push @tmp_pid,@child;
@@ -78,15 +71,14 @@ sub stop
 
 	    @tmp_pid=() and next CHECK_PID if (@next_round);
 
-	    for (@all_pid)
-	    {
+	    warn "killing @all_pid\n" if $debug;
+	    for (@all_pid) {
 		system("kill -9 $_ 2>/dev/null");
 		#!system("kill -9 $_") or warn "Failed to kill $_: $!\n";
 	    }
 	}
-	die "\n\n\nWARNING: Ctrl-C signal received, dying...\n";
-    } else
-    {
+	die "\n\n\nWARNING: (PID:$$) Ctrl-C signal received, dying...\n";
+    } else {
 	#can't find PID, do nothing
 	1;
     }

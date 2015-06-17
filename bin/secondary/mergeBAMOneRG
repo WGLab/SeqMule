@@ -16,7 +16,10 @@ my $out=shift @ARGV;
 ####check tmpdir before use!!!
 my $tmpdir = shift @ARGV;
 my @bam=@ARGV;
+my $header_check=File::Spec->catfile($RealBin,"sameBAMSQ");
 
+#check if all headers are consistent
+system("$header_check $samtools ".join(" ",@bam));
 
 my %rg_field;
 my $header;
@@ -24,6 +27,7 @@ my $header;
 #assume @SQ tag in all input has been checked
 $header=`$samtools view -H $bam[0] | grep -v '^\@RG'`;
 warn "NOTICE: header section in merged BAM comes from $bam[0].\n";
+
 
 #prepare @RG
 for my $bam(@bam)
