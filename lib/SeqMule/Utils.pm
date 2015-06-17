@@ -441,8 +441,7 @@ sub search
 }
 
 
-sub search_db 
-{
+sub search_db {
     #return default database if none supplied
     my $args=shift;
     my $type=$args->{type} or croak "No \'type\'";
@@ -663,14 +662,12 @@ sub phred64to33
     return 1;
 }
 
-sub uniq
-{
+sub uniq {
     #Usage: @uniq=&Utils::uniq(@array)
     #return unique elements in an array
     my @array=@_;
     my %seen;
     return grep {! $seen{$_}++} @array;
-
 }
 
 sub readBED

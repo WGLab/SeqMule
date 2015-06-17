@@ -10,12 +10,16 @@ use lib File::Spec->catdir($RealBin,"..","..","lib");
 use Config::Tiny;
 use File::Basename qw/basename/;
 use Carp qw/croak carp/;
+use SeqMule::SeqUtils;
+use Sort::Topological qw/toposort/;
 
 #add version number, different versions of config might be incompatible
 my $VERSION = 1.2;
 my %COMPATIBLE_VERSION = ("1.2"=>1);
 my $debug=1;
 my $splitter="-" x 10;
+my %TDG; #task dependency graph, for each task, specify child
+my %TDG_REVERSE; #task dependency graph, for each task, specify parent
 #keywords used for job status
 my $WAIT = "waiting";
 my $START = "started";
@@ -35,8 +39,10 @@ nCPU_requested = 1
 status = waiting
 JOBID = 0
 PID = 123
+dependency = 0
 [2]
 ...
+dependency = 1[,3,4]
 HEREDOC
 my %CONFIG_KEYWORD = (
     CPUTOTAL => "CPUTOTAL",
@@ -49,6 +55,7 @@ my %CONFIG_KEYWORD = (
     JOBID => "JOBID",
     PID => "PID",
     VERSION => "VERSION",
+    DEPENDENCY => "dependency",
 );
 
 my $SENTINEL_FILE_DESC = <<HEREDOC;
@@ -70,40 +77,83 @@ MSG
 HEREDOC
 
 sub writeParallelCMD {
-    croak("Usage: &writeParallelCMD({worker=>path_to_worker,file=>,cpu_total=>,cmd=>,})\n") unless @_ == 1;
+    #how this function is invoked
+    #&SeqMule::Parallel::writeParallelCMD ({
+    #        worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
+    #        file=>$script_file,
+    #        cpu_total=>$threads,
+    #        cmd=>\@commands,
+    #    });
+    #push @commands, {
+    #    nCPU_requested		=>	$threads,
+    #    message			=>	"Merge BAM without changing readgroup",
+    #    command			=>	["$exe $samtools $threads ".$onebam_obj->file()." $TMPDIR ".join(" ",@other_bam_file)],
+    #    in			=>	[@other_bam_obj],
+    #    out			=>	[$onebam_obj],
+    #};
+    ##how to specify a DAG (directed acyclic graph)?
+    #my %children = (
+    #    'a' => [ 'b', 'c' ], #b,c is direct child of a
+    #    'c' => [ 'x' ],
+    #    'b' => [ 'x' ],
+    #    'x' => [ 'y' ],
+    #    'y' => [ 'z' ],
+    #    'z' => [ ],
+    #);
+    #sub children { @{$children{$_[0]} || []}; } 
+    #my @unsorted = ( 'z', 'a', 'x', 'c', 'b', 'y' );
+    #my @sorted = toposort(\&children, \@unsorted);
+    #empty in or out means the no dependency for SeqUtils obj (but rather other existing stuff)
+    croak("Usage: &writeParallelCMD({worker=>path_to_worker,file=>,cpu_total=>,cmd=>[],message=>,})\n") unless @_ == 1;
     my $opt = shift;
     my $worker = $opt->{worker};
     my $file = $opt->{file};
     my $cpu_total = $opt->{cpu_total};
     my @cmd = @{$opt->{cmd}};
-    #@cmd is array of arrays, 2nd array consists of [ncpu_request,command]
-    my @out;
+    #@cmd is array of arrays, 2nd array consists of [ncpu_request,command,...]
     my $config = Config::Tiny->new;
     my $date = `date +%m%d%Y`;chomp $date;
     my $logdir = File::Spec->catfile($ENV{PWD},"seqmule.".$date.".$$.logs");
     !system("mkdir $logdir") or croak("mkdir($logdir): $!\n") unless -d $logdir;
+    warn "NOTICE: $logdir will be used for job monitoring.\n";
 
     $config->{$CONFIG_KEYWORD{SETTING_SECTION}} = {
 	$CONFIG_KEYWORD{VERSION} => $VERSION,
 	$CONFIG_KEYWORD{CPUTOTAL} => $cpu_total,
 	$CONFIG_KEYWORD{LOGDIR} => $logdir,
     };
-    for my $i(1..@cmd) {
-	#each element of @cmd is array reference [ncpu_request,msg,command]
-	@{$cmd[$i-1]} == 3 or croak("3 fields in commands expected (step $i).\n");
-	my $ncpu_request = $cmd[$i-1][0]; #ncpu requested
-	my $msg=$cmd[$i-1][1];
-	my $cmd_line=$cmd[$i-1][2]; 
-	$cmd_line = "$worker $logdir $i $cmd_line";
-	croak("ERROR: No shell meta characters allowed: $cmd_line\n") if $cmd_line=~/[\?\>\<\|\;\&\$\#\`\(\)]/;
+
+    %TDG = constructTDG(\@cmd);
+    %TDG_REVERSE = constructTDGREVERSE(\@cmd);
+
+#sort commands #write command
+    my $step = 1;
+    my %stepAndIdx;
+    print scalar @cmd,"total steps\n";
+    for my $i(toposort(\&returnTDGChild,[0..$#cmd])) {
+	print "i:$i,step:$step\n";
+	$stepAndIdx{$i} = $step;
+	$step++;
+    }
+    for my $i(0..$#cmd) {
+	my $step = $stepAndIdx{$i};
+	for my $j(@{$cmd[$i]->{command}}) {
+	    croak("ERROR: No shell meta characters allowed: $j\n") if $j=~/[\'\"\?\>\<\|\;\&\$\#\`\(\)]/;
+	}
+	my $cmd_line = "$worker $logdir $step \"".join(" && ",@{$cmd[$i]->{command}})."\"";
+	my $msg = $cmd[$i]->{message};
+	my $ncpu_request = $cmd[$i]->{nCPU_requested};
 	#comments are not allowed
-	$config->{$i} = {
+	$config->{$step} = {
 	    $CONFIG_KEYWORD{COMMAND} => $cmd_line,
 	    $CONFIG_KEYWORD{MESSAGE} => $msg,
 	    $CONFIG_KEYWORD{NCPU_REQUEST} => $ncpu_request,
 	    $CONFIG_KEYWORD{STATUS} => $WAIT,
 	    $CONFIG_KEYWORD{JOBID} => 0,
 	    $CONFIG_KEYWORD{PID} => 0,
+	    $CONFIG_KEYWORD{DEPENDENCY} => (
+		join(',',map{$stepAndIdx{$_}} &SeqMule::Utils::uniq(@{$TDG_REVERSE{$i}})) || ""
+	    ),
 	};
     }
     $config->write($file);
@@ -176,6 +226,7 @@ sub run {
 		    last;
 		}
 	    }
+	    #TODO
 	    #check if the 'started' proc is actually running. If not, mark error
 	    #the following function needs improvement. For now, just ignore it.
 	    #&checkRunningPID($file);
@@ -475,14 +526,19 @@ sub syncStatus {
 sub getNextCMD {
     my $config=shift;
     for my $i(1..&getTotalStep($config)) {
+	#return first waiting task
 	if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
-	    warn "DEBUG(PID:$$): next is step $i\n" if $debug;
-	    return (
-		$i,
-		$config->{$i}->{$CONFIG_KEYWORD{COMMAND}},
-		$config->{$i}->{$CONFIG_KEYWORD{MESSAGE}},
-		$config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}},
-	    );
+	    #return only if all dependencies fullfilled
+	    unless(grep {$config->{$_}->{$CONFIG_KEYWORD{STATUS}} ne $FINISH} 
+		(split /,/,$config->{$i}->{$CONFIG_KEYWORD{DEPENDENCY}})) {
+		warn "DEBUG(PID:$$): next is step $i\n" if $debug;
+		return (
+		    $i,
+		    $config->{$i}->{$CONFIG_KEYWORD{COMMAND}},
+		    $config->{$i}->{$CONFIG_KEYWORD{MESSAGE}},
+		    $config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}},
+		);
+	    }
 	}
     }
     return ();
@@ -532,7 +588,7 @@ sub getRunningPID {
 	}
     }
     warn "DEBUG(PID:$$): running PID: @pid\n" if $debug;
-    warn "running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
+    warn "DEBUG(PID:$$): running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
     return @pid;
 }
 #sub checkRunningPID
@@ -596,6 +652,74 @@ sub getTotalStep {
     my $step_total = scalar (grep {/^\d+$/} (keys %{$config})) or croak("ERROR: no steps found\n");
     return $step_total;
 }
+sub returnTDGChild {
+    @{$TDG{$_[0]} || []};
+}
+sub checkUniqGen {
+    #check if each obj is generated only once
+    my @cmd = @{shift @_};
+    my %objAndCMD;
+
+    for my $i(0..$#cmd) {
+	for my $j(@{$cmd[$i]->{out}}) {
+	    if (defined $objAndCMD{$j->id}) {
+		croak("ERROR: ".$j->id." generated twice: ".$objAndCMD{$j->id}." and ".$i."\n");
+	    } else {
+		$objAndCMD{$j->id} = $i;
+	    }
+	}
+    }
+}
+sub constructTDG {
+    my @cmd = @{shift @_};
+    my %tdg_local;
+    #figure out which command generates each obj
+    my %objAndCMD; #keeps SeqUtils obj and commands where it is used
+    if(&checkUniqGen(\@cmd)) {
+	for my $i(0..$#cmd) {
+	    for my $j(@{$cmd[$i]->{in}}) {
+		if (defined $objAndCMD{$j->id}) {
+		    push @{$objAndCMD{$j->id}},$i;
+		} else {
+		    $objAndCMD{$j->id} = [$i];
+		}
+	    }
+	}
+    }
+    #figure out TDG
+    #TDG key is index of each command, value is indeces of children
+    for my $i(0..$#cmd) {
+	$tdg_local{$i} = [];
+	for my $j(@{$cmd[$i]->{out}}) {
+	    push @{$tdg_local{$i}},@{$objAndCMD{$j->id} || []};
+	}
+    }
+    return %tdg_local;
+}
+sub constructTDGREVERSE {
+    my @cmd = @{shift @_};
+    my %tdg_rev_local;
+    #figure out TDG_REVERSE
+    my %objAndCMD; #keeps SeqUtils obj and commands where it is used
+    for my $i(0..$#cmd) {
+	for my $j(@{$cmd[$i]->{out}}) {
+	    if (defined $objAndCMD{$j->id}) {
+		croak("ERROR: ".$j->id." generated twice: ".$objAndCMD{$j->id}." and ".$i."\n");
+	    } else {
+		$objAndCMD{$j->id} = [$i];
+	    }
+	}
+    }
+    #TDG_REVERSE key is index of each command, value is indeces of parent
+    for my $i(0..$#cmd) {
+	$tdg_rev_local{$i} = [];
+	for my $j(@{$cmd[$i]->{in}}) {
+	    push @{$tdg_rev_local{$i}},@{$objAndCMD{$j->id} || []};
+	}
+    }
+    return %tdg_rev_local;
+}
+
 
 1;
 

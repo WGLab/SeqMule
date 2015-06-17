@@ -16,7 +16,10 @@ my $tmpdir=shift @ARGV;
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @bam=@ARGV;
 my $sam_for_header=File::Spec->catfile($tmpdir,"$$".rand($$).".header.sam");
+my $header_check=File::Spec->catfile($RealBin,"sameBAMSQ");
 
+#check if all headers are consistent
+system("$header_check $samtools ".join(" ",@bam));
 
 my %rg;
 my $header;

@@ -37,8 +37,7 @@ $help and pod2usage ({-verbose=>1});
 
 die "ERROR: Script file missing or more than one arguments specified.\n" unless @ARGV==1;
 $script=shift @ARGV;
-if ($sge)
-{
+if ($sge) {
     die "NOT IMPLEMENTED YET\n";
     warn "Execute via Sun Grid Engine.\n";
     &SeqMule::Parallel::run($script,$step,1);

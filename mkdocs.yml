@@ -1,0 +1,41 @@
+site_name: SeqMule Documentation
+site_url: http://seqmule.usc.edu
+repo_url: http://github.com/WangGenomicsLab/SeqMule/
+repo_name: GitHub
+site_description: Documentation for SeqMule software
+site_author: Yunfei Guo, et al
+site_favicon: favicon.ico
+copyright: 2012-2015 SeqMule
+google_analytics: ['UA-36141737-1', 'seqmule.usc.edu']
+
+docs_dir: .
+include_search: true
+#use_absolute_urls: true
+#use_directory_urls: false
+
+pages:
+# for strange reasons I can only put max of 7 items below for building to pass
+- ['index.md', 'SeqMule']
+
+# User Guide
+- ['user-guide/download.md', 'User Guide', 'Download ANNOVAR']
+- ['user-guide/startup.md', 'User Guide', 'Quick Start-Up Guide']
+- ['user-guide/input.md', 'User Guide', 'Prepare Input Files']
+- ['user-guide/gene.md', 'User Guide', 'Gene-based Annotation']
+- ['user-guide/region.md', 'User Guide', 'Region-based Annotation']
+- ['user-guide/filter.md', 'User Guide', 'Filter-based Annotation']
+
+# Misc
+- ['misc/accessory.md', 'Misc', 'Accessoary Programs']
+- ['misc/faq.md', 'Misc', 'FAQ']
+- ['misc/whatsnew.md', 'Misc', 'What is New']
+- ['misc/version_history.md', 'Misc', 'Version History']
+- ['misc/credit.md', 'Misc', 'Credit']
+- ['misc/contributing.md', 'Misc', 'How to Contribute']
+
+
+# Articles
+- ['articles/VCF.md', 'Articles', 'VCF Processing Guide']
+- ['articles/dbSNP.md', 'Articles', 'Assigning dbSNP Identifiers']
+- ['articles/wANNOVAR.md', 'Articles', 'wANNOVAR Tutorial']
+

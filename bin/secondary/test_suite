@@ -15,8 +15,8 @@ my $test_folder="/home/yunfeiguo/projects/SeqMule/testrun/test";
 my $data_folder="/home/yunfeiguo/projects/SeqMule/example_data";
 my $config_folder="/home/yunfeiguo/projects/SeqMule_dev/misc/predefined_config";
 #for no merge, no ms
-my $first_fq="part.1.fastq";
-my $second_fq="part.2.fastq";
+my $first_fq="part.1.fastq.gz";
+my $second_fq="part.2.fastq.gz";
 my $prefix="part";
 #for merge
 my @first_fq=("5181-2_S1-1_L001_R1_001.fastq","5181-2_S1_L001_R1_001.fastq");
@@ -45,7 +45,7 @@ for my $q("","-quick")
     for my $j(@config_files)
     {
 	#for my $ms("","-ms","-merge","-somatic")
-	for my $ms("-somatic")
+	for my $ms("")
 	{
 	    next if $ms eq '-ms';
 		my @cmd;
@@ -87,15 +87,15 @@ for my $q("","-quick")
 		{
 		    $mem="12g";
 		}
-		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
-		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h='compute-0-1[0-9]' -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
+		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#no qsub
-		push @cmd, "$starting_point $q --advanced $j -nr";
+		#push @cmd, "$starting_point $q --advanced $j ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count == 0;
+		&exec(@cmd) if $count >= 11 && $count <= 20;
 		$count++;
 	}
     }
@@ -106,6 +106,7 @@ sub exec
     my $tmp="/tmp/seqmule_test.$$".rand($$);
     open OUT,'>',$tmp or die "Can't open $tmp: $!\n";
     print OUT "#!/bin/bash\nset -e\n";
+    map {print OUT "echo \"$_\"\n"} @cmd;
     print OUT join("\n",@cmd);
     close OUT;
     chmod 0755,$tmp;
