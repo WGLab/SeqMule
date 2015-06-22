@@ -160,8 +160,10 @@ sub writeParallelCMD {
     warn "NOTICE: Commands written to $file\n";
 }
 sub run {
-    croak("Usage: &run(\$file,step#,yesno_qsub)\n") unless @_ == 3;
-    #for yesno_qsub, 1 means enable qsub, 0 means disable it
+    croak("Usage: &run(\$file,step#,qsub_template)\n") unless @_ == 3;
+    #qsub_template: replace XCPUX with the actual number of CPUs, then append the command
+    #qsub -V -cwd -pe smp XCPUX -N jobname -S /bin/bash -m ea -M tom@gmail.com
+    #then run it
     my $file=shift; #format:step	cmd	ncpu_require	ncpu_total	status(started,finished,waiting,error)
     my $step=shift;
     my $qsub=shift;
@@ -182,6 +184,9 @@ sub run {
 	    step=>$step,
 	    logdir => $logdir,
 	});
+    #TODO:should also check whether another instance of seqmule or its children are running
+    #if so warn user and exit
+
 
     warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
     my $start_time=time;
@@ -205,17 +210,41 @@ sub run {
 	    $cpu_available = $cpu_total-&getUsedCPU($config);
 	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($config)) {
 		if($cpu_available>=$cpu_request) {
-		    #if ($qsub) {
-		    #    #record job ID
-		    #    my $job=`$cmd`;
-		    #    my ($id)= $job=~/(\d+)/;
-		    #    &writePID($file,$step,$id);
-		    #} else {
-		    #record pid by the execution script
+		    my $jobid;
 		    warn "DEBUG(PID:$$): about to execute:\n$cmd\n" if $debug;
-		    system("$cmd &");
-		    &wait2start({file=>$file,config=>$config,step=>$step});
-		    #}
+		    if ($qsub) {
+			    my $submit_cmd = $qsub;
+			#write command to a script
+			#submit the script
+			if($submit_cmd =~ /XCPUX/) {
+			    $submit_cmd =~ s/XCPUX/$cpu_request/;
+			} else {
+			    croak("ERROR: $qsub should have 'XCPUX' keyword\n");
+			}
+			#add -e,-o options
+			if($submit_cmd !~ /-e|-o/) {
+			    my $taskDir = File::Spec->catdir($logdir,$step);
+			    my $stderr = File::Spec->catfile($taskDir,"stderr");
+			    my $stdout = File::Spec->catfile($taskDir,"stdout");
+			    $submit_cmd .= " -e $stderr -o $stdout ";
+			}
+			my $script = &genTempScript($cmd);
+			#submit job and return job ID
+			$jobid = &submitJob($submit_cmd,$cmd);
+			#!!!it is possible that after submission, job will not be started immediately
+			#so if I only change config, config will be changed back after sync
+			#    and sync will happen before job started
+			#JOBID sentinel file will ONLY be handled by Parallel.pm
+			#so it is safe to do whatever to JOBID file. The child will
+			#not be influenced anyway.
+			#JOBID will be written by wait2start
+		    } else {
+			#record pid by the execution script
+			system("$cmd &");
+		    }
+		    #from the viewpoint of parent process, the children are started
+		    #regardlesss they are running in background or on SGE queue
+		    &wait2start({file=>$file,config=>$config,logdir=>$logdir,step=>$step,jobid=>$jobid});
 		    warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
 		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
 		}
@@ -240,52 +269,6 @@ sub selectSleep {
     sleep int($step_total/$scaling_factor + 1);
 }
 
-#sub qsub_writeParallelCMD
-#{
-#    warn "NOT IMPLEMENTED YET\n" and exit;
-#
-#    my ($install_dir,$file,$cpu_total,$cpu_per_node,@cmd)=@_;
-#    #@lines is array of arrays, 2nd array consists of [ncpu_request,command]
-#    my @out;
-#    my $worker=File::Spec->catfile($install_dir,"bin","secondary","worker");
-#
-#    push @out,["#command","nCPU_requested","nCPU_total","status"];
-#
-#    for my $i(1..@cmd)
-#    {
-#	#comments are not allowed
-#	$out[$i]=[];
-#	my $line_no=$i+1;
-#	my $cpu_request=$cmd[$i-1][0] or die;
-#	my $mem_per_cpu=$cmd[$i-1][2] or die;
-#	my $cmd=$cmd[$i-1][1] or die;$cmd=~s/'/'"'"'/; #use string concatenantion to output single quotes
-#	die "ERROR: A node doesn't have enough CPUs you requested\n" unless $cpu_request <= $cpu_per_node;
-#	die "ERROR: Under SGE mode, single quote not allowed for commands: $cmd" if $cmd =~/'/;
-#
-#	${$out[$i]}[0]=
-#	"echo '".
-#	"$worker $file $line_no s && ".
-#	"if $cmd;".
-#	"then $worker $file $line_no f;".
-#	"else $worker $file $line_no e;".
-#	"fi".
-#	"' | qsub -V -cwd".
-#	($cpu_request > 1? " -pe smp $cpu_request -l h_vmem=$mem_per_cpu" : " -l h_vmem=$mem_per_cpu"); #no semicolon here, otherwise this cannot be run in background
-#
-#	push @{$out[$i]},$cmd[$i-1][0];
-#	push @{$out[$i]},$cpu_total;
-#	push @{$out[$i]},"waiting";
-#    }
-#
-#    open OUT,'>',$file or die "Cannot write to $file: $!";
-#    for (@out)
-#    {
-#	print OUT join("\t",@$_),"\n";
-#    }
-#    close OUT;
-#    warn "NOTICE: Commands written to $file\n";
-#}
-
 #execute the actual command for each task
 #create/rm sentinel files accordingly
 sub single_line_exec {
@@ -298,7 +281,6 @@ sub single_line_exec {
     my $start_time=time;
     my $msg=&getMsg($logdir,$step);
 
-    #&wait2start($script,$n);
     my $success;
     warn "DEBUG(PID:$$): about to fork for $msg\n" if $debug;
     my $pid=fork;
@@ -359,6 +341,8 @@ sub wait2start {
     my $file=$opt->{file};
     my $step = $opt->{step};
     my $config = $opt->{config};
+    my $logdir = $opt->{logdir};
+    my $jobid = $opt->{jobid};
 
     my $step_ref = $config->{$step};
     if ($step_ref->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
@@ -369,6 +353,17 @@ sub wait2start {
     }
     #here we should not sync config with config file
     #if this proc is stopped somewhere, we end up with incorrect exec status
+
+    if(defined $jobid) {
+	#this task is submitted by qsub
+	#so we need to remove existing JOBID sentinel files
+	#and create new one
+	my $step_dir = File::Spec->catdir($logdir,$step);
+	my $sentinel = File::Spec->catfile($step_dir,"JOBID.$jobid");
+	my $old_jobid_file = File::Spec->catfile($step_dir,"JOBID.*");
+	unlink $old_jobid_file or croak("failed to unlink step $step JOBID.*: $!\n") if -e $old_jobid_file;
+	&touch($sentinel);
+    }
 }
 sub create_sentinel {
     #remove existing STATUS files
@@ -567,7 +562,7 @@ sub getUsedCPU {
 }
 sub genTempScript {
     my @cmd=@_;
-    my $tmp="/tmp/$$".time()."script";
+    my $tmp="/tmp/seqmule".rand($$).time()."script";
     open OUT,'>',$tmp or die "Can't write to $tmp: $!\n";
     print OUT "#!/bin/bash\nset -e\n"; #let shell run the script, exit at first error
     print OUT "set -o pipefail\n"; #let shell run the script, exit at first error
@@ -576,20 +571,25 @@ sub genTempScript {
     chmod 0755,$tmp or die "Failed to chmod 755 on $tmp\n";
     return $tmp;
 }
-sub getRunningPID {
+sub getRunningID {
     my $file=shift;
     my $config = Config::Tiny->read($file);
     my $logdir = $config->{$CONFIG_KEYWORD{SETTING_SECTION}}->{$CONFIG_KEYWORD{LOGDIR}};
     my @pid;
+    my @jobid;
     &syncStatus({logdir=>$logdir,config=>$config,file=>$file,direction=>'log2config'});
     for my $i(1..&getTotalStep($config)) {
 	if ($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
 	    push @pid,$config->{$i}->{$CONFIG_KEYWORD{PID}};
+	    push @jobid,$config->{$i}->{$CONFIG_KEYWORD{JOBID}};
 	}
     }
+    #running PIDs may spawn child procs
+    @pid = &getChildPID(@pid) if @pid and (grep {$_} @pid);
     warn "DEBUG(PID:$$): running PID: @pid\n" if $debug;
+    warn "DEBUG(PID:$$): running JOBID: @jobid\n" if $debug;
     warn "DEBUG(PID:$$): running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
-    return @pid;
+    return \@pid,\@jobid;
 }
 #sub checkRunningPID
 #{ #if started, but not running, change status to 'error'
@@ -719,7 +719,73 @@ sub constructTDGREVERSE {
     }
     return %tdg_rev_local;
 }
+sub submitJob {
+    my $submitCmd = shift;
+    my @cmd = @_;
+    my $script = &genTempScript(@cmd);
+    warn "submitting: $submitCmd $script\n" if $debug;
+    open SUBMIT,'-|',"$submitCmd $script" or croak("$submitCmd $script fails: $!\n");
+    my $jobid = <SUBMIT>;
+    #Your job 55302 ("STDIN") has been submitted
+    chomp $jobid;
+    if($jobid =~ /Your job (\d+) \(".*?"\) has been submitted/) {
+	$jobid = $1;
+    } else {
+	croak("$jobid is expected to look like: Your job 55302 (\"STDIN\") has been submitted\n");
+    }
+    return $jobid;
+}
+sub stop {
+    my $script = shift;
+    my $sge = shift;
+    my ($pid,$jobid)=&getRunningID($script);
+    if(@$pid or @$jobid) {
+	if ($sge) {
+	    warn "qdel @$jobid\n" if $debug;
+	    for (@$jobid) {
+		system("qdel $_");
+	    }
+	} else {
+	    warn "killing @$pid\n" if $debug;
+	    for (@$pid) {
+		system("kill -9 $_ 2>/dev/null");
+		#!system("kill -9 $_") or warn "Failed to kill $_: $!\n";
+	    }
+	}
+    } else {
+	warn "\nWARNING: didn't find any child\n";
+    }
+    die "\nWARNING: (PID:$$) Ctrl-C signal received, dying...\n";
+}
+sub getChildPID {
+    #return @pid and all their descendent PIDs
+    my @pid = @_;
+    warn "DEBUG(PID:$$):running PID: @pid\n" if $debug;
+    warn "DEBUG(PID:$$):running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
+    my @return;
+    if (@pid) {
+	for my $pid(@pid) {
+	    #kill youngest children of pid first, then itself
+	    my @all_pid;
+	    my @next_round=`pgrep -P $pid`;
+	    my @tmp_pid;
 
+	    chomp @next_round;
+	    unshift @all_pid,$pid,@next_round;
+
+	    CHECK_PID: for my $current(@next_round) {
+		my @child=`pgrep -P $current`;
+		chomp @child;
+		push @tmp_pid,@child;
+		unshift @all_pid,@child;
+	    }
+	    @next_round=@tmp_pid;
+	    @tmp_pid=() and next CHECK_PID if (@next_round);
+	    push @return,@all_pid;
+	}
+    }
+    return @return;
+}
 
 1;
 

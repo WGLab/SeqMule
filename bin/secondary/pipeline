@@ -50,7 +50,7 @@ my (
     $normal_fq1,$normal_fq2,$normal_bam,$tumor_fq1,$tumor_fq2,$tumor_bam,
     $merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
-    $threads, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
+    $threads, $sge, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
     $no_resolve_conflict,$overwrite,
     $capture,$ref, $index_prefix, $bowtie_index_prefix, $bowtie2_index_prefix, 
     $soap_index_prefix, $hapmap, $dbsnp,  $dbsnpver,  $kg, $indel,
@@ -117,6 +117,7 @@ GetOptions(
     'wgs|g'		=>	\$wgs,
     #runtime parameters
     'threads|t=i'	=>	\$threads,
+    'sge=s'		=>	\$sge,
     'quick|q'		=>	\$quick,
     'jmem=s'		=>	\$java_mem,
     'tmpdir=s'		=>	\$tmpdir,
@@ -174,7 +175,7 @@ if ($tumor_bam || $tumor_fq1 || $tumor_fq2){
 #execution
 warn "To execute it, execute 'seqmule run $script_file'\n" and exit 0 if $norun;
 #don't add die for the following command, it will die itself upon failure
-exec File::Spec->catfile($install_dir,"bin","seqmule"),"run",$script_file;
+exec File::Spec->catfile($install_dir,"bin","seqmule"),"run",$script_file,($sge?("-sge",$sge):());
 
 #-----------------------------------subroutines for handling options --------------------------------------------
 #set or generate proper advanced configuration file
@@ -2538,7 +2539,8 @@ Options:
 	--wgs,-g		  the input is whole-genome sequencing data
 	--capture <BED>		  calculate coverage stats and extract (or call) variants over the regions defined by this file. If you do not have a custom BED file, use '-capture default' to use default BED file.
 	--no-resolve-conflict	  seqmule will NOT try to resolve any conflict among BED, BAM and reference. Run 'seqmule pipeline -h' for details.
-	--threads,-t <INT>	  number of threads. Default: 1.
+	--threads,-t <INT>	  number of threads, also effective for -sge. Default: 1.
+      	--sge <TEXT>		  run each command via Sun Grid Engine. A template with XCPUX keyword is expected. See examples.
 	--quick,-q		  enable parallel processing at variant calling
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
 	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
@@ -2611,10 +2613,17 @@ Options:
 	#here multi-sample variant calling is not enabled
 	seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
 
+      	#run via Sun Grid Engine (a job scheduling system)
+	seqmule pipeline -a 1.fastq -b 2.fastq -prefix genomeData -threads 12 -rg READGROUP -g -advanced advanced_config -nostat -sge "qsub -V -cwd -pe smp XCPUX"
+
 
 =head1 OPTIONS
 
 =over 8
+
+=item B<--sge>
+
+To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically if neither of them is present.
 
 =item B<--platform>
 

@@ -88,14 +88,16 @@ for my $q("","-quick")
 		    $mem="12g";
 		}
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h='compute-0-1[0-9]' -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
-		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#no qsub
 		#push @cmd, "$starting_point $q --advanced $j ";
+		#qsub by seqmule itself
+		push @cmd, "$starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX\" ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 11 && $count <= 20;
+		&exec(@cmd) if $count >= 0 && $count <= 0;
 		$count++;
 	}
     }
