@@ -198,36 +198,27 @@ sub run {
 		(grep {$config->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR} (1..$step_total))
 	    ) ) {
 	    #grep failed tasks
-	    my $cwd=`pwd`; chomp $cwd;
+	    my $cwd=$ENV{PWD};
 	    die "ERROR: command failed\n",
 	    $cmd,
 	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
 	    "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
 	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 	} else {
-		    warn "DEBUG(PID:$$): no error found, go on\n" if $debug;
+	    warn "DEBUG(PID:$$): no error found, go on\n" if $debug;
 	    my $elapse_time=time-$start_time;
 	    $cpu_available = $cpu_total-&getUsedCPU($config);
 	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($config)) {
 		if($cpu_available>=$cpu_request) {
 		    my $jobid;
 		    warn "DEBUG(PID:$$): about to execute:\n$cmd\n" if $debug;
+		    #before task is submitted or executed
+		    #we change its status from waiting to started
+		    #for SGE tasks, they may be queued for a long time before they can
+		    #the status to started
+		    &wait2start({file=>$file,config=>$config,logdir=>$logdir,step=>$step});
 		    if ($qsub) {
-			    my $submit_cmd = $qsub;
-			#write command to a script
-			#submit the script
-			if($submit_cmd =~ /XCPUX/) {
-			    $submit_cmd =~ s/XCPUX/$cpu_request/;
-			} else {
-			    croak("ERROR: $qsub should have 'XCPUX' keyword\n");
-			}
-			#add -e,-o options
-			if($submit_cmd !~ /-e|-o/) {
-			    my $taskDir = File::Spec->catdir($logdir,$step);
-			    my $stderr = File::Spec->catfile($taskDir,"stderr");
-			    my $stdout = File::Spec->catfile($taskDir,"stdout");
-			    $submit_cmd .= " -e $stderr -o $stdout ";
-			}
+			my $submit_cmd = &getSubmitCmd($qsub,$cpu_request);
 			my $script = &genTempScript($cmd);
 			#submit job and return job ID
 			$jobid = &submitJob($submit_cmd,$cmd);
@@ -244,7 +235,7 @@ sub run {
 		    }
 		    #from the viewpoint of parent process, the children are started
 		    #regardlesss they are running in background or on SGE queue
-		    &wait2start({file=>$file,config=>$config,logdir=>$logdir,step=>$step,jobid=>$jobid});
+		    &writeJOBID({file=>$file,config=>$config,logdir=>$logdir,step=>$step,jobid=>$jobid});
 		    warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
 		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
 		}
@@ -255,10 +246,10 @@ sub run {
 		    last;
 		}
 	    }
-	    #TODO
 	    #check if the 'started' proc is actually running. If not, mark error
-	    #the following function needs improvement. For now, just ignore it.
-	    #&checkRunningPID($file);
+	    if (my @error_step = &checkRunningID($file,$sge)) {
+		&status2error({errorStep=>\@error_step, file=>$file,config=>$config,logdir=>$logdir});
+	    }
 	}
     }
 }
@@ -286,7 +277,12 @@ sub single_line_exec {
     my $pid=fork;
     if ($pid) {
 	#parent proc
-	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$START});
+	#we used to let child handle status, now with sge
+	#it's possible that the child is queued but hasn't got executed
+	#to change its own status to started. This will cause parent
+	#to repeatedly submit same child.
+	#&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$START});
+	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$});
 	my $deceased_pid=wait;
 	if ($deceased_pid==$pid) {
 	    #got the exit status of child
@@ -331,7 +327,7 @@ sub getMsg {
     close IN;
     return $msg;
 }
-sub wait2start {
+sub writeJOBID {
     #modify config for specific step
     #change status from wait to start
     #at this point, config is NOT in sync with logdir
@@ -344,16 +340,6 @@ sub wait2start {
     my $logdir = $opt->{logdir};
     my $jobid = $opt->{jobid};
 
-    my $step_ref = $config->{$step};
-    if ($step_ref->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
-	$step_ref->{$CONFIG_KEYWORD{STATUS}} = $START;
-    } else {
-	#task is not waiting, something goes wrong
-	croak("ERROR: step $step is not waiting\n");
-    }
-    #here we should not sync config with config file
-    #if this proc is stopped somewhere, we end up with incorrect exec status
-
     if(defined $jobid) {
 	#this task is submitted by qsub
 	#so we need to remove existing JOBID sentinel files
@@ -361,9 +347,38 @@ sub wait2start {
 	my $step_dir = File::Spec->catdir($logdir,$step);
 	my $sentinel = File::Spec->catfile($step_dir,"JOBID.$jobid");
 	my $old_jobid_file = File::Spec->catfile($step_dir,"JOBID.*");
-	unlink $old_jobid_file or croak("failed to unlink step $step JOBID.*: $!\n") if -e $old_jobid_file;
+	!system("rm -f $old_jobid_file") or croak("failed to unlink step $step JOBID.*: $!\n");
 	&touch($sentinel);
     }
+}
+sub wait2start {
+    #modify config for specific step
+    #change status from wait to start
+    #at this point, config is NOT in sync with logdir
+    #this function is used to prevent this particular step being
+    #run twice by paranet proc.
+    my $opt = shift;
+    my $file=$opt->{file};
+    my $step = $opt->{step};
+    my $config = $opt->{config};
+    my $logdir = $opt->{logdir};
+    my $step_dir = File::Spec->catdir($logdir,$step);
+
+    my $step_ref = $config->{$step};
+    if ($step_ref->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
+	$step_ref->{$CONFIG_KEYWORD{STATUS}} = $START;
+    } else {
+	#task is not waiting, something goes wrong
+	croak("ERROR: step $step is not waiting\n");
+    }
+    #create STATUS.started sentinel
+    #because parent will sync with log dir soon
+    #we need to let it know this task has started
+    my $sentinel = File::Spec->catfile($step_dir,"STATUS.$START");
+    !system("rm -f ".File::Spec->catfile($step_dir,"STATUS.*")) or croak("failed to rm step $step STATUS.*: $!\n");
+    &touch($sentinel);
+    #here we should not sync config with config file
+    #if this proc is stopped somewhere, we end up with incorrect exec status
 }
 sub create_sentinel {
     #remove existing STATUS files
@@ -376,10 +391,14 @@ sub create_sentinel {
     my $step_dir = File::Spec->catdir($logdir,$n);
     my $sentinel = File::Spec->catfile($step_dir,"STATUS.$status");
     my $pid_file = File::Spec->catfile($step_dir,"PID.$pid");
-    !system("rm -f ".File::Spec->catfile($step_dir,"STATUS.*")) or croak("failed to rm step $n STATUS.*: $!\n");
-    !system("rm -f ".File::Spec->catfile($step_dir,"PID.*")) or croak("failed to rm step $n STATUS.*: $!\n");
-    &touch($sentinel);
-    &touch($pid_file);
+    if($opt->{status}) {
+	!system("rm -f ".File::Spec->catfile($step_dir,"STATUS.*")) or croak("failed to rm step $n STATUS.*: $!\n");
+	&touch($sentinel);
+    }
+    if($pid) {
+	!system("rm -f ".File::Spec->catfile($step_dir,"PID.*")) or croak("failed to rm step $n STATUS.*: $!\n");
+	&touch($pid_file);
+    }
 }
 sub firstScan {
     #remove existing sentinel files in logdir
@@ -577,11 +596,15 @@ sub getRunningID {
     my $logdir = $config->{$CONFIG_KEYWORD{SETTING_SECTION}}->{$CONFIG_KEYWORD{LOGDIR}};
     my @pid;
     my @jobid;
+    my %steps;
     &syncStatus({logdir=>$logdir,config=>$config,file=>$file,direction=>'log2config'});
     for my $i(1..&getTotalStep($config)) {
 	if ($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
-	    push @pid,$config->{$i}->{$CONFIG_KEYWORD{PID}};
-	    push @jobid,$config->{$i}->{$CONFIG_KEYWORD{JOBID}};
+	    my $pid = $config->{$i}->{$CONFIG_KEYWORD{PID}};
+	    my $jobid = $config->{$i}->{$CONFIG_KEYWORD{JOBID}};
+	    push @pid,$pid;
+	    push @jobid,$jobid;
+	    $steps{$i} = {pid=>$pid,jobid=>$jobid};
 	}
     }
     #running PIDs may spawn child procs
@@ -589,42 +612,8 @@ sub getRunningID {
     warn "DEBUG(PID:$$): running PID: @pid\n" if $debug;
     warn "DEBUG(PID:$$): running JOBID: @jobid\n" if $debug;
     warn "DEBUG(PID:$$): running child PID:",`pgrep -P $pid[0]`,"\n" if $debug;
-    return \@pid,\@jobid;
+    return \@pid,\@jobid,\%steps;
 }
-#sub checkRunningPID
-#{ #if started, but not running, change status to 'error'
-#    #NEEDS IMPROVEMENT OR TESTING
-#    my $file=shift;
-#    my $waiting_time=10;
-#    my $second_check=0;
-#    my $second_check_n;
-#
-#    for my $i(&readScript($file))
-#    {
-#	my ($n,$status,$pid)=@{$i}[0,5,6];
-#	next unless $status eq 'started';
-#	unless (kill 0,$pid)
-#	{ #try to signal the proc, if not successful, wait a monment, try again, if failed, mark it as error
-#	    #this measure avoids false error when the status is not updated immediately upon exit
-#	    $second_check=1;
-#	    $second_check_n=$n;
-#	}
-#    }
-#    if ($second_check)
-#    {
-#	sleep $waiting_time;
-#	for my $i(&readScript($file))
-#	{
-#	    my ($n,$status,$pid)=@{$i}[0,5,6];
-#	    next unless $n eq $second_check_n;
-#	    unless (kill 0,$pid)
-#	    { 
-#		warn "ERROR: STEP $n was started, but actually not running.\n";
-#		&status2error($file,$n);
-#	    }
-#	}
-#    }
-#}
 sub checkVersion {
     my $allsetting = shift;
     my $v =$allsetting->{$CONFIG_KEYWORD{VERSION}};
@@ -785,6 +774,76 @@ sub getChildPID {
 	}
     }
     return @return;
+}
+sub getSubmitCmd {
+    my $submit_cmd = shift;
+    if($submit_cmd =~ /XCPUX/) {
+	$submit_cmd =~ s/XCPUX/$cpu_request/;
+    } else {
+	croak("ERROR: $qsub should have 'XCPUX' keyword\n");
+    }
+    #add -e,-o options
+    if($submit_cmd !~ /-e|-o/) {
+	my $taskDir = File::Spec->catdir($logdir,$step);
+	my $stderr = File::Spec->catfile($taskDir,"stderr");
+	my $stdout = File::Spec->catfile($taskDir,"stdout");
+	$submit_cmd .= " -e $stderr -o $stdout ";
+    }
+    if($submit_cmd !~ /-S/) {
+	$submit_cmd .= " -S /bin/bash ";
+    }
+    return $submit_cmd;
+}
+sub signal_A_PID { 
+    #tries to signal a PID
+    #if no reponse, then it's dead
+    #return 0 for dead PID, 1 otherwise
+    my $pid = shift;
+    my $waiting_time=10;
+    my $second_check=0;
+
+    unless (kill 0,$pid) { #try to signal the proc, if not successful, wait a monment, try again, if failed, mark it as error
+	#this measure avoids false error when the status is not updated immediately upon exit
+	$second_check=1;
+    }
+    if ($second_check) {
+	sleep $waiting_time;
+	unless (kill 0,$pid) { 
+	    return 0;
+	}
+    }
+    return 1;
+}
+sub checkRunningID {
+    #check if job or proc is running
+    #return step number for tasks that are marked started
+    #but actually are not running
+    my $script = shift;
+    my $sge = shift;
+    my @return;
+    my ($pid,$jobid,$steps)=&getRunningID($script);
+
+    #$steps{$step} = {pid=>PID,jobid=>JOBID}
+    if($sge) {
+	for my $i(%$steps) {
+	    !system("qstat","-j",$steps->{$i}->{jobid}) or push @return,$i;
+	}
+    } else {
+	for my $i(%$steps) {
+	    push @return,$i unless &signal_A_PID($steps->{$i}->{pid});
+	}
+    }
+    return @return;
+}
+sub status2error {
+    my $opt = shift;
+    my $logdir = $opt->{logdir};
+    my $errorStep = $opt->{errorStep};
+    for my $i(@$errorStep) {
+	warn "ERROR: STEP $i was started, but actually not running.\n";
+	&create_sentinel({logdir=>$logdir,step=>$i,status=>$ERROR});
+    }
+
 }
 
 1;

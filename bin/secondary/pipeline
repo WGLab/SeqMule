@@ -2623,7 +2623,7 @@ Options:
 
 =item B<--sge>
 
-To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically if neither of them is present.
+To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically if neither of them is present. "-S /bin/bash" is added automatically if -S is not present.
 
 =item B<--platform>
 
