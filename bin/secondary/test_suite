@@ -8,7 +8,7 @@ use File::Spec;
 my $ncpu=4;
 #my $mem="4.5g";
 my $mem="6g"; #request larger mem for GATK
-my $jmem="2500m";
+my $jmem="1750m";
 my $gatknt=4;
 my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/SeqMule/testrun/test";
@@ -97,7 +97,7 @@ for my $q("","-quick")
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 0 && $count <= 0;
+		&exec(@cmd) if $count >= 1 && $count <= 10;
 		$count++;
 	}
     }

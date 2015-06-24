@@ -1868,7 +1868,26 @@ sub cleanup
 { 
     warn "NOTICE: Cleaning up ...\n";
     !system("rm -rf @_") or warn "WARNING: failed to clean up temporary files\n";
-};
+}
+sub getArrayDiff {
+    #get differnce between two arrays
+    #assume one array is subset of the other
+    my $l1 = shift;
+    my $l2 = shift;
+    my ($large,$small);
+    my %seen;
+    if(@$l1 > @$l2) {
+	$large = $l1;
+	$small = $l2;
+    } elsif (@$l2 > @$l1) {
+	$large = $l2;
+	$small = $l1;
+    } else {
+	return ();#two arrays have equal lengths, then no difference
+    }
+    map {$seen{$_} = 1} @$small;
+    return grep {! defined $seen{$_} } @$large;
+}
 
 
 

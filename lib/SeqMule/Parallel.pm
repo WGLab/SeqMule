@@ -190,67 +190,58 @@ sub run {
 
     warn "*************EXECUTION BEGINS at ",&getReadableTimestamp,"*****************\n";
     my $start_time=time;
+    my @alreadyFinish; #keep track of finished steps
     while (1) {
 	&selectSleep($step_total);
 	&syncStatus({logdir=>$logdir,config=>$config,file=>$file,direction=>'log2config'});
-	if(my $cmd = join("\n",
-		map{$config->{$_}->{$CONFIG_KEYWORD{COMMAND}}} 
-		(grep {$config->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR} (1..$step_total))
-	    ) ) {
-	    #grep failed tasks
-	    my $cwd=$ENV{PWD};
-	    die "ERROR: command failed\n",
-	    $cmd,
-	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
-	    "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to continue analysis.\n",
-	    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-	} else {
-	    warn "DEBUG(PID:$$): no error found, go on\n" if $debug;
-	    my $elapse_time=time-$start_time;
-	    $cpu_available = $cpu_total-&getUsedCPU($config);
-	    if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($config)) {
-		if($cpu_available>=$cpu_request) {
-		    my $jobid;
-		    warn "DEBUG(PID:$$): about to execute:\n$cmd\n" if $debug;
-		    #before task is submitted or executed
-		    #we change its status from waiting to started
-		    #for SGE tasks, they may be queued for a long time before they can
-		    #the status to started
-		    &wait2start({file=>$file,config=>$config,logdir=>$logdir,step=>$step});
-		    if ($qsub) {
-			my $submit_cmd = &getSubmitCmd($qsub,$cpu_request);
-			my $script = &genTempScript($cmd);
-			#submit job and return job ID
-			$jobid = &submitJob($submit_cmd,$cmd);
-			#!!!it is possible that after submission, job will not be started immediately
-			#so if I only change config, config will be changed back after sync
-			#    and sync will happen before job started
-			#JOBID sentinel file will ONLY be handled by Parallel.pm
-			#so it is safe to do whatever to JOBID file. The child will
-			#not be influenced anyway.
-			#JOBID will be written by wait2start
-		    } else {
-			#record pid by the execution script
-			system("$cmd &");
-		    }
-		    #from the viewpoint of parent process, the children are started
-		    #regardlesss they are running in background or on SGE queue
-		    &writeJOBID({file=>$file,config=>$config,logdir=>$logdir,step=>$step,jobid=>$jobid});
-		    warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
-		    "at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
+	&checkError({logdir=>$logdir,config=>$config,file=>$file});
+	warn "DEBUG(PID:$$): no error found, go on\n" if $debug;
+	my $elapse_time=time-$start_time;
+	$cpu_available = $cpu_total-&getUsedCPU($config);
+	if ( my ($step,$cmd,$msg,$cpu_request)=&getNextCMD($config)) {
+	    if($cpu_available>=$cpu_request) {
+		my $jobid;
+		warn "DEBUG(PID:$$): about to execute:\n$cmd\n" if $debug;
+		#before task is submitted or executed
+		#we change its status from waiting to started
+		#for SGE tasks, they may be queued for a long time before they can
+		#the status to started
+		&wait2start({file=>$file,config=>$config,logdir=>$logdir,step=>$step});
+		if ($qsub) {
+		    my $submit_cmd = &getSubmitCmd({submitCmd=>$qsub,cpu=>$cpu_request,logdir=>$logdir,step=>$step});
+		    my $script = &genTempScript($cmd);
+		    #submit job and return job ID
+		    $jobid = &submitJob($submit_cmd,$cmd);
+		    #!!!it is possible that after submission, job will not be started immediately
+		    #so if I only change config, config will be changed back after sync
+		    #    and sync will happen before job started
+		    #JOBID sentinel file will ONLY be handled by Parallel.pm
+		    #so it is safe to do whatever to JOBID file. The child will
+		    #not be influenced anyway.
+		    #JOBID will be written by wait2start
+		} else {
+		    #record pid by the execution script
+		    system("$cmd &");
 		}
-	    } else {
-		if (&allDone($config)) {
-		    warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
-		    warn "Total time: ",&convertTime($elapse_time),"\n";
-		    last;
-		}
+		#from the viewpoint of parent process, the children are started
+		#regardlesss they are running in background or on SGE queue
+		&writeJOBID({file=>$file,config=>$config,logdir=>$logdir,step=>$step,jobid=>$jobid});
+		warn "\n${splitter}NOTICE$splitter\n[ => SeqMule Execution Status: Running $step of $step_total steps: $msg, ".
+		"at ",&getReadableTimestamp,", Time Elapsed: ",&convertTime($elapse_time),"]\n";
 	    }
-	    #check if the 'started' proc is actually running. If not, mark error
-	    if (my @error_step = &checkRunningID($file,$sge)) {
-		&status2error({errorStep=>\@error_step, file=>$file,config=>$config,logdir=>$logdir});
+	} else {
+	    if (&allDone($config)) {
+		warn "[ => SeqMule Execution Status: All done at ",&getReadableTimestamp,"]\n";
+		warn "Total time: ",&convertTime($elapse_time),"\n";
+		last;
 	    }
 	}
+	#check if the 'started' proc is actually running. If not, mark error
+	if (my @error_step = &checkRunningID($file,$qsub)) {
+	    &status2error({errorStep=>\@error_step, file=>$file,config=>$config,logdir=>$logdir});
+	}
+	#report newly finished jobs
+	@alreadyFinish = &reportFinish($config,@alreadyFinish);
     }
 }
 sub selectSleep {
@@ -306,12 +297,14 @@ sub single_line_exec {
 	my $time=`date`;chomp $time;
 	my $total_min=&getTotalMin($start_time);
 	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$FINISH});
-	warn "[ => SeqMule Execution Status: step $step is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
+	#we already print runtime info by parent
+	#warn "[ => SeqMule Execution Status: step $step is finished at $time, $msg, Time Spent at this step: $total_min min]\n\n";
     } else {
 	my $time=`date`;chomp $time;
 	my $total_min=&getTotalMin($start_time);
 	&create_sentinel({logdir=>$logdir,step=>$step,pid=>$$,status=>$ERROR});
-	die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $step FAILED at $time, $msg, $total_min min]\n";
+	#we already print runtime info by parent
+	#die "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step $step FAILED at $time, $msg, $total_min min]\n";
     }
 }
 sub getMsg {
@@ -776,11 +769,15 @@ sub getChildPID {
     return @return;
 }
 sub getSubmitCmd {
-    my $submit_cmd = shift;
+    my $opt = shift;
+    my $submit_cmd = $opt->{submitCmd};
+    my $cpu_request = $opt->{cpu};
+    my $logdir = $opt->{logdir};
+    my $step = $opt->{step};
     if($submit_cmd =~ /XCPUX/) {
 	$submit_cmd =~ s/XCPUX/$cpu_request/;
     } else {
-	croak("ERROR: $qsub should have 'XCPUX' keyword\n");
+	croak("ERROR: $submit_cmd should have 'XCPUX' keyword\n");
     }
     #add -e,-o options
     if($submit_cmd !~ /-e|-o/) {
@@ -825,11 +822,13 @@ sub checkRunningID {
 
     #$steps{$step} = {pid=>PID,jobid=>JOBID}
     if($sge) {
-	for my $i(%$steps) {
-	    !system("qstat","-j",$steps->{$i}->{jobid}) or push @return,$i;
+	for my $i(keys %$steps) {
+	    warn "DEBUG: checking JOBID ".$steps->{$i}->{jobid}." in step $i\n";
+	    !system("qstat -j ".$steps->{$i}->{jobid}." 1>/dev/null 2>/dev/null") or push @return,$i;
 	}
     } else {
-	for my $i(%$steps) {
+	for my $i(keys %$steps) {
+	    warn "DEBUG: checking PID ".$steps->{$i}->{pid}." in step $i\n";
 	    push @return,$i unless &signal_A_PID($steps->{$i}->{pid});
 	}
     }
@@ -844,6 +843,56 @@ sub status2error {
 	&create_sentinel({logdir=>$logdir,step=>$i,status=>$ERROR});
     }
 
+}
+sub checkError {
+    my $opt = shift;
+    my $logdir = $opt->{'logdir'};
+    my $file = $opt->{'file'};
+    my $config = $opt->{config};
+    my $time= &getReadableTimestamp;
+    my (@steps,@msg);
+    my $cmd;
+    for my $i(1..&getTotalStep($config)) {
+	next if $config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR; 
+	$cmd .= $config->{$i}->{$CONFIG_KEYWORD{COMMAND}}."\n";
+	push @steps,$i;
+	push @msg,$config->{$i}->{$CONFIG_KEYWORD{MSG}};
+    }
+    my $cwd=$ENV{PWD};
+    for my $i(0..$#steps){
+	warn "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step ".$steps[$i]." FAILED at $time, ".$msg[$i]."]\n";
+    }
+    die "ERROR: command failed\n",
+    $cmd,
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+    "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to resume analysis.\n",
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+}
+sub countFinish {
+    #count # of finished jobs
+    my $config = shift;
+    my @steps;
+    for my $i(1..&getTotalStep($config)) {
+	next if $config->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH; 
+	push @steps,$i;
+    }
+    return @steps;
+}
+sub reportFinish {
+    #return already finished steps
+    #report any newly finished steps
+    my $config = shift;
+    my @alreadyFinish = @_;
+    my @currentFinish = &countFinish($config);
+    if (my $newlyDone = @currentFinish - @alreadyFinish) {
+	for my $i(&SeqMule::Utils::getArrayDiff(\@currentFinish,\@alreadyFinish)) {
+	    my $time = &getReadableTimestamp;
+	    my $msg = $config->{$i}->{$CONFIG_KEYWORD{MSG}};
+	    warn "[ => SeqMule Execution Status: step $i is finished at $time, $msg]\n\n";
+	}
+    }
+    @alreadyFinish = &countFinish($config);
+    return @alreadyFinish;
 }
 
 1;
