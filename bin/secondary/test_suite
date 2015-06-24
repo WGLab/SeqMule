@@ -97,7 +97,7 @@ for my $q("","-quick")
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 2 && $count <= 2;
+		&exec(@cmd) if $count >= 3 && $count <= 10;
 		$count++;
 	}
     }

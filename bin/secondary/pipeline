@@ -24,6 +24,7 @@ use SeqMule::Parallel;
 use SeqMule::SeqUtils;
 
 #CONSTANTS
+my $debug = 0;
 my $PHRED_SCORE_CHECK_LINECOUNT = 1000;
 my $HG18REF="human_b36_both.fasta";
 my $HG19REF="human_g1k_v37.fasta";
@@ -441,7 +442,7 @@ sub procFQ {
 	}
     }
 #examine first 1000 reads, count bases in ASCII code 33-58 for phred33 and 80-104 for phred64
-    check_obj(@obj_list);
+    check_obj(@obj_list) if $debug;
     $phred = &SeqMule::Utils::phred_score_check($PHRED_SCORE_CHECK_LINECOUNT,(map{$_->file() if $_->filetype() eq 'FASTQ'} @obj_list)) if ($phred==1);
 }
 
@@ -1104,8 +1105,8 @@ sub gen_aligner_cmd {
     #check if all index files are present
 
     (defined $local_ref and &index_check($aligner,$local_ref)) or die "ERROR: $aligner index file(s) missing ($local_ref)\n";
-    warn "gen_aligner_cmd";
-    &check_obj(@obj_list);
+    warn "gen_aligner_cmd" if $debug;
+    &check_obj(@obj_list) if $debug;
     for my $i(@obj_list) {
 	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
@@ -1421,9 +1422,9 @@ sub gatk
 
 	my @target_obj;
 
-	warn "gatk lite\n";
-	check_obj(@obj_list);
-	warn "1384";
+	warn "gatk lite\n" if $debug;
+	check_obj(@obj_list) if $debug;
+	warn "1384" if $debug;
 
 	if ($options{'originalBAM'}) {
 	    #this step is to make sure we use BAM files without realn or recal if users want to
@@ -1438,8 +1439,8 @@ sub gatk
 	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
 	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
 
-	    warn "gatk lite target: $i\n";
-	    check_obj(@bam_obj);
+	    warn "gatk lite target: $i\n" if $debug;
+	    check_obj(@bam_obj) if $debug;
 	    &gen_variant_call_cmd({
 		    caller		=>	$caller,
 		    callcmd		=>	$cmd_common_call,
@@ -1453,8 +1454,8 @@ sub gatk
 }
 
 sub gen_gatk_realign_recal_cmd {
-    warn "1455\n";
-    &check_obj(@obj_list);
+    warn "1455\n" if $debug;
+    &check_obj(@obj_list) if $debug;
     my $n = shift;
     my $version = shift; #gatklite vs gatkfull?
     my $operation = shift; #realn vs recal
@@ -1498,8 +1499,8 @@ sub gen_gatk_realign_recal_cmd {
     $cmd_common .= " -samtools $exe_samtools ";
 
     for my $local_bam_obj(@obj_list) {
-	warn "1500\n";
-	&check_obj($local_bam_obj);
+	warn "1500\n" if $debug;
+	&check_obj($local_bam_obj) if $debug;
 	if($local_bam_obj->filetype() ne 'BAM' or
 	    ($local_bam_obj->realn && $operation eq 'realn') or
 	    ($local_bam_obj->recal && $operation eq 'recal') ) { 
@@ -1546,8 +1547,8 @@ sub gen_gatk_realign_recal_cmd {
 	#push @newbam_obj_list,$newbam_obj;
 	push @removable,$newbam_obj;
     }
-    warn "1546";
-    &check_obj(@obj_list);
+    warn "1546" if $debug;
+    &check_obj(@obj_list) if $debug;
 }
 #############end of gatklite#############
 
@@ -1600,8 +1601,8 @@ sub gatk_full {
 	my @target_obj;
 	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
 
-	warn "1562";
-	check_obj(@obj_list);
+	warn "1562" if $debug;
+	check_obj(@obj_list) if $debug;
 	if ($options{'originalBAM'}) {
 	    #this step is to make sure we use BAM files without realn or recal if users want to
 	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
@@ -2303,8 +2304,8 @@ sub vcf_merge_cmd_gen {
 sub convert64to33 {
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
     if ($phred==64) {
-	warn "before";
-	check_obj(@obj_list);
+	warn "before" if $debug;
+	check_obj(@obj_list) if $debug;
 	for my $i(@obj_list) {
 	    next unless $i->filetype() eq 'FASTQ';
 	    my $newobj = $i->clone();
@@ -2326,7 +2327,7 @@ sub convert64to33 {
 	    $i = $newobj;
 	    push @script_unlink_list,$newobj->file();
 	}
-	check_obj(@obj_list);
+	check_obj(@obj_list) if $debug;
 	$phred=33;
 	for my $i(@obj_list) {
 	    #after cloning, sibling is still pointed to phred64 fastq
@@ -2540,7 +2541,7 @@ Options:
 	--capture <BED>		  calculate coverage stats and extract (or call) variants over the regions defined by this file. If you do not have a custom BED file, use '-capture default' to use default BED file.
 	--no-resolve-conflict	  seqmule will NOT try to resolve any conflict among BED, BAM and reference. Run 'seqmule pipeline -h' for details.
 	--threads,-t <INT>	  number of threads, also effective for -sge. Default: 1.
-      	--sge <TEXT>		  run each command via Sun Grid Engine. A template with XCPUX keyword is expected. See examples.
+      	--sge <TEXT>		  run each command via Sun Grid Engine. A template with XCPUX keyword required. See examples.
 	--quick,-q		  enable parallel processing at variant calling
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
 	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
@@ -2623,7 +2624,7 @@ Options:
 
 =item B<--sge>
 
-To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically if neither of them is present. "-S /bin/bash" is added automatically if -S is not present.
+To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically. "-S /bin/bash" is added automatically. Do NOT specify -e,-o or -S in the qsub template.
 
 =item B<--platform>
 

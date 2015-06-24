@@ -16,7 +16,7 @@ use Sort::Topological qw/toposort/;
 #add version number, different versions of config might be incompatible
 my $VERSION = 1.2;
 my %COMPATIBLE_VERSION = ("1.2"=>1);
-my $debug=1;
+my $debug=0;
 my $splitter="-" x 10;
 my %TDG; #task dependency graph, for each task, specify child
 my %TDG_REVERSE; #task dependency graph, for each task, specify parent
@@ -129,9 +129,9 @@ sub writeParallelCMD {
 #sort commands #write command
     my $step = 1;
     my %stepAndIdx;
-    print scalar @cmd,"total steps\n";
+    print scalar @cmd,"total steps\n" if $debug;
     for my $i(toposort(\&returnTDGChild,[0..$#cmd])) {
-	print "i:$i,step:$step\n";
+	print "i:$i,step:$step\n" if $debug;
 	$stepAndIdx{$i} = $step;
 	$step++;
     }
@@ -823,12 +823,12 @@ sub checkRunningID {
     #$steps{$step} = {pid=>PID,jobid=>JOBID}
     if($sge) {
 	for my $i(keys %$steps) {
-	    warn "DEBUG: checking JOBID ".$steps->{$i}->{jobid}." in step $i\n";
+	    warn "DEBUG: checking JOBID ".$steps->{$i}->{jobid}." in step $i\n" if $debug;
 	    !system("qstat -j ".$steps->{$i}->{jobid}." 1>/dev/null 2>/dev/null") or push @return,$i;
 	}
     } else {
 	for my $i(keys %$steps) {
-	    warn "DEBUG: checking PID ".$steps->{$i}->{pid}." in step $i\n";
+	    warn "DEBUG: checking PID ".$steps->{$i}->{pid}." in step $i\n" if $debug;
 	    push @return,$i unless &signal_A_PID($steps->{$i}->{pid});
 	}
     }

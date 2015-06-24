@@ -24,6 +24,10 @@ SeqMule takes single-end or paird-end FASTQ or BAM files, generates a script con
 
    Just change the 'advanced_config' file!
 
+* Sun Grid Engine (SGE) integration
+
+   SeqMule is scalable and can utilize cluster computation resources managed by SGE.
+
 
 ## Synopsis
 

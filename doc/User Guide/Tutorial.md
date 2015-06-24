@@ -128,6 +128,34 @@ Assume you get a VCF with a family trio. The sample ID is `father` for father, `
 
 The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained. If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with `seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa`, where `123combo` is the prefix for the merged VCF.
 
+### RUNNING SEQMULE WITH SGE
+
+SGE stands for Sun Grid Engine. SGE is a popular resource management system in computation cluster environment. SeqMule normally achieves multiprocessing by forking child process to execute commands. With SGE, SeqMule will submit tasks to the system and waits for them to finish. The `-threads` option controls total number of CPUs requested at any given time when it is used with `-sge` option. An example command looks like the following:
+
+```
+seqmule pipeline -ow -prefix sample -a sample.1.fastq.gz -b sample.2.fastq.gz -e -capture default -t 4 -jmem 1750m --advanced seqmule/predefined_config/bowtie2_gatk.config -sge "qsub -V -cwd -pe smp XCPUX"
+```
+
+Here, the double quoted string following `-sge` is a template for job submission. `XCPUX` is a keyword that will be replaced by actual number of CPUs needed for each task. SeqMule has to be run on a submission node. Do NOT specify `-e`,`-o`,`-S` options in the template as SeqMule will do it for you. SeqMule adds `-S /bin/bash` for all tasks. You can specify other options like queue name, memory request, email address in the template. Because some programs require lots of memory, you may want to try different arguments for `-jmem`, `-threads` and request larger amount of memory in the template in case you are not sure. 
+
+### RUNNING IN THE CLOUD (under construction)
+
+With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. Steps to run in the cloud:
+
++ Install [StarCluster](http://star.mit.edu/cluster/docs/latest/quickstart.html)
++ Start SeqMule-customized AMI (Amazon Machine Image) via StarCluster
++ Log into the virtual cluster and run SeqMule
+
+### CALL SOMATIC VARIANTS
+
+Calling somatic variants requires two sets of sequencing data, one from normal tissue, the other from tumor tissue. An example looks like this:
+
+```
+seqmule pipeline -ow -a normal.1.fq -b normal.2.fq -a2 tumor.1.fq -b2 tumor.2.fq -capture default -e -t 4 -rg PatientX -prefix PatientXsomatic
+```
+
+`-a`,`-b` specify two paired-end sequencing files from normal tissue; `-a2`,`-b2` specify two paired-end sequencing files from tumor tissue. Multiple samples are supported. You can use commas to separate them. Somatica variant calling is enabled for SAMtools and VarScan2 in SeqMule. Look into `predefined_config/` folder for a tested configuration file.
+
 ### CAVEAT 
 
 NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under `seqmule/misc/predefined_config` folder.
