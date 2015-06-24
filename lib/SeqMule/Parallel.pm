@@ -853,27 +853,29 @@ sub checkError {
     my (@steps,@msg);
     my $cmd;
     for my $i(1..&getTotalStep($config)) {
-	next if $config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR; 
+	next unless $config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $ERROR; 
 	$cmd .= $config->{$i}->{$CONFIG_KEYWORD{COMMAND}}."\n";
 	push @steps,$i;
-	push @msg,$config->{$i}->{$CONFIG_KEYWORD{MSG}};
+	push @msg,$config->{$i}->{$CONFIG_KEYWORD{MESSAGE}};
     }
-    my $cwd=$ENV{PWD};
-    for my $i(0..$#steps){
-	warn "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step ".$steps[$i]." FAILED at $time, ".$msg[$i]."]\n";
+    if(@steps) {
+	my $cwd=$ENV{PWD};
+	for my $i(0..$#steps){
+	    warn "\n\n${splitter}ERROR$splitter\n[ => SeqMule Execution Status: step ".$steps[$i]." FAILED at $time, ".$msg[$i]."]\n";
+	}
+	die "ERROR: command failed\n",
+	$cmd,
+	"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+	"After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to resume analysis.\n",
+	"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
     }
-    die "ERROR: command failed\n",
-    $cmd,
-    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
-    "After fixing the problem, please execute 'cd $cwd' and 'seqmule run $file' to resume analysis.\n",
-    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 }
 sub countFinish {
     #count # of finished jobs
     my $config = shift;
     my @steps;
     for my $i(1..&getTotalStep($config)) {
-	next if $config->{$_}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH; 
+	next unless $config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH; 
 	push @steps,$i;
     }
     return @steps;
@@ -887,7 +889,7 @@ sub reportFinish {
     if (my $newlyDone = @currentFinish - @alreadyFinish) {
 	for my $i(&SeqMule::Utils::getArrayDiff(\@currentFinish,\@alreadyFinish)) {
 	    my $time = &getReadableTimestamp;
-	    my $msg = $config->{$i}->{$CONFIG_KEYWORD{MSG}};
+	    my $msg = $config->{$i}->{$CONFIG_KEYWORD{MESSAGE}};
 	    warn "[ => SeqMule Execution Status: step $i is finished at $time, $msg]\n\n";
 	}
     }
