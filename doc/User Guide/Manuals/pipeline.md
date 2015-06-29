@@ -1,14 +1,16 @@
 # NAME
 
-SeqMule an automatic pipeline for next-generation sequencing data analysis
+seqmule-pipeline generates an analysis script based on options and/or advanced configuration.
 
 # SYNOPSIS
 
         seqmule pipeline <options>
 
-For details about each option, please use 'seqmule -h':
+# DESCRIPTION
 
-Options:
+This command takes FASTQ/BAM files, various options and an optional advanced configuration file as input and generates a script file containing a set of commands, along with their resource requirements and dependencies. The script will then be given to seqmule-run for execution unless otherwise directed.
+
+# OPTIONS
 
         --prefix,-p               comma-delimited list of sample names, will be used for output file naming.
                                   Mandatory for FASTQ input or BAM input with merge enabled.
@@ -66,7 +68,7 @@ Options:
         --verbose,-v              verbose output
         --help,-h                 show this message
 
-        EXAMPLE 
+# EXAMPLES
 
         #generate a copy of 'advanced_config' for modification. You can find some predefined configurations under 'seqmule/misc/predefined_config' folder.
         seqmule pipeline -advanced
@@ -99,7 +101,7 @@ Options:
         seqmule pipeline -bam 1.bam,2.bam,3.bam -e -merge -prefix sample -quick -t 12
 
         #analyze gzipped FASTQ files (.fq.gz) and unzipped files (.fq). Gzipped files will be unpacked temporarily and be removed after analysis.
-        seqmule pipeline -a sample1.1.fq.gz,sample2.1.fq -b sample1.2.fq.gz,sample2.2.fq -e -prefix sample1,sample2 -capture default
+        eqmule pipeline -a sample1.1.fq.gz,sample2.1.fq -b sample1.2.fq.gz,sample2.2.fq -e -prefix sample1,sample2 -capture default
 
         #merge multiple pairs of FASTQ files and do multiple sample variant calling
         #--forceOneRG must be used along with -rg to assign same @RG tag to input files
@@ -115,7 +117,7 @@ Options:
         #run via Sun Grid Engine (a job scheduling system)
         seqmule pipeline -a 1.fastq -b 2.fastq -prefix genomeData -threads 12 -rg READGROUP -g -advanced advanced_config -nostat -sge "qsub -V -cwd -pe smp XCPUX"
 
-# OPTIONS
+# DETAILS
 
 - **--sge**
 
@@ -164,7 +166,3 @@ Options:
 - **--no-resolve-conflict**
 
     By default, SeqMule will add or trim leading 'chr' to the BED file or BAM file to make the contig names consistent with reference. Modified BED and BAM will be saved to a new file.
-
-# DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.

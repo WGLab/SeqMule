@@ -1,34 +1,31 @@
 # NAME
 
-SeqMule an automatic pipeline for next-generation sequencing data analysis
+seqmule-update updates the program and related 3rd party program to latest compatible versions
 
 # SYNOPSIS
 
-seqmule update \[options\]
+        seqmule update [options]
 
-For details about each option, please use 'seqmule update -h':
+# DESCRIPTION
 
-Options:
+This command updates SeqMule to latest released version or development version. The 3rd party programs will also be updated accordingly.
 
-      --git                     update from GitHub
-      --tmpdir <DIR>            temporary folder for storing copy of downloaded stuff. Default is $TMPDIR
-      or /tmp
-      -h,--help                 help
+# OPTIONS
 
-Examples:
+        --git                   update from GitHub
+        --tmpdir <DIR>          temporary folder for storing copy of downloaded stuff. Default is $TMPDIR or /tmp
+        -h,--help               help
 
-      #update SeqMule to the latest version hosted on SeqMule website
-      seqmule update
+# EXAMPLES
 
-      #update SeqMule to the latest version on GitHub
-      seqmule update --git
+        #update SeqMule to the latest version hosted on SeqMule website
+        seqmule update
+
+        #update SeqMule to the latest version on GitHub
+        seqmule update --git
 
 # OPTIONS
 
 - **--git**
 
     update SeqMule to the latest version available on GitHub. Use this version when you got bugs using the version hosted on SeqMule website or want to try out pre-release new features.
-
-# DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
