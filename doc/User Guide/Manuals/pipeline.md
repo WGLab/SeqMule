@@ -4,7 +4,7 @@ SeqMule an automatic pipeline for next-generation sequencing data analysis
 
 # SYNOPSIS
 
-seqmule <options>
+        seqmule pipeline <options>
 
 For details about each option, please use 'seqmule -h':
 
