@@ -24,6 +24,7 @@ use SeqMule::Parallel;
 use SeqMule::SeqUtils;
 
 #CONSTANTS
+my $debug = 0;
 my $PHRED_SCORE_CHECK_LINECOUNT = 1000;
 my $HG18REF="human_b36_both.fasta";
 my $HG19REF="human_g1k_v37.fasta";
@@ -34,7 +35,7 @@ my $GATK_INDEL_HARD_FILTER_BAM_SIZE=15_000_000_000; #in bytes, BAM files smaller
 my $RMDUP_MIN_LEN=10_000_000; #remove minimum 
 my $SAMTOOLS_SORT_MEM_EXOME = '2G';
 my $SAMTOOLS_SORT_MEM_GENOME = '2G'; #2G has been tested to work with wgs
-my $TMPDIR = $ENV{TMPDIR} || "/tmp";
+my $TMPDIR;
 my %VARIANT_QUAL_PRIORITY_LIST = (
     gatk_hc => 1,
     gatk_ug =>2,
@@ -50,7 +51,7 @@ my (
     $normal_fq1,$normal_fq2,$normal_bam,$tumor_fq1,$tumor_fq2,$tumor_bam,
     $merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
-    $threads, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
+    $threads, $sge, $nodeCapacity, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
     $no_resolve_conflict,$overwrite,
     $capture,$ref, $index_prefix, $bowtie_index_prefix, $bowtie2_index_prefix, 
     $soap_index_prefix, $hapmap, $dbsnp,  $dbsnpver,  $kg, $indel,
@@ -64,6 +65,7 @@ my @prefix_list;
 my $analysis_prefix; #used for report folder, script name etc
 my @merging_rule_list;
 my $somatic_toggle = 0;
+my $total_threads; #this is the original value specified by '--threads' option
 
 #readgroup information
 my @readgroup;
@@ -117,6 +119,8 @@ GetOptions(
     'wgs|g'		=>	\$wgs,
     #runtime parameters
     'threads|t=i'	=>	\$threads,
+    'sge=s'		=>	\$sge,
+    'nodeCapacity|nc=i' =>	\$nodeCapacity,
     'quick|q'		=>	\$quick,
     'jmem=s'		=>	\$java_mem,
     'tmpdir=s'		=>	\$tmpdir,
@@ -174,7 +178,7 @@ if ($tumor_bam || $tumor_fq1 || $tumor_fq2){
 #execution
 warn "To execute it, execute 'seqmule run $script_file'\n" and exit 0 if $norun;
 #don't add die for the following command, it will die itself upon failure
-exec File::Spec->catfile($install_dir,"bin","seqmule"),"run",$script_file;
+exec File::Spec->catfile($install_dir,"bin","seqmule"),"run",$script_file,($sge?("-sge",$sge):());
 
 #-----------------------------------subroutines for handling options --------------------------------------------
 #set or generate proper advanced configuration file
@@ -212,26 +216,26 @@ sub procGlobalConf {
     for (@conf_lines) {
 	my ($key,$value)= /(go_\w+=)(.*?)(\s+|#|$)/;
 	if ($key=~/_threads=/i) {
-	    $threads=$threads || $value || 1;
+	    $threads= $threads || $value;
 	} elsif ($key=~/_jmem=/)
-	{ $java_mem=$java_mem || $value || '1750m';
+	{ $java_mem=$java_mem || $value;
 	}elsif ($key=~/_gatknt=/){
-	    $gatk_nt=$gatk_nt || $value || 2;
+	    $gatk_nt=$gatk_nt || $value;
 	}elsif ($key=~/_platform=/i) {
-	    $pl=$pl || $value || 'ILLUMINA';
+	    $pl=$pl || $value;
 	    $pl=uc $pl;
 	} elsif ($key=~/_phred=/i) {
-	    $phred=$phred || $value || 1;
+	    $phred=$phred || $value;
 	} elsif ($key=~/_rg=/i) {
-	    $rg=$rg || $value || 'READGROUP';
+	    $rg=$rg || $value;
 	    $rg=uc $rg;
 	} elsif ($key=~/_lb=/i) {
-	    $lb=$lb || $value || 'LIBRARY';
+	    $lb=$lb || $value;
 	    $lb=uc $lb;
 	} elsif ($key=~/_buildver=/) {
-	    $buildver=$buildver || $value || 'hg19';
+	    $buildver=$buildver || $value;
 	} elsif ($key=~/_dbsnpver=/i) {
-	    $dbsnpver=$dbsnpver || $value || 138;
+	    $dbsnpver=$dbsnpver || $value;
 	} elsif ($key=~/_dbsnp=/i) {
 	    $dbsnp=$dbsnp || $value;
 	} elsif ($key=~/_hapmap=/i) {
@@ -251,13 +255,16 @@ sub procGlobalConf {
 	elsif ($key=~/_capture=/) { 
 	    $capture=$capture || $value;
 	} elsif ($key=~/_tmpdir=/) { 
-	    $TMPDIR = $tmpdir || $value || $TMPDIR;
+	    $TMPDIR = $tmpdir || $value;
 	} else {	warn "CAUTION:undefined global setting ignored: $key\n"    }
     }
     $bowtie_index_prefix=$bowtie_index_prefix || $index_prefix || "";
     $bowtie2_index_prefix=$bowtie2_index_prefix || $index_prefix || "";
     $soap_index_prefix=$soap_index_prefix || $index_prefix || "";
     warn "Done\n";
+    #in case no values are given for some options
+    #we need to assign default values
+    &assignDefault();
 }
 
 sub input_opt_check {
@@ -346,7 +353,7 @@ sub writeLog {
     print LOG "Reference genome build is $buildver\n";
     print LOG "dbsnp$dbsnpver is used for variant calling and recalibration (in GATK VQSR).\n";
     print LOG "Java memory usage is limited to $java_mem\n";
-    print LOG "Max number of processes: $threads\n";
+    print LOG "Max number of processes: $total_threads\n";
     print LOG "Variant calling are run in parallel mode [EXPERIMENTAL].\n" if $quick;
     print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
 
@@ -440,7 +447,7 @@ sub procFQ {
 	}
     }
 #examine first 1000 reads, count bases in ASCII code 33-58 for phred33 and 80-104 for phred64
-    check_obj(@obj_list);
+    check_obj(@obj_list) if $debug;
     $phred = &SeqMule::Utils::phred_score_check($PHRED_SCORE_CHECK_LINECOUNT,(map{$_->file() if $_->filetype() eq 'FASTQ'} @obj_list)) if ($phred==1);
 }
 
@@ -556,8 +563,7 @@ sub procBAM {
 
 		$local_bam_obj=$newbam_obj;
 	    }
-	} else
-	{
+	} else {
 	    die "ERROR: unrecognized return code for contig name comparison.\n";
 	}
     }
@@ -603,6 +609,10 @@ sub confOptCheck {
     die "ERROR: use integers for GATK threads option: $gatk_nt\n" unless $gatk_nt=~/^\d+$/;
     die "ERROR: at least 2 threads required for QUICK mode" if $threads<2 && $quick;
 
+    #$threads has been assigned a default value by now
+    #record the original number of threads
+    $total_threads = $threads;
+    $threads = $nodeCapacity if $nodeCapacity and $threads>$nodeCapacity;
     #check capture file
     if ($capture && $capture=~/^default$/i) {
 	#see if we should modify default capture file to match custom reference
@@ -1103,8 +1113,8 @@ sub gen_aligner_cmd {
     #check if all index files are present
 
     (defined $local_ref and &index_check($aligner,$local_ref)) or die "ERROR: $aligner index file(s) missing ($local_ref)\n";
-    warn "gen_aligner_cmd";
-    &check_obj(@obj_list);
+    warn "gen_aligner_cmd" if $debug;
+    &check_obj(@obj_list) if $debug;
     for my $i(@obj_list) {
 	next unless $i->filetype eq 'FASTQ' and $i->rank == 0;
 	my $local_prefix= &SeqMule::Utils::getFQprefix($i->file());
@@ -1420,9 +1430,9 @@ sub gatk
 
 	my @target_obj;
 
-	warn "gatk lite\n";
-	check_obj(@obj_list);
-	warn "1384";
+	warn "gatk lite\n" if $debug;
+	check_obj(@obj_list) if $debug;
+	warn "1384" if $debug;
 
 	if ($options{'originalBAM'}) {
 	    #this step is to make sure we use BAM files without realn or recal if users want to
@@ -1437,8 +1447,8 @@ sub gatk
 	    my @bam_obj = grep {$_->filetype eq 'BAM'} @target_obj;
 	    @bam_obj = grep {$_->aligner eq $i} @bam_obj;
 
-	    warn "gatk lite target: $i\n";
-	    check_obj(@bam_obj);
+	    warn "gatk lite target: $i\n" if $debug;
+	    check_obj(@bam_obj) if $debug;
 	    &gen_variant_call_cmd({
 		    caller		=>	$caller,
 		    callcmd		=>	$cmd_common_call,
@@ -1452,8 +1462,8 @@ sub gatk
 }
 
 sub gen_gatk_realign_recal_cmd {
-    warn "1455\n";
-    &check_obj(@obj_list);
+    warn "1455\n" if $debug;
+    &check_obj(@obj_list) if $debug;
     my $n = shift;
     my $version = shift; #gatklite vs gatkfull?
     my $operation = shift; #realn vs recal
@@ -1497,8 +1507,8 @@ sub gen_gatk_realign_recal_cmd {
     $cmd_common .= " -samtools $exe_samtools ";
 
     for my $local_bam_obj(@obj_list) {
-	warn "1500\n";
-	&check_obj($local_bam_obj);
+	warn "1500\n" if $debug;
+	&check_obj($local_bam_obj) if $debug;
 	if($local_bam_obj->filetype() ne 'BAM' or
 	    ($local_bam_obj->realn && $operation eq 'realn') or
 	    ($local_bam_obj->recal && $operation eq 'recal') ) { 
@@ -1541,12 +1551,12 @@ sub gen_gatk_realign_recal_cmd {
 
 	}
 	#$local_bam_obj = $newbam_obj; 
-	warn "1483";
+	warn "1483" if $debug;
 	#push @newbam_obj_list,$newbam_obj;
 	push @removable,$newbam_obj;
     }
-    warn "1546";
-    &check_obj(@obj_list);
+    warn "1546" if $debug;
+    &check_obj(@obj_list) if $debug;
 }
 #############end of gatklite#############
 
@@ -1599,8 +1609,8 @@ sub gatk_full {
 	my @target_obj;
 	my $caller=$subprogram eq 'unifiedgenotyper'?'gatk_ug':'gatk_hc';
 
-	warn "1562";
-	check_obj(@obj_list);
+	warn "1562" if $debug;
+	check_obj(@obj_list) if $debug;
 	if ($options{'originalBAM'}) {
 	    #this step is to make sure we use BAM files without realn or recal if users want to
 	    @target_obj = grep {$_->realn() == 0 && $_->recal() == 0} @obj_list;
@@ -1971,8 +1981,7 @@ sub soapsnp
     }
 } 
 
-sub genScript
-{
+sub genScript {
     warn "Generating script...\n";
     #prepare new tmp folder
     if ($quick) {
@@ -2302,8 +2311,8 @@ sub vcf_merge_cmd_gen {
 sub convert64to33 {
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","phred64to33");
     if ($phred==64) {
-	warn "before";
-	check_obj(@obj_list);
+	warn "before" if $debug;
+	check_obj(@obj_list) if $debug;
 	for my $i(@obj_list) {
 	    next unless $i->filetype() eq 'FASTQ';
 	    my $newobj = $i->clone();
@@ -2325,7 +2334,7 @@ sub convert64to33 {
 	    $i = $newobj;
 	    push @script_unlink_list,$newobj->file();
 	}
-	check_obj(@obj_list);
+	check_obj(@obj_list) if $debug;
 	$phred=33;
 	for my $i(@obj_list) {
 	    #after cloning, sibling is still pointed to phred64 fastq
@@ -2391,9 +2400,22 @@ sub writeScript {
     &SeqMule::Parallel::writeParallelCMD ({
 	    worker=>File::Spec->catfile($install_dir,"bin","secondary","worker"),
 	    file=>$script_file,
-	    cpu_total=>$threads,
+	    cpu_total=>$total_threads,
 	    cmd=>\@commands,
 	});
+}
+sub assignDefault {
+    #assign default values for global options
+    $threads=$threads || 1;
+    $java_mem=$java_mem || '1750m';
+    $gatk_nt=$gatk_nt || 2;
+    $pl=$pl || 'ILLUMINA';
+    $phred=$phred || 1;
+    $rg=$rg || 'READGROUP';
+    $lb=$lb || 'LIBRARY';
+    $buildver=$buildver || 'hg19';
+    $dbsnpver=$dbsnpver || 138;
+    $TMPDIR = $TMPDIR || $ENV{TMPDIR} || "/tmp";
 }
 #######################HELPER SUBROUTINES#############################
 sub get_result_folder {
@@ -2433,12 +2455,10 @@ sub remove_obj_from_array { #remove obj in target from obj in all
 }
 sub get_gatk_nt {
     my ($total,$gatk)=@_;
-    if ($total>= $gatk) 
-    {
+    if ($total>= $gatk) {
 	return $gatk;
 	warn "NOTICE: Set GATK genotype calling threads to $gatk for safety\n" if $total>1;
-    } else 
-    {
+    } else {
 	return $total;
     }
 }
@@ -2501,15 +2521,17 @@ __END__
 
 =head1 NAME
 
-SeqMule an automatic pipeline for next-generation sequencing data analysis
+seqmule-pipeline generates an analysis script based on options and/or advanced configuration.
 
 =head1 SYNOPSIS
 
-seqmule <options>
+	seqmule pipeline <options>
 
-For details about each option, please use 'seqmule -h':
+=head1 DESCRIPTION
 
-Options:
+This command takes FASTQ/BAM files, various options and an optional advanced configuration file as input and generates a script file containing a set of commands, along with their resource requirements and dependencies. The script will then be given to seqmule-run for execution unless otherwise directed.
+
+=head1 OPTIONS
 
 	--prefix,-p		  comma-delimited list of sample names, will be used for output file naming.
 				  Mandatory for FASTQ input or BAM input with merge enabled.
@@ -2538,7 +2560,9 @@ Options:
 	--wgs,-g		  the input is whole-genome sequencing data
 	--capture <BED>		  calculate coverage stats and extract (or call) variants over the regions defined by this file. If you do not have a custom BED file, use '-capture default' to use default BED file.
 	--no-resolve-conflict	  seqmule will NOT try to resolve any conflict among BED, BAM and reference. Run 'seqmule pipeline -h' for details.
-	--threads,-t <INT>	  number of threads. Default: 1.
+	--threads,-t <INT>	  number of threads, also effective for -sge. Default: 1.
+      	--sge <TEXT>		  run each command via Sun Grid Engine. A template with XCPUX keyword required. See examples.
+	--nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host.
 	--quick,-q		  enable parallel processing at variant calling
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
 	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
@@ -2565,7 +2589,7 @@ Options:
 	--verbose,-v		  verbose output
 	--help,-h		  show this message
 
-	EXAMPLE	
+=head1 EXAMPLES
 
 	#generate a copy of 'advanced_config' for modification. You can find some predefined configurations under 'seqmule/misc/predefined_config' folder.
 	seqmule pipeline -advanced
@@ -2598,7 +2622,7 @@ Options:
 	seqmule pipeline -bam 1.bam,2.bam,3.bam -e -merge -prefix sample -quick -t 12
 
 	#analyze gzipped FASTQ files (.fq.gz) and unzipped files (.fq). Gzipped files will be unpacked temporarily and be removed after analysis.
-	seqmule pipeline -a sample1.1.fq.gz,sample2.1.fq -b sample1.2.fq.gz,sample2.2.fq -e -prefix sample1,sample2 -capture default
+	eqmule pipeline -a sample1.1.fq.gz,sample2.1.fq -b sample1.2.fq.gz,sample2.2.fq -e -prefix sample1,sample2 -capture default
 
 	#merge multiple pairs of FASTQ files and do multiple sample variant calling
 	#--forceOneRG must be used along with -rg to assign same @RG tag to input files
@@ -2611,10 +2635,17 @@ Options:
 	#here multi-sample variant calling is not enabled
 	seqmule pipeline -a sample1.1.1.fastq,sample1.2.1.fastq,sample2.1.1.fastq,sample2.2.1.fastq -b sample1.1.2.fastq,sample1.2.2.fastq,sample2.1.2.fastq,sample2.2.2.fastq -p sample1o2,sample2o2 -g -merge --forceOneRG -rg READGROUP 
 
+      	#run via Sun Grid Engine (a job scheduling system)
+	seqmule pipeline -a 1.fastq -b 2.fastq -prefix genomeData -threads 12 -rg READGROUP -g -advanced advanced_config -nostat -sge "qsub -V -cwd -pe smp XCPUX"
 
-=head1 OPTIONS
+
+=head1 DETAILS
 
 =over 8
+
+=item B<--sge>
+
+To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically. "-S /bin/bash" is added automatically. Do NOT specify -e,-o or -S in the qsub template.
 
 =item B<--platform>
 
@@ -2661,9 +2692,5 @@ specify the 1000 genome project VCF file for variant quality recalibration, othe
 By default, SeqMule will add or trim leading 'chr' to the BED file or BAM file to make the contig names consistent with reference. Modified BED and BAM will be saved to a new file.
 
 =back
-
-=head1 DESCRIPTION
-
-SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
 
 =cut

@@ -8,7 +8,7 @@ use File::Spec;
 my $ncpu=4;
 #my $mem="4.5g";
 my $mem="6g"; #request larger mem for GATK
-my $jmem="2500m";
+my $jmem="1750m";
 my $gatknt=4;
 my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/SeqMule/testrun/test";
@@ -88,14 +88,17 @@ for my $q("","-quick")
 		    $mem="12g";
 		}
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h='compute-0-1[0-9]' -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
-		push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#no qsub
-		#push @cmd, "$starting_point $q --advanced $j ";
+		$starting_point =~ s/-t \d+/-t 12 -nc 4/;
+		push @cmd, "$starting_point $q --advanced $j -nr";
+		#qsub by seqmule itself
+		#push @cmd, "$starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX\" ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 11 && $count <= 20;
+		&exec(@cmd) if $count >= 30 && $count <= 30;
 		$count++;
 	}
     }
