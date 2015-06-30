@@ -62,7 +62,7 @@ if($somatic_flag) {
     $normal_cmd =~ s/BAMFILE/$bam[0]/;
     $tumor_cmd =~ s/BAMFILE/$bam[1]/;
 
-    $cmd = "bash -c \"$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan <\($normal_cmd\) <\($tumor_cmd\) $vcf_prefix ";
+    $cmd = "bash -c \"$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan somatic <\($normal_cmd\) <\($tumor_cmd\) $vcf_prefix ";
     $cmd .= " --output-vcf 1 ";
     $cmd .=" --min-coverage $options{minDepth}" if $options{minDepth};
     $cmd .=" --p-value $options{P}" if $options{P};
@@ -73,7 +73,7 @@ if($somatic_flag) {
 #combine snp and indel
     push @cmd,"$seqmule_stats -u-vcf $snpvcf,$indelvcf -p $vcf_prefix  -ref $ref";
 #change output file name
-    push @cmd,"mv -f $vcf_prefix.union.vcf $vcf_filter";
+    push @cmd,"mv -f ${vcf_prefix}_union.vcf $vcf_filter";
     #we don't need separate snp and indel VCFs
     push @cmd,"rm -f $snpvcf $indelvcf";
 } else {

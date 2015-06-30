@@ -382,15 +382,15 @@ sub create_sentinel {
     my $pid=$opt->{pid};
     my $status=$opt->{status};
     my $step_dir = File::Spec->catdir($logdir,$n);
-    my $sentinel = File::Spec->catfile($step_dir,"STATUS.$status");
-    my $pid_file = File::Spec->catfile($step_dir,"PID.$pid");
     if($opt->{status}) {
-	!system("rm -f ".File::Spec->catfile($step_dir,"STATUS.*")) or croak("failed to rm step $n STATUS.*: $!\n");
-	&touch($sentinel);
+	    my $sentinel = File::Spec->catfile($step_dir,"STATUS.$status");
+	    !system("rm -f ".File::Spec->catfile($step_dir,"STATUS.*")) or croak("failed to rm step $n STATUS.*: $!\n");
+	    &touch($sentinel);
     }
     if($pid) {
-	!system("rm -f ".File::Spec->catfile($step_dir,"PID.*")) or croak("failed to rm step $n STATUS.*: $!\n");
-	&touch($pid_file);
+	    my $pid_file = File::Spec->catfile($step_dir,"PID.$pid");
+	    !system("rm -f ".File::Spec->catfile($step_dir,"PID.*")) or croak("failed to rm step $n STATUS.*: $!\n");
+	    &touch($pid_file);
     }
 }
 sub firstScan {
@@ -827,10 +827,12 @@ sub checkRunningID {
 	    !system("qstat -j ".$steps->{$i}->{jobid}." 1>/dev/null 2>/dev/null") or push @return,$i;
 	}
     } else {
-	for my $i(keys %$steps) {
-	    warn "DEBUG: checking PID ".$steps->{$i}->{pid}." in step $i\n" if $debug;
-	    push @return,$i unless &signal_A_PID($steps->{$i}->{pid});
-	}
+	    #there might be bugs here
+	    #fix it later
+	    #for my $i(keys %$steps) {
+	    #    warn "DEBUG: checking PID ".$steps->{$i}->{pid}." in step $i\n" if $debug;
+	    #    push @return,$i unless &signal_A_PID($steps->{$i}->{pid});
+	    #}
     }
     return @return;
 }
