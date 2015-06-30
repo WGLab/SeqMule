@@ -151,10 +151,12 @@ With increasing popularity of cloud computing, more users may want to run large 
 Calling somatic variants requires two sets of sequencing data, one from normal tissue, the other from tumor tissue. An example looks like this:
 
 ```
-seqmule pipeline -ow -a normal.1.fq -b normal.2.fq -a2 tumor.1.fq -b2 tumor.2.fq -capture default -e -t 4 -rg PatientX -prefix PatientXsomatic
+seqmule pipeline -ow -a normal_R1.fastq.gz -b normal_R2.fastq.gz -a2 tumor_R1.fastq.gz -b2 tumor_R2.fastq.gz -capture somatic_calling.bed -e -t 4 -rg PatientX -prefix PatientXsomatic -advanced ~/Downloads/SeqMule/misc/predefined_config/forSomatic_bwa_varscan.config
 ```
 
-`-a`,`-b` specify two paired-end sequencing files from normal tissue; `-a2`,`-b2` specify two paired-end sequencing files from tumor tissue. Multiple samples are supported. You can use commas to separate them. Somatica variant calling is enabled for SAMtools and VarScan2 in SeqMule. Look into `predefined_config/` folder for a tested configuration file.
+`-a`,`-b` specify two paired-end sequencing files ([normal_R1.fastq.gz](http://seqmule.usc.edu/example/normal_R1.fastq.gz), [normal_R2.fastq.gz](http://seqmule.usc.edu/example/normal_R2.fastq.gz)) from normal tissue; `-a2`,`-b2` specify two paired-end sequencing files ([tumor_R1.fastq.gz](http://seqmule.usc.edu/example/tumor_R1.fastq.gz), [tumor_R2.fastq.gz](http://seqmule.usc.edu/example/tumor_R2.fastq.gz)) from tumor tissue. [somatic_calling.bed](http://seqmule.usc.edu/example/somatic_calling.bed) defines the region of interest. Multiple samples are supported. You can use commas to separate them. Somatic variant calling is enabled for SAMtools and VarScan2 in SeqMule. In this example, *bwa+varscan* combination is used. Look into `predefined_config/` folder for more tested configuration files.
+
+The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://seqmule.usc.edu/example/PatientXsomatic_report/).
 
 ### CAVEAT 
 
