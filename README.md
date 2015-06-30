@@ -41,6 +41,7 @@ lls, generating coverage/alignment statistics in specific genomic regions, calcu
 * **seqmule run**: continue run from last executed step after interruption or run from a specific step
 
 * **seqmule update**: perform automated update of the SeqMule software tools
+**See `doc/User Manual/Manuals` for details**
 
 
 ## Revision History

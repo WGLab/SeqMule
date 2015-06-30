@@ -244,8 +244,8 @@ This command downloads specific database files used in analysis, including but n
       	--down,-d 		comma-delimited list of databases and BED files by capture kit manufacturer. See details.
       	--downdir <dir>		custom download folder. NOT recommended if you want to use default databases.
       	-v,--verbose		verbose output. Default: disabled
-      	-h,--help			help
-      	--noclean			do not clean temporary files
+      	-h,--help		help
+      	--noclean		do not clean temporary files
       	--debug			debug mode
 
 =head1 EXAMPLES
