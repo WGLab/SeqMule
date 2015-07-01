@@ -4,7 +4,7 @@ After you have downloaded and installed SeqMule (assume in `seqmule` folder), th
 
 ### EXAMPLE OUTPUT 
 
-Click [here](../misc/example_report/summary.html) to see what output report looks like.
+Click [here](http://seqmule.usc.edu/example/trio_report/summary.html) to see what output report looks like.
 
 You can find an application example in my [poster](../misc/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
 
