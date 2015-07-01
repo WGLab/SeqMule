@@ -634,10 +634,8 @@ sub phred64to33
 	(open $fhout,">",$outfile or die "Cannot write $outfile\n");
 
 
-	while (<$fhin>)
-	{
-	    if (/^@/)
-	    {
+	while (<$fhin>) {
+	    if (/^@/) {
 		#assume coding sanity has been checked before
 		print $fhout $_; #title line
 		$_=<$fhin>;
@@ -670,8 +668,7 @@ sub uniq {
     return grep {! $seen{$_}++} @array;
 }
 
-sub readBED
-{
+sub readBED {
     my $bed=shift;
     my @out;
     open IN,'<',$bed or die "Cannot read $bed: $!\n";
