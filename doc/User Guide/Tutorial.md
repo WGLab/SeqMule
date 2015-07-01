@@ -158,6 +158,16 @@ seqmule pipeline -ow -a normal_R1.fastq.gz -b normal_R2.fastq.gz -a2 tumor_R1.fa
 
 The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://seqmule.usc.edu/example/PatientXsomatic_report/).
 
+### MERGING MULTIPLE RUNS FROM MULTIPLE SAMPLES
+
+Say you have generated 2 runs for sample father, and 2 runs for sample mother. Each run was done by paired-end sequencing, so there are 2 FASTQ files for each run, and 4 for each sample. How to analyze them with SeqMule?
+
+```
+seqmule pipeline -a fa_run1.1.fq.gz,fa_run2.1.fq.gz,ma_run1.1.fq.gz,ma_run2.1.fq.gz -b fa_run1.2.fq.gz,fa_run2.2.fq.gz,ma_run1.2.fq.gz,ma_run2.2.fq.gz -capture default -e -t 12 -prefix father,mother -merge -mergingrule 2,2 -advanced ~/Downloads/SeqMule/misc/predefined_config/bwa_samtools.config
+```
+
+The above command specifies 8 input files which can be found [here](http://seqmule.usc.edu/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and chaging the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://seqmule.usc.edu/example/multi-sample_merging_report/summary.html).
+
 ### CAVEAT 
 
 NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under `seqmule/misc/predefined_config` folder.
