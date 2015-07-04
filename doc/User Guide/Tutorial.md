@@ -18,7 +18,7 @@ Reference genome, index of reference genome, various SNP and INDEL databases are
 
 #### Step 2: Prepare input
 
-Once external databases are downloaded. SeqMule is ready for analysis!  If you do not have data yet, please download the following example files:[normal_R1.fastq.gz](http://seqmule.usc.edu/example/normal_R1.fastq.gz),[normal_R2.fastq.gz](http://seqmule.usc.edu/example/normal_R1.fastq.gz).
+Once external databases are downloaded. SeqMule is ready for analysis!  If you do not have data yet, please download the following example files:[normal_R1.fastq.gz](http://seqmule.usc.edu/example/normal_R1.fastq.gz),[normal_R2.fastq.gz](http://seqmule.usc.edu/example/normal_R2.fastq.gz).
 
 
 

@@ -90,15 +90,15 @@ for my $q("","-quick")
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h='compute-0-1[0-9]' -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#no qsub
-		$starting_point =~ s/-t \d+/-t 12 -nc 4/;
-		push @cmd, "$starting_point $q --advanced $j -nr";
+		$starting_point =~ s/-t \d+/-t 12 -nc 12/;
+		#push @cmd, "$starting_point $q --advanced $j -nr";
 		#qsub by seqmule itself
-		#push @cmd, "$starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX\" ";
+		push @cmd, "nohup $starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX\" & ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 30 && $count <= 30;
+		&exec(@cmd) if $count >= 52 && $count <= 81;
 		$count++;
 	}
     }
