@@ -31,6 +31,7 @@ my $CONFIG_FILE_DESC = <<HEREDOC;
 VERSION = $VERSION
 CPUTOTAL = 1
 LOGDIR = /home/user/analysis
+STEPTOTAL = 10
 ;STEP number as section name
 [1]
 command = blah
@@ -47,6 +48,7 @@ HEREDOC
 my %CONFIG_KEYWORD = (
     CPUTOTAL => "CPUTOTAL",
     LOGDIR => "LOGDIR",
+    STEPTOTAL => "STEPTOTAL",
     SETTING_SECTION => "SETTING_SECTION",
     COMMAND => "command",
     MESSAGE => "message",
@@ -121,6 +123,7 @@ sub writeParallelCMD {
 	$CONFIG_KEYWORD{VERSION} => $VERSION,
 	$CONFIG_KEYWORD{CPUTOTAL} => $cpu_total,
 	$CONFIG_KEYWORD{LOGDIR} => $logdir,
+	$CONFIG_KEYWORD{STEPTOTAL} => scalar @cmd,
     };
 
     %TDG = constructTDG(\@cmd);
@@ -479,7 +482,8 @@ sub syncStatus {
 	    #make sure $i is relative path
 	    $i = basename $i;
 	    next unless $i =~ /^\d+$/;
-	    if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+	    if(defined $config->{$i}->{$CONFIG_KEYWORD{STATUS}} and 
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
 		#the first few tasks are finished, skip them altogether
 		next;
 	    } else {
@@ -512,7 +516,8 @@ sub syncStatus {
 	#otherwise may mess things up
 	#!!!!!
 	for my $i(1..&getTotalStep($config)) {
-	    if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
+	    if(defined $config->{$i}->{$CONFIG_KEYWORD{STATUS}} and 
+		$config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $FINISH) {
 		#the first few tasks are finished, skip them altogether
 		next;
 	    } else {
@@ -520,6 +525,10 @@ sub syncStatus {
 		my $i_ref = $config->{$i};
 		!system("rm -rf $task_dir") or croak("failed to rm $task_dir: $!\n");
 		!system("mkdir $task_dir") or croak("mkdir failed $task_dir: $!\n"); 
+		croak("Missing field for step $i\n") unless defined $i_ref->{$CONFIG_KEYWORD{JOBID}} and
+							    defined $i_ref->{$CONFIG_KEYWORD{PID}} and
+							    defined $i_ref->{$CONFIG_KEYWORD{STATUS}} and
+							    defined $i_ref->{$CONFIG_KEYWORD{MESSAGE}};
 		&touch(File::Spec->catfile($task_dir,"JOBID.".$i_ref->{$CONFIG_KEYWORD{JOBID}}));
 		&touch(File::Spec->catfile($task_dir,"PID.".$i_ref->{$CONFIG_KEYWORD{PID}}));
 		&touch(File::Spec->catfile($task_dir,"STATUS.".$i_ref->{$CONFIG_KEYWORD{STATUS}}));
@@ -534,7 +543,8 @@ sub getNextCMD {
     my $config=shift;
     for my $i(1..&getTotalStep($config)) {
 	#return first waiting task
-	if($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
+	if(defined $config->{$i}->{$CONFIG_KEYWORD{STATUS}} and 
+	   $config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $WAIT) {
 	    #return only if all dependencies fullfilled
 	    unless(grep {$config->{$_}->{$CONFIG_KEYWORD{STATUS}} ne $FINISH} 
 		(split /,/,$config->{$i}->{$CONFIG_KEYWORD{DEPENDENCY}})) {
@@ -566,8 +576,9 @@ sub getUsedCPU {
     my $n=0;
 
     for my $i(1..&getTotalStep($config)) {
-	if ($config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
-	    $n += $config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
+	if (defined $config->{$i}->{$CONFIG_KEYWORD{STATUS}} and
+	    $config->{$i}->{$CONFIG_KEYWORD{STATUS}} eq $START) {
+	    $n += $config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}} if defined $config->{$i}->{$CONFIG_KEYWORD{NCPU_REQUEST}};
 	}
     }
     return $n;
@@ -631,7 +642,7 @@ sub writeMsg {
 }
 sub getTotalStep {
     my $config = shift;
-    my $step_total = scalar (grep {/^\d+$/} (keys %{$config})) or croak("ERROR: no steps found\n");
+    my $step_total = $config->{$CONFIG_KEYWORD{SETTING_SECTION}}->{$CONFIG_KEYWORD{STEPTOTAL}} or croak("ERROR: no steps found\n");
     return $step_total;
 }
 sub returnTDGChild {
