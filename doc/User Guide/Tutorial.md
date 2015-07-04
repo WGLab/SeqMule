@@ -140,11 +140,37 @@ Here, the double quoted string following `-sge` is a template for job submission
 
 ### RUNNING IN THE CLOUD (under construction)
 
-With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. Steps to run in the cloud:
+With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. The following steps will guide you through creating an EBS (Elastic Block Store) volumen, attaching it to your cluster, launching a cluster with SeqMule pre-installed.
 
 + Install [StarCluster](http://star.mit.edu/cluster/docs/latest/quickstart.html)
-+ Start SeqMule-customized AMI (Amazon Machine Image) via StarCluster
-+ Log into the virtual cluster and run SeqMule
++ Change settings in `~/.starcluster/config`, there are many sections, you need to modify `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_USER_ID`, . You can find a template config file [here](http://seqmule.usc.edu/example/starcluster_config_for_seqmule.cfg), which is tested with starcluster 0.95.6. In the template, I have specified an AMI (ID???) which pre-installs SeqMule and all hg19 databases. You should modify the AMI ID based on which region you prefer running your EC2 (Elastic Compute Cloud) instance. Do NOT change other parameters unless you know them.
+
+```
+AvailabilityZone	AMI_ID
+us-east-1a
+us-west-2a
+eu-west-1a
+ap-northeast-1a
+sa-east-1a
+```
+
++ Run `starcluster createkey mykey -o ~/.ssh/mykey_for_starcluster.rsa`, and then update `KEY_LOCATION` in `config`.
++ This cluster does not have any persistent storage, so we need to create an EBS (Elastic Block Store) and attach it to our cluster. Run `starcluster createvolume --shutdown-volume-host -n data 100 us-east-1d` and an EBS of 100GB will be created in AZ (availability zone) us-east-1d. It will be shown in starcluster and AWS (Amazon Web Service) console with a name *data*. You can now attach the newly creately EBS volume to your cluster.
++ Modify config file to attach the EBS volumen you just created. The modified section will look like (some parts are omitted) the following, which directs starcluster to mount an EBS volume to `/data` directory. Note here, each node will also have a `/scratch/sgeadmin` folder for user `sgeadmin` to write temporary files. The purpose of this folder is similar to `/tmp`. Writing temporary files to scratch space on each node reduces IO load master node. One can use `-tmpdir` option in SeqMule to specify a temp folder for analysis.
+
+	[cluster smallcluster]
+	...
+	VOLUMES = data
+	...
+	# Sections starting with "volume" define your EBS volumes
+	[volume data]
+	VOLUME_ID = vol-b351665d
+	MOUNT_PATH = /data
+
++ Run `starcluster start myfirstcluster` and wait untill all instances are up and running.
++ Now you have created your first starcluster (Yeah!), you can log into the cluster by `starcluster sshmaster -u sgeadmin myfirstcluster`. `-u sgeadmin` will log you into the cluster as a non-root user `sgeadmin`, which is configured in the config file.
+
+With SeqMule being capable of running on SGE (Sun Grid Engine) job scheduling system, you can analyze your data using dozens of machines!
 
 ### CALL SOMATIC VARIANTS
 
