@@ -6,7 +6,7 @@ x86-64 Linux
 
 ### Prerequisites
 
-perl, make, cmake, gcc, g++, curses.h, R, unzip, automake, autoconf, git,
+perl, make, cmake, gcc, g++ (4.4.7 or 4.6.3), curses.h, R, unzip, automake, autoconf, git,
 gzip, tar, java
 
 ### Install
@@ -55,5 +55,10 @@ If you use tcsh:
 If you don't know which shell (bash/tcsh/csh etc.) you are using, type the following command to figure out
 
 	echo $0
+
+####SOAPsnp compilation
+
+SOAPsnp can only be compiled by certain versions of g++. We have tested 4.4.7 and 4.6.3. Please use these versions if you encounter compilation issues for SOAPsnp. If you don't plan to use SOAPsnp, you can ignore this issue.
+
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
