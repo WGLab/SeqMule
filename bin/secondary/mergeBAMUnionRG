@@ -16,7 +16,10 @@ my $tmpdir=shift @ARGV;
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 my @bam=@ARGV;
 my $sam_for_header=File::Spec->catfile($tmpdir,"$$".rand($$).".header.sam");
+my $header_check=File::Spec->catfile($RealBin,"sameBAMSQ");
 
+#check if all headers are consistent
+system("$header_check $samtools ".join(" ",@bam));
 
 my %rg;
 my $header;
@@ -64,5 +67,16 @@ close HEADER;
 
 #output, different from mergeBAMOneRG, here we use samtools' own merge function, which probably is faster
 warn "NOTICE: Start merging BAM files, readgroup IDs will remain intact.\n";
-!system("$samtools merge -@ $threads -h $sam_for_header $out @bam") or die "ERROR: failed to merge @bam into $out: $!\n";
-unlink $sam_for_header or warn "NOTICE: $sam_for_header cannot be cleaned ($!)\n";
+#overwrite target BAM with -f option
+if(@bam > 1)
+{
+    !system("$samtools merge -@ $threads -f -h $sam_for_header $out @bam") or die "ERROR: failed to merge @bam into $out\n";
+    unlink $sam_for_header or warn "NOTICE: $sam_for_header cannot be cleaned ($!)\n";
+} else
+{
+    my $tmp_sam = File::Spec->catfile($tmpdir,rand($$)."tmp.sam");
+    !system("mv $sam_for_header $tmp_sam") and 
+    !system("$samtools view $bam[0] >> $tmp_sam") and 
+    !system("$samtools view -@ $threads -bS $tmp_sam > $out") or die "ERROR: failed to merge @bam into $out\n";
+    unlink $tmp_sam or warn "NOTICE: $tmp_sam cannot be cleaned ($!)\n";
+}

@@ -13,24 +13,6 @@ die "Usage: $0 [alias newfq oldfq...] <outdir> [sample1 sample2 ...]\n" if @ARGV
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
 my %loc; #exe location
 my @unlink;
-my %original_input;
-while (my $next=shift @ARGV)
-{
-    if ($next=~/alias/i)
-    {
-	my $new=shift @ARGV;
-	$new=basename $new;
-	$new=~s/(.*)\.(fq|fastq|bam)/$1/i;
-	$new=~s/\./_/;
-	my $old=shift @ARGV;
-	$old=~s/(.*)\.(fq|fastq|bam)/$1/i;
-	$original_input{$new}=$old;
-    } else
-    {
-	unshift @ARGV,$next;
-	last;
-    }
-}
 my $outdir=shift @ARGV;
 my @samples=@ARGV; #take sample names as arguments
 
@@ -309,7 +291,6 @@ sub genSamplePage
 	    my $link=File::Spec->catfile("${file}_fastqc","fastqc_report.html"); 
 	    $file=~s/(.*)\.fq/$1/i;
 	    $fastqc_link.="<br>";
-	    #$fastqc_link.="<a href='$link'>$file ($original_input{$file})</a>";
 	    $fastqc_link.="<a href='$link'>$file</a>";
 	}
 
@@ -359,7 +340,7 @@ sub genSamplePage
 		if (-f $local_cov)
 		{
 		    print OUT "<h2>Coverage Plot</h2>\n";
-		    print OUT "<img class='center' src='../$local_cov' width=500 height=500>\n";
+		    print OUT "<img class='center' src='../$local_cov' width=500 height=1000>\n";
 		}
 	    }
 	}

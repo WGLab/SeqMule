@@ -1,0 +1,131 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Spec;
+use File::Basename qw/basename dirname/;
+use FindBin qw/$RealBin/;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use SeqMule::Parallel;
+use SeqMule::Utils;
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+
+my (
+    $capture,   $java,    $java_mem,    $gatk,
+    $ref,    $threads,    $gatk_nt, 
+    $bam,$out,
+    $samtools,
+    $pl,$goldindel,$dbsnp,$kg,$hapmap,
+    $help,$advanced,    $n,$tmpdir,);
+@ARGV or pod2usage ({-exitval=>2});
+
+GetOptions(
+    #input and output
+    'bed=s'		=>	\$capture,
+    'java=s'		=>	\$java,
+    'samtools=s'	=>	\$samtools,
+    'jmem=s'		=>	\$java_mem,
+    'gatk=s'		=>	\$gatk,
+
+    'pl=s'		=>	\$pl,
+
+    'ref=s'		=>	\$ref,
+    'dbsnp=s'		=>	\$dbsnp,
+    'kg=s'		=>	\$kg,
+    'hapmap=s'		=>	\$hapmap,
+    'goldindel=s'	=>	\$goldindel,
+
+    'threads=i'		=>	\$threads,
+    'gatk-nt=i'		=>	\$gatk_nt,
+    'bam=s'		=>	\$bam, #specify it multiple times
+    'out=s'		=>	\$out,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
+    #other
+    'help|h'	        =>	\$help,
+) or pod2usage({-exitval => 2});
+$help and pod2usage ({-verbose=>1});
+
+&SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
+my @steps=&SeqMule::Utils::parsePipeline($advanced);
+my %options=%{ $steps[$n-1][2] };
+
+my $nt = &SeqMule::Utils::get_gatk_nt($threads,$gatk_nt);
+my @cmd;
+my $java_opt = "$java -Xmx$java_mem  -Djava.io.tmpdir=$tmpdir -jar $gatk ";
+my $grp_file = rand($$).".tmp.grp";
+
+if($tmpdir) {
+    $grp_file = File::Spec->catfile($tmpdir,$grp_file);
+}
+
+my @cov=split ',',$options{covariates};
+my $cmd;
+
+$cmd .= $java_opt;
+$cmd .= " -T BaseRecalibrator -R $ref --disable_indel_quals "; #rf BadCigar to skip bad reads
+$cmd.=" -knownSites $dbsnp " if $dbsnp;
+$cmd.=" -knownSites $goldindel " if $goldindel;
+$cmd.=" -nct $threads " if $threads>=2;
+$cmd.=" -I $bam -o $grp_file ";
+$cmd.=" --default_platform $pl " if $pl; #in case RG tag doesn't have platform info
+$cmd.=" -L $capture " if $capture;
+$cmd.=" $options{additional} " if $options{additional} ne '';
+push @cmd,$cmd;
+$cmd = "";
+
+$cmd .= "$java_opt -T PrintReads -R $ref -I $bam -BQSR $grp_file -o $out";
+$cmd .= " -L $capture" if $capture;
+push @cmd,$cmd;
+
+push @cmd,"rm -rf $grp_file";
+push @cmd,"$samtools index $out";
+my $script = &SeqMule::Parallel::genTempScript(@cmd);
+exec $script;
+#------------------------------------------------------------
+
+
+__END__
+
+
+=head1 NAME
+
+SeqMule an automatic pipeline for next-generation sequencing data analysis
+
+=head1 SYNOPSIS
+
+Options:
+
+    #input and output
+    'capture=s'		=>	\$capture,
+    'java=s'		=>	\$java,
+    'jmem=s'		=>	\$java_mem,
+    'gatk=s'		=>	\$gatk,
+    'ref=s'		=>	\$ref,
+    'threads=i'		=>	\$threads,
+    'gatk-nt=i'		=>	\$gatk_nt,
+    'bam=s'		=>	\@bam, #specify it multiple times
+    'vcf=s'		=>	\$vcf,
+    'advanced=s'	=>	\$advanced,
+    'n=i'		=>	\$n,
+    'tmpdir=s'		=>	\$tmpdir,
+    #other
+    'help|h'	        =>	\$help,
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show detaild help.
+
+=back
+
+=head1 DESCRIPTION
+
+SeqMule automatizes analysis of next-generation sequencing data by simplifying program installation, downloading of various databases, generation of analysis script, and customization of your pipeline.
+
+=cut

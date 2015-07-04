@@ -11,13 +11,13 @@ use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
 my ($advanced,$n,$help,
-    $snap,$samtools,$sortmem,$java,$jmem,$sortsam,$ref,$bam,$threads,$rg,$sample,$pl,$lb);
+    $snap,$samtools,$sortmem,$java,$jmem,$sortsam,$ref,$bam,@fq,$threads,$rg,$sample,$pl,$lb);
 #check tmpdir beforeuse!!!!
 my ($tmpdir,$interleave_fq);
 @ARGV or pod2usage ({-exitval=>2});
 GetOptions(
     #input and output
-    'snap=s'		=>	\$snap,
+    'alignerPath=s'	=>	\$snap,
     'samtools=s'	=>	\$samtools,
     'sortmem=s'		=>	\$sortmem,
     'java=s'		=>	\$java,
@@ -26,6 +26,7 @@ GetOptions(
     'interleave_fq=s'	=>	\$interleave_fq,
     'ref=s'		=>	\$ref,
     'bam=s'		=>	\$bam,
+    'fq=s'		=>	\@fq,
     'threads=i'		=>	\$threads,
     'rg=s'		=>	\$rg,
     'sample=s'		=>	\$sample,
@@ -39,7 +40,6 @@ GetOptions(
 ) or pod2usage({-exitval => 2});
 $help and pod2usage ({-verbose=>1});
 
-my @fq=@ARGV;
 my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 #my $tmpbam = File::Spec->catfile($tmpdir,$$.rand($$)."_snap.bam");
