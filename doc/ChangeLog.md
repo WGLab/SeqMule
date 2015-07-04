@@ -2,11 +2,11 @@
 2015-06-30 Yunfei Guo <yunfeigu@usc.edu>
 
 * SeqMule now supports somatic variant calling via SAMtools and VarScan2
-* Enhanced job scheduling and more concurrency
 * Support for Sun Grid Engine
 * New job script format (no influence for end users)
 * New online help interface
-* Tutorial for running SeqMule on Amazon EC2 cloud
+* Enhanced job scheduling and more concurrency
+* A public machine image (AMI) for running SeqMule on Amazon EC2
 
 # v1.1.4
 2015-02-13 Yunfei Guo <yunfeigu@usc.edu>
