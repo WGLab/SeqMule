@@ -1722,7 +1722,7 @@ sub gen_variant_call_cmd {
     my $cmd_common = $opt->{callcmd};
     my $cmd_common_filter = $opt->{filtercmd};
     my @bam_obj = @{$opt->{bam}};
-    warn "1733: mode: $mode for $caller\n";
+    warn "1733: mode: $mode for $caller\n" if $debug;
     while(@bam_obj) {
 	#number of tasks, when quick is enabled, equal to number of threads
 	my $ntask = $quick ? $threads : 1;
