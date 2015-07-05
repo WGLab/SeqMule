@@ -436,7 +436,7 @@ sub procFQ {
 			)
 		    ),$overwrite);
 		$newfq->rank($k);
-		warn "fqlink: ".$newfq->file."rank".$newfq->rank()."\n";
+		warn "fqlink: ".$newfq->file."rank".$newfq->rank()."\n" if $debug;
 		$paired_obj[$newfq->rank()] = $newfq;
 	    }
 	    if(@paired_obj == 2) {
