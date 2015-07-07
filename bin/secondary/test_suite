@@ -93,13 +93,13 @@ for my $q("","-quick")
 		$starting_point =~ s/-t \d+/-t 4 -nc 12/;
 		#push @cmd, "$starting_point $q --advanced $j -nr";
 		#qsub by seqmule itself
-		push @cmd, "$starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" ";
+		push @cmd, "nohup $starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" & ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		#&exec(@cmd) if grep { $count == $_ } (43,44,46,47,49,50,55,56,60,61,64,65,66,68,69,70..99); 
-		&exec(@cmd) if $count == 100;
+		#&exec(@cmd) if $count == 100 or $count == 45 or $count == 46 or $count == 49;
+		&exec(@cmd) if $count == 130 and $count == 130;
 		$count++;
 	}
     }
