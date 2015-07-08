@@ -56,8 +56,10 @@ for my $vcf(@ARGV) {
 	chomp;
 	my @f=split /\t/,$_;
 	&correctRefAlle(\@f);
+	$f[4] =~ s/\//,/; #sometimes we see A/T, it should be A,T
 	my @alt=split /,/,$f[4];
-
+	@alt = grep {!/-/} @alt;
+	next unless @alt;
 	if (&haveDup(@alt)) {#there is duplicate in alt allele
 	    my ($hash_ref,$noDupAlt_ref)=&returnSubHash(@alt);
 
@@ -91,7 +93,9 @@ for my $vcf(@ARGV) {
 		$f[$sampleidx]=join (":",@format);
 	    }
 	    $f[4]=join(",",@{$noDupAlt_ref});
-	} 
+	} else {
+	    $f[4] = join(",",@alt);
+	}
 	print TMP join ("\t",@f),"\n";
     }
 

@@ -98,8 +98,7 @@ for my $q("","-quick")
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		#&exec(@cmd) if $count == 100 or $count == 45 or $count == 46 or $count == 49;
-		&exec(@cmd) if $count == 130 and $count == 130;
+		&exec(@cmd) if grep {$count == $_} (134,137);
 		$count++;
 	}
     }
