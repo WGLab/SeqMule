@@ -31,18 +31,12 @@ my @steps=&SeqMule::Utils::parsePipeline($advanced);
 my %options=%{ $steps[$n-1][2] };
 my @cmd;
 
+my $filterByMapQ = File::Spec->catfile($RealBin,"filterByMapQ.pl");
 if ($options{mapQ}) {
-    open SAM,'-|',"$samtools view -h $bam" or die "ERROR: Failed to read $bam: $!\n";
-    open OUT,'|-',"$samtools view -@ $threads -Sb -o $out -" or die "ERROR: Failed to write output: $!\n";
-    while(<SAM>) {
-	print OUT and next if /^@/;
-	my @f=split /\t/;
-
-	if ($options{mapQ}>$f[4]) {
-	    $f[1]=$f[1]+4 unless $f[1] & 0x4;
-	}
-	print OUT join("\t",@f),"\n";
-    }
+    #we have to use pipe here
+    #somehow samtools don't recognize
+    #data fed by perl-open
+    !system("$samtools view -h $bam | $filterByMapQ $options{mapQ} | $samtools view -@ $threads -Sb -o $out -") or die "samtools fail on $bam: $!\n";
 } else {
     push @cmd,"cp $bam $out";
 }

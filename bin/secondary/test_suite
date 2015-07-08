@@ -44,8 +44,8 @@ for my $q("","-quick")
 {
     for my $j(@config_files)
     {
-	#for my $ms("","-ms","-merge","-somatic")
-	for my $ms("")
+	for my $ms("","-ms","-merge","-somatic")
+	#for my $ms("")
 	{
 	    next if $ms eq '-ms';
 		my @cmd;
@@ -90,15 +90,15 @@ for my $q("","-quick")
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h='compute-0-1[0-9]' -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m ea -M guoyunfei1989\@gmail.com";
 		#push @cmd, "echo '$starting_point $q --advanced $j' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#no qsub
-		$starting_point =~ s/-t \d+/-t 12 -nc 12/;
+		$starting_point =~ s/-t \d+/-t 4 -nc 12/;
 		#push @cmd, "$starting_point $q --advanced $j -nr";
 		#qsub by seqmule itself
-		push @cmd, "nohup $starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX\" & ";
+		push @cmd, "nohup $starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" & ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if $count >= 52 && $count <= 81;
+		&exec(@cmd) if grep {$count == $_} (134,137);
 		$count++;
 	}
     }

@@ -10,40 +10,35 @@ use SeqMule::Utils;
 use Pod::Usage qw/pod2usage/;
 use Getopt::Long qw/GetOptions/;
 
-die "Usage: $0 <tmpdir> <1.vcf 2.vcf ...>" unless @ARGV>=1;
+die "Usage: $0 <tmpdir> <ref> <1.vcf 2.vcf ...>" unless @ARGV>=3;
 #remove duplicate alternative alleles in VCF, change GT accordingly. Do nothing else.
 
 my $tmpdir = shift @ARGV;
+my $ref = shift @ARGV;
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);
 @ARGV=&SeqMule::Utils::getNonEmptyVCF(@ARGV);
 
-for my $vcf(@ARGV)
-{
+for my $vcf(@ARGV) {
     my $tmp=File::Spec->catfile($tmpdir,"$$".rand($$).".vcfwithdupalt.tmp");
     open IN,'<',$vcf or die "Failed to read $vcf: $!\n";
     open TMP,'>',$tmp or die "Failed to write to $tmp: $!\n";
 
     my $gtidx;
-    while (<IN>)
-    {
+    while (<IN>) {
 	next if (/^##/);
 	chomp;
-	if (/^#/)
-	{
+	if (/^#/) {
 	    my @f=split /\t/,$_;
 	    die "At least 10 columns expected in header: @f\n" unless @f>=10;
 	    #example header:CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA00001	NA00002	NA00003
-	} else
-	{
+	} else {
 	    #locate GT position
 	    my @f=split /\t/;
 	    my @format=split /:/,$f[8];
 
-	    for my $i(0..$#format)
-	    {
-		if ($format[$i] eq 'GT')
-		{
-		    die "Multiple GT fields found: @format\n" if defined $gtidx;
+	    for my $i(0..$#format) {
+		if ($format[$i] eq 'GT') {
+		    die "Multiple GT fields found in $vcf: @format\n" if defined $gtidx;
 		    $gtidx=$i;
 		}
 	    }
@@ -55,42 +50,38 @@ for my $vcf(@ARGV)
 
     seek IN,0,0; #go back to start
 
-    while (<IN>)
-    {
+    while (<IN>) {
 	print TMP $_ and next if /^#/;
 
 	chomp;
 	my @f=split /\t/,$_;
+	&correctRefAlle(\@f);
+	$f[4] =~ s/\//,/; #sometimes we see A/T, it should be A,T
 	my @alt=split /,/,$f[4];
-
-	if (&haveDup(@alt))
-	{#there is duplicate in alt allele
+	@alt = grep {!/-/} @alt;
+	next unless @alt;
+	if (&haveDup(@alt)) {#there is duplicate in alt allele
 	    my ($hash_ref,$noDupAlt_ref)=&returnSubHash(@alt);
 
-	    for my $sampleidx(9..$#f)
-	    {
+	    for my $sampleidx(9..$#f) {
 		my @format=split /:/,$f[$sampleidx];
 		my $gt=$format[$gtidx];
 		my @obs=split /[\/\|]/,$gt;
 		my @splitter= $gt=~/[\/\|]/g;
 
 
-		for my $i(0..$#obs)
-		{
+		for my $i(0..$#obs) {
 		    my $allele=$obs[$i];
 		    die "Number or . expected in GT field: @obs\n" unless $allele=~/^(\.|\d+)$/;
-		    if ($allele eq '.')
-		    {
+		    if ($allele eq '.') {
 			1; #do nothing for unknown genotype
-		    } elsif (defined $$hash_ref{$allele-1})
-		    {
+		    } elsif (defined $$hash_ref{$allele-1}) {
 			$obs[$i]=$$hash_ref{$allele-1}+1;
 		    }
 		}
 		#now observed alleles have been changed
 		$gt='';
-		for my $i(0..$#splitter)
-		{ #interleave @obs and @splitter
+		for my $i(0..$#splitter) { #interleave @obs and @splitter
 	            $gt.="$obs[$i]$splitter[$i]";
 		    if ($i == $#splitter)
 		    {
@@ -102,7 +93,9 @@ for my $vcf(@ARGV)
 		$f[$sampleidx]=join (":",@format);
 	    }
 	    $f[4]=join(",",@{$noDupAlt_ref});
-	} 
+	} else {
+	    $f[4] = join(",",@alt);
+	}
 	print TMP join ("\t",@f),"\n";
     }
 
@@ -113,22 +106,41 @@ for my $vcf(@ARGV)
 }
 
 ##############SUBROUTINES#########################
-sub haveDup
-{
+sub haveDup {
     my %seen;
-    for (@_)
-    {
-	if ($seen{$_})
-	{
+    for (@_) {
+	if ($seen{$_}) {
            return 1;
 	}
 	$seen{$_}=1;
     }
     return undef;
 }
+sub correctRefAlle {
+    #take one VCF record as array
+    #correct ref allele that looks like the following
+#17	70122505	.	CTT/T	C	.	PASS	DP=46;SS=5;SSC=0;GPV=1E0;SPV=2.0355E-1	GT:GQ:DP:RD:AD:FREQ:DP4	0/1:.:16:4:6:60%:3,1,3,3	0/1:.:30:3:14:82.35%:3,0,7,7
+    #the corrected looks like
+#17	70122505	.	CTT	C	.	PASS	DP=46;SS=5;SSC=0;GPV=1E0;SPV=2.0355E-1	GT:GQ:DP:RD:AD:FREQ:DP4	0/1:.:16:4:6:60%:3,1,3,3	0/1:.:30:3:14:82.35%:3,0,7,7
+    my $f = shift;
+    my @refAllele = split /\//,$f->[3];
+    return unless @refAllele > 1;
+    my $getFasta = File::Spec->catfile($RealBin,"getFastaSeq.pl");
+    my @possibleRefAllele;
+    for my $i(@refAllele) {
+	my $end = $f->[1] + length($i) -1;
+	my $correctAllele = `$getFasta $ref $f->[0]:$f->[1]-$end | grep -v '>'`; #output is in FASTA format
+	chomp $correctAllele;
+	if($correctAllele eq $i) {
+	    push @possibleRefAllele,$i;
+	}
+    }
+    die "ERROR: no correct reference allele in @refAllele\nVCF record: ",@$f,"\n" if @possibleRefAllele == 0;
+    warn "WARNING: Only one possible ref allele expected: @possibleRefAllele \nVCF record: ",@$f,"\n" if @possibleRefAllele > 1;
+    $f->[3] = $possibleRefAllele[0];
+}
 
-sub returnSubHash
-{
+sub returnSubHash {
     #usage: my ($hash_ref,$array_ref)=&returnSubHash(@array);
     #look for duplicates in @array, return duplicate-removed new array, return hash for substituting old index
     #all numbers refer to index
@@ -137,15 +149,12 @@ sub returnSubHash
     my %hash;
     my %seen;
 
-    for my $i(0..$#array)
-    {
+    for my $i(0..$#array) {
 	my $current=$array[$i];
 
-	if (defined $seen{$current})
-	{
+	if (defined $seen{$current}) {
 	    $hash{$i}=$seen{$current};
-	} else
-	{
+	} else {
 	    $seen{$current}=@newarray;
 	    push @newarray,$current;
 	}
