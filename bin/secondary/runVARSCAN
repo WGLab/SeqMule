@@ -69,8 +69,10 @@ if($somatic_flag) {
     $cmd .=" $options{VARSOMATICadditional} " if $options{VARSOMATICadditional} ne '';
     $cmd .= " \" ";
     push @cmd,$cmd;
-    my $seqmule_stats = File::Spec->catfile($RealBin,"stats");
+    push @cmd,&genCorrectVCFCmd({vcf=>$snpvcf,bam=>[$bam[0]]});
+    push @cmd,&genCorrectVCFCmd({vcf=>$indelvcf,bam=>[$bam[0]]});
 #combine snp and indel
+    my $seqmule_stats = File::Spec->catfile($RealBin,"stats");
     push @cmd,"$seqmule_stats -u-vcf $snpvcf,$indelvcf -p $vcf_prefix  -ref $ref";
 #change output file name
     push @cmd,"mv -f ${vcf_prefix}_union.vcf $vcf_filter";
@@ -81,7 +83,7 @@ if($somatic_flag) {
     $samtools_cmd =~ s/BAMFILE/@bam/;
     if(open IN,$samtools_cmd) {
 	if (<IN>) {
-	    $cmd.=$samtools_cmd;
+	    $cmd=$samtools_cmd;
 	    my $varscan_cmd.="$java -Xmx$java_mem -Djava.io.tmpdir=$tmpdir -jar $varscan mpileup2cns --output-vcf 1 --variants 1 ";
 	    $varscan_cmd.=" --min-coverage $options{minDepth}" if $options{minDepth};
 	    $varscan_cmd.=" --min-reads2 $options{minSupport}" if $options{minSupport};
@@ -105,28 +107,37 @@ if($somatic_flag) {
 	warn "Failed to open samtools pipe (possibly insufficient coverage in target region): $!\n";
     }
     push @cmd,$cmd;
+    push @cmd,&genCorrectVCFCmd({vcf=>$vcf_filter,bam=>\@bam});
 }
 
-$cmd='';
-#occasionally, VarScan doesn't generate header even if samtools mpileup has output
-my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
-$cmd="$addheader -caller varscan -vcf $vcf_filter ";
-map {$cmd.=" -sample $_ ";} &SeqMule::Utils::getBAMSample($samtools,@bam);
-push @cmd,$cmd;$cmd='';
-
-#remove duplicate ALT allele since GATK will complain
-my $rmDupAltVCF=File::Spec->catfile($RealBin,"rmDupAltVCF");
-push @cmd,"$rmDupAltVCF $tmpdir $vcf_filter";
-
-#add sample name if it's absent
-my $fixVarscanSample=File::Spec->catfile($RealBin,"fixVarscanSample");
-push @cmd,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @bam)." -vcf $vcf_filter -tmpdir $tmpdir ";
-
-#make sure number of samples on every line is the same as that specified in header
-my $checkSampleGT=File::Spec->catfile($RealBin,"checkSampleGT");
-push @cmd,"$checkSampleGT -vcf $vcf_filter -tmpdir $tmpdir ";
 
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 
+#############################################################################333
+sub genCorrectVCFCmd {
+    my $opt = shift;
+    my $localVcf = $opt->{vcf};
+    my @bam = @{$opt->{bam}};
+    my @return;
+    my $cmd='';
+#occasionally, VarScan doesn't generate header even if samtools mpileup has output
+    my $addheader=File::Spec->catfile($RealBin,"addVCFHeader");
+    $cmd="$addheader -caller varscan -vcf $localVcf ";
+    map {$cmd.=" -sample $_ ";} &SeqMule::Utils::getBAMSample($samtools,@bam);
+    push @return,$cmd;$cmd='';
+
+#remove duplicate ALT allele since GATK will complain
+    my $rmDupAltVCF=File::Spec->catfile($RealBin,"rmDupAltVCF");
+    push @return,"$rmDupAltVCF $tmpdir $ref $localVcf";
+
+#add sample name if it's absent
+    my $fixVarscanSample=File::Spec->catfile($RealBin,"fixVarscanSample");
+    push @return,"$fixVarscanSample -samtools $samtools ".join(" ",map {" -bam $_"} @bam)." -vcf $localVcf -tmpdir $tmpdir ";
+
+#make sure number of samples on every line is the same as that specified in header
+    my $checkSampleGT=File::Spec->catfile($RealBin,"checkSampleGT");
+    push @return,"$checkSampleGT -vcf $localVcf -tmpdir $tmpdir ";
+    return @return;
+}
 __END__
