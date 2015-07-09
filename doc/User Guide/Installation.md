@@ -11,10 +11,12 @@ If you successfully run SeqMule on other platforms or distributions, please emai
 + CentOS release 6.6 (Final)
 + CentOS release 6.5 (Final)
 + Amazon Linux AMI release 2015.03
++ Ubuntu 12.04LTS
 
 ### Prerequisites
 
-perl, make, cmake, gcc, g++, curses.h, R, unzip, automake, autoconf, git, gzip, tar, java
+perl, make, cmake, gcc, g++ (4.4.7 or 4.6.3), curses.h, R, unzip, automake, autoconf, git,
+gzip, tar, java
 
 ### Install
 
@@ -77,5 +79,10 @@ If you use tcsh:
 If you don't know which shell (bash/tcsh/csh etc.) you are using, type the following command to figure out
 
 	echo $0
+
+####SOAPsnp compilation
+
+SOAPsnp can only be compiled by certain versions of g++. We have tested 4.4.7 and 4.6.3. Please use these versions if you encounter compilation issues for SOAPsnp. If you don't plan to use SOAPsnp, you can ignore this issue.
+
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
