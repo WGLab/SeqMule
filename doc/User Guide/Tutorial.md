@@ -4,7 +4,7 @@ After you have downloaded and installed SeqMule (assume in `seqmule` folder), th
 
 ### EXAMPLE OUTPUT 
 
-Click [here](http://seqmule.usc.edu/example/trio_report/summary.html) to see what output report looks like.
+Click [here](http://www.openbioinformatics.org/seqmule/example/trio_report/summary.html) to see what output report looks like.
 
 You can find an application example in my [poster](../misc/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
 
@@ -18,7 +18,7 @@ Reference genome, index of reference genome, various SNP and INDEL databases are
 
 #### Step 2: Prepare input
 
-Once external databases are downloaded. SeqMule is ready for analysis!  If you do not have data yet, please download the following example files:[normal_R1.fastq.gz](http://seqmule.usc.edu/example/normal_R1.fastq.gz),[normal_R2.fastq.gz](http://seqmule.usc.edu/example/normal_R2.fastq.gz).
+Once external databases are downloaded. SeqMule is ready for analysis!  If you do not have data yet, please download the following example files:[normal_R1.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R1.fastq.gz),[normal_R2.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R2.fastq.gz).
 
 
 
@@ -30,7 +30,7 @@ Once external databases are downloaded. SeqMule is ready for analysis!  If you d
 
 #### Step 4: Check results
 
-Wait until all executions are finished (approximately an hour). In the directory where you run your analysis, `example_report` contains a report in HTML format (webpage), `example_result` contains alignment results (in BAM format) and variants (in VCF format). Download the report folder as a whole to your computer, open `Summary.html` with any browser to view summary statistics about your analysis. We also provide a [report](http://seqmule.usc.edu/example/example_report/) from the same data set for comparison . The exact numbers may differ a little due to stochastic behavior of some algorithms.
+Wait until all executions are finished (approximately an hour). In the directory where you run your analysis, `example_report` contains a report in HTML format (webpage), `example_result` contains alignment results (in BAM format) and variants (in VCF format). Download the report folder as a whole to your computer, open `Summary.html` with any browser to view summary statistics about your analysis. We also provide a [report](http://www.openbioinformatics.org/seqmule/example/example_report/) from the same data set for comparison . The exact numbers may differ a little due to stochastic behavior of some algorithms.
 
 ### DATABASE PREPARATION 
 
@@ -154,9 +154,9 @@ Calling somatic variants requires two sets of sequencing data, one from normal t
 seqmule pipeline -ow -a normal_R1.fastq.gz -b normal_R2.fastq.gz -a2 tumor_R1.fastq.gz -b2 tumor_R2.fastq.gz -capture somatic_calling.bed -e -t 4 -rg PatientX -prefix PatientXsomatic -advanced ~/Downloads/SeqMule/misc/predefined_config/forSomatic_bwa_varscan.config
 ```
 
-`-a`,`-b` specify two paired-end sequencing files ([normal_R1.fastq.gz](http://seqmule.usc.edu/example/normal_R1.fastq.gz), [normal_R2.fastq.gz](http://seqmule.usc.edu/example/normal_R2.fastq.gz)) from normal tissue; `-a2`,`-b2` specify two paired-end sequencing files ([tumor_R1.fastq.gz](http://seqmule.usc.edu/example/tumor_R1.fastq.gz), [tumor_R2.fastq.gz](http://seqmule.usc.edu/example/tumor_R2.fastq.gz)) from tumor tissue. [somatic_calling.bed](http://seqmule.usc.edu/example/somatic_calling.bed) defines the region of interest. Multiple samples are supported. You can use commas to separate them. Somatic variant calling is enabled for SAMtools and VarScan2 in SeqMule. In this example, *bwa+varscan* combination is used. Look into `predefined_config/` folder for more tested configuration files.
+`-a`,`-b` specify two paired-end sequencing files ([normal_R1.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R1.fastq.gz), [normal_R2.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R2.fastq.gz)) from normal tissue; `-a2`,`-b2` specify two paired-end sequencing files ([tumor_R1.fastq.gz](http://www.openbioinformatics.org/seqmule/example/tumor_R1.fastq.gz), [tumor_R2.fastq.gz](http://www.openbioinformatics.org/seqmule/example/tumor_R2.fastq.gz)) from tumor tissue. [somatic_calling.bed](http://www.openbioinformatics.org/seqmule/example/somatic_calling.bed) defines the region of interest. Multiple samples are supported. You can use commas to separate them. Somatic variant calling is enabled for SAMtools and VarScan2 in SeqMule. In this example, *bwa+varscan* combination is used. Look into `predefined_config/` folder for more tested configuration files.
 
-The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://seqmule.usc.edu/example/PatientXsomatic_report/).
+The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://www.openbioinformatics.org/seqmule/example/PatientXsomatic_report/).
 
 ### MERGING MULTIPLE RUNS FROM MULTIPLE SAMPLES
 
@@ -166,7 +166,7 @@ Say you have generated 2 runs for sample father, and 2 runs for sample mother. E
 seqmule pipeline -a fa_run1.1.fq.gz,fa_run2.1.fq.gz,ma_run1.1.fq.gz,ma_run2.1.fq.gz -b fa_run1.2.fq.gz,fa_run2.2.fq.gz,ma_run1.2.fq.gz,ma_run2.2.fq.gz -capture default -e -t 12 -prefix father,mother -merge -mergingrule 2,2 -advanced ~/Downloads/SeqMule/misc/predefined_config/bwa_samtools.config
 ```
 
-The above command specifies 8 input files which can be found [here](http://seqmule.usc.edu/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://seqmule.usc.edu/example/multi-sample_merging_report/summary.html).
+The above command specifies 8 input files which can be found [here](http://www.openbioinformatics.org/seqmule/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://www.openbioinformatics.org/seqmule/example/multi-sample_merging_report/summary.html).
 
 ### CAVEAT 
 

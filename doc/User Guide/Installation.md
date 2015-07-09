@@ -15,7 +15,7 @@ Executables of SeqMule itself are basically some scripts in Perl, you can use th
 
 The following commands will download and install SeqMule for you. \# and texts after it are just comments.
 
-	wget seqmule.usc.edu/seqmule.latest.tar.gz            
+	wget www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz            
 	tar zxvf seqmule.latest.tar.gz
 	cd SeqMule-master
 	./Build freshinstall
