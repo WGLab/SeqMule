@@ -145,12 +145,13 @@ With increasing popularity of cloud computing, more users may want to run large 
 + Install [StarCluster](http://star.mit.edu/cluster/docs/latest/quickstart.html)
 + Use one of the following Amazon Machine Images (AMI) to launch a cluster by specifying the desired AMI-ID for `NODE_IMAGE_ID` in StarCluster config file. This image comes with SeqMule and necessary databases for hg19. If you want to launch a starcluster in other regions, please copy the image to another region first, see [here](http://serverfault.com/a/506687/175299) for how to copy.
 
-```
-Region						AMI-ID
-us-west-1(northern California)			ami-6b4dbd2f
-eu-west-1(Ireland)		
-ap-northeast-1(Tokyo)	
-```
+
+|Region   			|AMI-ID  	|
+|---				|---		|
+|us-west-1(northern California)	| ami-6b4dbd2f  |
+|eu-west-1(Ireland) 		|NA 		|
+|eu-west-1(Ireland)  		|NA   		|
+
 
 + Log into the virtual cluster and run SeqMule. All the executables and database files are located in `/usr/share/seqmule`. If you want to make changes to this folder, please log in as user `ubuntu`.
 + Users interested in running SeqMule in Amazon cloud should get familiar with some concepts like [EBS](http://aws.amazon.com/ebs/), [S3](http://aws.amazon.com/s3/), [regions](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html). [qwikLABS](https://qwiklabs.com/) provides some hands-on labs for free.
