@@ -143,14 +143,14 @@ Here, the double quoted string following `-sge` is a template for job submission
 With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. Here are the steps:
 
 + Install [StarCluster](http://star.mit.edu/cluster/docs/latest/quickstart.html)
-+ Use one of the following Amazon Machine Images (AMI) to launch a cluster by specifying the desired AMI-ID for `NODE_IMAGE_ID` in StarCluster config file. This image comes with SeqMule and necessary databases for hg19. If you want to launch a starcluster in other regions, please copy the image to another region first, see [here](http://serverfault.com/a/506687/175299) for how to copy.
++ Use one of the following Amazon Machine Images (AMI) to launch a cluster by specifying the desired AMI-ID for `NODE_IMAGE_ID` in StarCluster config file. This image comes with SeqMule and necessary databases for hg19. If you want to launch a starcluster in other regions, please copy the image to another region first, see [here](http://serverfault.com/a/506687/175299) for how to copy. All these images use HVM (Hardware Virtual Machine) virtualization, and are only supported by current generation instances and a few previous generation instances. See [details about HVM](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/virtualization_types.html).
 
 
 |Region   			|AMI-ID  	|
 |---				|---		|
-|us-west-1(northern California)	| ami-6b4dbd2f  |
-|eu-west-1(Ireland) 		|NA 		|
-|eu-west-1(Ireland)  		|NA   		|
+|us-west-1(northern California)	|ami-6b4dbd2f  	|
+|eu-west-1(Ireland) 		|ami-9289c4e5	|
+|ap-northeast-1(Tokyo)  	|ami-7859f778   |
 
 
 + Log into the virtual cluster and run SeqMule. All the executables and database files are located in `/usr/share/seqmule`. If you want to make changes to this folder, please log in as user `ubuntu`.
