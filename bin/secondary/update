@@ -38,8 +38,8 @@ GetOptions(
     'git'		=>	\$git,
     'tmpdir=s'		=>	\$tmpdir,
     'help|h'	        =>	\$help,
-) or pod2usage({-exitval => 2});
-$help and pod2usage ({-verbose=>1});
+) or pod2usage({-exitval => 2,-verbose=>1});
+$help and pod2usage ({-verbose=>2});
 
 $tmpdir = $tmpdir || $TMPDIR;
 &SeqMule::Utils::checkOrCreateTmpdir($tmpdir);

@@ -93,7 +93,7 @@ my @script_unlink_list; #list consiting of temporarily generated file, should be
 
 
 #default values will be set at parsing advanced_config
-@ARGV or pod2usage ({-exitval=>2});
+@ARGV or pod2usage ({-exitval=>2,-verbose=>1});
 GetOptions(
     #input and output
     'prefix|p=s'	=>	\$prefix,
@@ -147,8 +147,8 @@ GetOptions(
     #other
     'verbose|v'	        =>	\$verbose,
     'help|h'	        =>	\$help,
-) or pod2usage({-exitval => 2});
-$help||@ARGV and pod2usage ({-verbose=>1});
+) or pod2usage({-exitval => 2,-verbose=>1});
+$help||@ARGV and pod2usage ({-verbose=>2});
 
 
 &procGlobalConf(); #all configurations are stored in global vars
