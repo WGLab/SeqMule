@@ -8,7 +8,7 @@ use lib File::Spec->catdir($RealBin,"../../lib");
 use SeqMule::Utils;
 
 warn "Check for upgrade ...\n";
-my $server="http://seqmule.usc.edu";
+my $server="http://www.openbioinformatics.org/seqmule";
 my $localVersionFile=File::Spec->catfile($RealBin,"../../version");
 my $webVersionFile="/tmp/$$".rand($$).".seqmuleversion.tmp";
 &SeqMule::Utils::getstore("$server/version",$webVersionFile,["-q","-s"]);

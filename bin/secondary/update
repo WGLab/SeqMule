@@ -21,9 +21,9 @@ use Getopt::Long qw/GetOptions/;
 use File::Basename qw/basename/;
 
 
-my $seqmule_url = "http://seqmule.usc.edu";
+my $seqmule_url = "http://www.openbioinformatics.org/seqmule";
 my $seqmule_git_url = "git://github.com/WangGenomicsLab/SeqMule.git";
-my $seqmule_source_url = "http://seqmule.usc.edu/seqmule.latest.tar.gz";
+my $seqmule_source_url = "http://www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz";
 my $seqmule_github_url = "https://github.com/WangGenomicsLab/SeqMule/archive/master.zip";
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";

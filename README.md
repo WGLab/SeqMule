@@ -56,7 +56,7 @@ Please join [SeqMule-dev](https://groups.google.com/forum/#!forum/seqmule-dev) f
 
 ## More information
 
-* [SeqMule Homepage](http://seqmule.usc.edu)
+* [SeqMule Homepage](http://seqmule.openbioinformatics.org)
 
 * [Wang Genomics Lab Homepage](http://genomics.usc.edu)
 

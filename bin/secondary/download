@@ -121,7 +121,7 @@ sub db_down
     my $webdbfile="web_db_locations";
     unless ($debug)
     {
-	&SeqMule::Utils::getstore("seqmule.usc.edu/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from seqmule.usc.edu failed\nTry local \'db_locations\'...\n";
+	&SeqMule::Utils::getstore("www.openbioinformatics.org/seqmule/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from www.openbioinformatics.org/seqmule failed\nTry local \'db_locations\'...\n";
     }
     my $db_loc_file=-s $webdbfile ? $webdbfile: File::Spec->catfile($install_dir,"misc","db_locations");
     push @gunlink,$webdbfile;
