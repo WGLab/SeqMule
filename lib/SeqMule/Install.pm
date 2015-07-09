@@ -122,8 +122,8 @@ sub parse_locations
     {
 	$locfile = "exe_locations";
 	carp "Fetching program URLs from server\n";
-	&SeqMule::Utils::getstore("seqmule.usc.edu/$locfile",$locfile);
-	carp "Downloading $locfile from seqmule.usc.edu failed\nTry local $locfile...\n" unless (-s $locfile);
+	&SeqMule::Utils::getstore("www.openbioinformatics.org/seqmule/$locfile",$locfile);
+	carp "Downloading $locfile from www.openbioinformatics.org/seqmule failed\nTry local $locfile...\n" unless (-s $locfile);
 	$nonempty_locfile=-s $locfile ? $locfile: "$install_dir/misc/$locfile";
 	push @unlink,$locfile;
     }

@@ -26,7 +26,7 @@ my @gunlink;
 
 #default values will be set at parsing advanced_config
 
-@ARGV or pod2usage ({-exitval=>2});
+@ARGV or pod2usage ({-exitval=>2,-verbose=>1});
 GetOptions(
     'down|d=s'	        =>	\$down,
     'downdir=s'		=>	\$downdir,
@@ -34,9 +34,9 @@ GetOptions(
     'help|h'	        =>	\$help,
     'debug'		=>	\$debug,
     'noclean'		=>	\$noclean,
-) or pod2usage({-exitval => 2});
+) or pod2usage({-exitval => 2,-verbose=>1});
 
-$help||@ARGV and pod2usage ({-verbose=>1});
+$help||@ARGV and pod2usage ({-verbose=>2});
 
 #option check
 warn "Entering verbose mode...\n" if $verbose;
@@ -121,7 +121,7 @@ sub db_down
     my $webdbfile="web_db_locations";
     unless ($debug)
     {
-	&SeqMule::Utils::getstore("seqmule.usc.edu/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from seqmule.usc.edu failed\nTry local \'db_locations\'...\n";
+	&SeqMule::Utils::getstore("www.openbioinformatics.org/seqmule/db_locations",$webdbfile) or warn "Downloading \'db_locations\' from www.openbioinformatics.org/seqmule failed\nTry local \'db_locations\'...\n";
     }
     my $db_loc_file=-s $webdbfile ? $webdbfile: File::Spec->catfile($install_dir,"misc","db_locations");
     push @gunlink,$webdbfile;
@@ -264,8 +264,6 @@ This command downloads specific database files used in analysis, including but n
 
 The following list gives possible options and their corresponding databases. You can use 'hg19all','hg18all','all' to download all databases corresponding to a specific genome build or all databases. Default location for databases is 'installation_directory/database/'. 
 
-=begin text
-
 	'hg18'		=>'hg18 reference genome',	'hg19'	=>	'hg19 reference genome',
 	'hg18ibwa'	=>'hg18 bwa index',		'hg19ibwa'=>	'hg19 bwa index',
 	'hg18ibowtie'	=>'hg18 bowtie index',		'hg19ibowtie'=>	'hg19 bowtie index',
@@ -285,8 +283,6 @@ The following list gives possible options and their corresponding databases. You
         'hg19nimblegen' =>'hg19 Nimblegen SeqCap capture kit target regions',
 	'hg18illumina' =>'hg18 Illumina TruSight capture kit target regions',
 	'hg19illumina' =>'hg19 Illumina TruSight capture kit target regions',
-
-=end text
 
 =back
 

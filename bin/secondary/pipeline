@@ -93,7 +93,7 @@ my @script_unlink_list; #list consiting of temporarily generated file, should be
 
 
 #default values will be set at parsing advanced_config
-@ARGV or pod2usage ({-exitval=>2});
+@ARGV or pod2usage ({-exitval=>2,-verbose=>1});
 GetOptions(
     #input and output
     'prefix|p=s'	=>	\$prefix,
@@ -147,8 +147,8 @@ GetOptions(
     #other
     'verbose|v'	        =>	\$verbose,
     'help|h'	        =>	\$help,
-) or pod2usage({-exitval => 2});
-$help||@ARGV and pod2usage ({-verbose=>1});
+) or pod2usage({-exitval => 2,-verbose=>1});
+$help||@ARGV and pod2usage ({-verbose=>2});
 
 
 &procGlobalConf(); #all configurations are stored in global vars
@@ -436,7 +436,7 @@ sub procFQ {
 			)
 		    ),$overwrite);
 		$newfq->rank($k);
-		warn "fqlink: ".$newfq->file."rank".$newfq->rank()."\n";
+		warn "fqlink: ".$newfq->file."rank".$newfq->rank()."\n" if $debug;
 		$paired_obj[$newfq->rank()] = $newfq;
 	    }
 	    if(@paired_obj == 2) {
@@ -1722,7 +1722,7 @@ sub gen_variant_call_cmd {
     my $cmd_common = $opt->{callcmd};
     my $cmd_common_filter = $opt->{filtercmd};
     my @bam_obj = @{$opt->{bam}};
-    warn "1733: mode: $mode for $caller\n";
+    warn "1733: mode: $mode for $caller\n" if $debug;
     while(@bam_obj) {
 	#number of tasks, when quick is enabled, equal to number of threads
 	my $ntask = $quick ? $threads : 1;
@@ -1923,8 +1923,7 @@ sub gen_cmd_for_variant_call_task
 	push @obj_list,$new_vcf_obj;
     }
 }
-sub soapsnp
-{
+sub soapsnp {
     warn "soapsnp cmd generation\n" if $verbose;
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
@@ -1938,6 +1937,7 @@ sub soapsnp
     my $cmd_common .= "$runSoapsnp -advanced $advanced -n $n -msort $msort -soapsnp $soapsnp -samtools $samtools -soapsnp2vcf $soapsnp2vcf -ref $local_ref ";
     my $caller = "soapsnp";
 
+    die "ERROR: $caller does NOT support somatic calling.\n" if $somatic_toggle;
     for my $soap_obj(@obj_list) {
 	next unless $soap_obj->filetype() eq 'SOAPALN';
 	my $soap_file = $soap_obj->file();

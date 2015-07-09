@@ -25,15 +25,15 @@ my (
 );
 #------------------------------------------------------------------------------------------------
 
-@ARGV or pod2usage ({-exitval=>2});
+@ARGV or pod2usage ({-exitval=>2,-verbose=>1});
 GetOptions(
     #input and output
     'sge=s'		=>	\$sge,
     'n=i'		=>	\$step,
     #other
     'help|h'	        =>	\$help,
-) or pod2usage({-exitval => 2});
-$help and pod2usage ({-verbose=>1});
+) or pod2usage({-exitval => 2,-verbose=>1});
+$help and pod2usage ({-verbose=>2});
 
 die "ERROR: Script file missing or more than one arguments specified.\n" unless @ARGV==1;
 $script=shift @ARGV;

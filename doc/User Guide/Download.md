@@ -1,5 +1,5 @@
 # Download SeqMule
-Download SeqMule here [seqmule.latest.tar.gz](http://seqmule.usc.edu/seqmule.latest.tar.gz)
+Download SeqMule here [seqmule.latest.tar.gz](http://www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz)
 
 Alternatively,
 
