@@ -1,12 +1,16 @@
-# (In preparation) v1.2.0
-2015-06-30 Yunfei Guo <yunfeigu@usc.edu>
+# v1.2.1 
+2015-07-09 Yunfei Guo <yunfeigu@usc.edu>
+
+* Added a public machine image (AMI) for running SeqMule on Amazon EC2, see *RUNNING IN THE CLOUD* in Tutorials.
+
+# v1.2.0
+2015-07-08 Yunfei Guo <yunfeigu@usc.edu>
 
 * SeqMule now supports somatic variant calling via SAMtools and VarScan2
 * Support for Sun Grid Engine
 * New job script format (no influence for end users)
 * New online help interface
 * Enhanced job scheduling and more concurrency
-* A public machine image (AMI) for running SeqMule on Amazon EC2
 
 # v1.1.4
 2015-02-13 Yunfei Guo <yunfeigu@usc.edu>
