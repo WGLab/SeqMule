@@ -18,6 +18,20 @@ If you successfully run SeqMule on other platforms or distributions, please emai
 perl, make, cmake, gcc, g++ (4.4.7 or 4.6.3), curses.h, R, unzip, automake, autoconf, git,
 gzip, tar, java
 
+
+### Download
+Download SeqMule here [seqmule.latest.tar.gz](http://www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz). ***Users of SeqMule 1.1.x and before, please be aware of the change of SeqMule website address.***
+
+SeqMule is also available on GitHub:
+
+	git clone https://github.com/WangGenomicsLab/SeqMule.git
+
+NOTE: if you download seqmule via Git, updating it is easy. Just run the
+following command:
+
+	cd SeqMule
+	git pull origin master
+
 ### Install
 
 Executables of SeqMule itself are basically some scripts in Perl, you can use them right after unpacking. However, external programs do need installation. SeqMule ignores what you have outside seqmule directory for sake of compatibility.
