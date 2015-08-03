@@ -454,10 +454,11 @@ sub procFQ {
 sub procBAM {
     my $local_opt = shift;
     my $tumor = $local_opt->{tumor};
-    my @bam_list = $local_opt->{bam};
+    my @bam_list = @{$local_opt->{bam}};
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $header_check=File::Spec->catfile($install_dir,"bin","secondary","sameBAMSQ");
     if (grep { $_ !~ /\.bam$/ } @bam_list) {
+	warn "@bam_list\n";
 	die "ERROR: All BAM files must have suffix .bam\n";
     }
     $#bam_list==$#prefix_list 
@@ -489,6 +490,7 @@ sub procBAM {
 		#only one sample is allowed in each BAM, so we can safely 
 		#assume only one sample here
 		my $sample_in_bam = &SeqMule::Utils::getBAMSample($samtools,$bam_list[$j]);
+		die "ERROR: didn't find sample name in $bam_list[$j]\n" unless defined $sample_in_bam;
 		die "ERROR: prefix <<$prefix_list[$i]>> is not equal to sample <<$sample_in_bam>> found in $bam_list[$j]\n"
 		unless $prefix_list[$i] eq $sample_in_bam;
 		push @one_sample_input_bam,$obj;
@@ -512,6 +514,7 @@ sub procBAM {
 	    $original_bam->aligner('NA');
 
 	    my $sample_in_bam = &SeqMule::Utils::getBAMSample($samtools,$bam_list[$i]);
+	    die "ERROR: didn't find sample name in $bam_list[$i]\n" unless defined $sample_in_bam;
 	    die "ERROR: prefix $prefix_list[$i] is not equal to sample $sample_in_bam found in $bam_list[$i]\n"
 	    unless $prefix_list[$i] eq $sample_in_bam;
 
