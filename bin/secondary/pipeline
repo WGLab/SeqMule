@@ -531,44 +531,44 @@ sub procBAM {
     }
     #check contig, try to resolve inconsistency
     for my $local_bam_obj(@obj_list) {
-	next unless $local_bam_obj->filetype() eq 'BAM';
-	#compare chromosome name in ref and BED, complain if they don't match
-	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-	my $local_bam = $local_bam_obj->file();
-	my $chr_compare=&SeqMule::Utils::compareChr({
-		samtools=>$samtools,
-		type1=>'fasta',
-		file1=>$local_ref,
-		type2=>'bam',
-		file2=>$local_bam, 
-	    });
-	if ($chr_compare==0) {
-	    die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
-	} elsif ($chr_compare==1) { 
-	    warn "NOTICE: contig names in BAM file and reference match with each other.\n";
-	} elsif ($chr_compare==2) {
-	    warn "WARNING: contig names in BAM file do NOT match reference.\n";
-	    if ($no_resolve_conflict) {
-		die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BAM file.\n";
-	    } else {
-		#try remove or add 'chr'
-		#check @SQ tags, try to fix inconsistent tags
-		warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
-		my $newbam_obj = $local_bam_obj->clone();
-		my $newbam_file = $local_bam_obj->file();
-		$newbam_file =~ s/\.bam/.chrmod.bam/;
-		$newbam_obj->file($newbam_file);
-		$newbam_obj->parent($local_bam_obj);
-		$local_bam_obj->child($newbam_obj);
+        next unless $local_bam_obj->filetype() eq 'BAM';
+        #compare chromosome name in ref and BED, complain if they don't match
+        my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+        my $local_bam = $local_bam_obj->file();
+        my $chr_compare=&SeqMule::Utils::compareChr({
+        	samtools=>$samtools,
+        	type1=>'fasta',
+        	file1=>$local_ref,
+        	type2=>'bam',
+        	file2=>$local_bam, 
+            });
+        if ($chr_compare==0) {
+            die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
+        } elsif ($chr_compare==1) { 
+            warn "NOTICE: contig names in BAM file and reference match with each other.\n";
+        } elsif ($chr_compare==2) {
+            warn "WARNING: contig names in BAM file do NOT match reference.\n";
+            if ($no_resolve_conflict) {
+        	die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BAM file.\n";
+            } else {
+        	#try remove or add 'chr'
+        	#check @SQ tags, try to fix inconsistent tags
+        	warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
+        	my $newbam_obj = $local_bam_obj->clone();
+        	my $newbam_file = $local_bam_obj->file();
+        	$newbam_file =~ s/\.bam/.chrmod.bam/;
+        	$newbam_obj->file($newbam_file);
+        	$newbam_obj->parent($local_bam_obj);
+        	$local_bam_obj->child($newbam_obj);
 
-		warn "WARNING: $newbam_file will be overwritten.\n" if -e $newbam_file or -l $newbam_file;
-		&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam_file);
+        	warn "WARNING: $newbam_file will be overwritten.\n" if -e $newbam_file or -l $newbam_file;
+        	&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam_file);
 
-		$local_bam_obj=$newbam_obj;
-	    }
-	} else {
-	    die "ERROR: unrecognized return code for contig name comparison.\n";
-	}
+        	$local_bam_obj=$newbam_obj;
+            }
+        } else {
+            die "ERROR: unrecognized return code for contig name comparison.\n";
+        }
     }
 
     #sort all BAMs as we cannot assume they are aligned
@@ -755,6 +755,7 @@ sub checkMerge {
     if ($mergingrule) {
 	@merging_rule_list = split /,/,$mergingrule;
     } else { #by default, seqmule tries to assign the files evenly among samples
+	die "ERROR: no prefix found\n" if @prefix_list == 0;
 	@merging_rule_list = (int ($file_count/@prefix_list)) x @prefix_list;
     }
     if(&SeqMule::Utils::sum(@merging_rule_list) != $file_count) {

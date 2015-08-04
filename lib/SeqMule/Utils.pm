@@ -1272,10 +1272,8 @@ sub compareChr
 
 	&chrNamingConsistencyCheck(keys %bam_contig);
 
-	for my $contig(keys %bam_contig)
-	{
-	    unless(exists $fa_contig{$contig})
-	    {
+	for my $contig(keys %bam_contig) {
+	    unless(exists $fa_contig{$contig}) {
 		if ($contig=~/^chr/)
 		{
 		    $contig=~s/^chr//;
@@ -1283,13 +1281,11 @@ sub compareChr
 		{
 		    $contig=~s/^/chr/;
 		}
-		if (exists $fa_contig{$contig})
-		{
-		    warn "inconsistent with chr: $contig and $fa_contig{$contig}\n";
+		if (exists $fa_contig{$contig}) {
+		    warn "WARNING: inconsistent with chr: $contig and $fa_contig{$contig}\n";
 		    $code=2;
-		} else
-		{
-		    warn "inconsistent: $contig and $fa_contig{$contig}\n";
+		} else {
+		    warn "WARNING: $contig not found in builtin reference\n";
 		    $code=0;
 		    last;
 		}
