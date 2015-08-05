@@ -1,3 +1,8 @@
+# v1.2.2 
+2015-08-05 Yunfei Guo <yunfeigu@usc.edu>
+
+* Bug fixes
+
 # v1.2.1 
 2015-07-09 Yunfei Guo <yunfeigu@usc.edu>
 
