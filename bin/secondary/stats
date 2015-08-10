@@ -32,7 +32,7 @@ my ($prefix,
     $ref,$minN,$consensus_vcf,$union_vcf,$consensus_files,$union_files,
     $plink,$paternal_id,$maternal_id,$mendelian_stat,
     $sample,$nofilter,
-    $jmem,$nt,$tmpdir,
+    $jmem,$jexe,$nt,$tmpdir,
     $help,$noclean,$verbose,
 );
 my $install_dir=File::Spec->catdir($RealBin,"..","..");
@@ -62,6 +62,7 @@ GetOptions(
     'paternal=s'	=>	\$paternal_id,
     'maternal=s'	=>	\$maternal_id,
     'jmem=s'		=>	\$jmem,
+    'jexe=s'		=>	\$jexe,
     't=i'		=>	\$nt,
     'tmpdir=s'		=>	\$tmpdir,
 
@@ -90,6 +91,7 @@ die "ERROR:Please use -capture or -aln option with -bam\n" if (defined $bam && !
 
 #set default
 $jmem=$jmem||'1750m';
+$jexe = $jexe || 'java';
 $nt=$nt || 1;
 $tmpdir = $tmpdir || $TMPDIR;
 
@@ -422,7 +424,6 @@ sub run_gatk_combine_var
     my $minN = $arg->{minN};
     my $out = $arg->{out};
     my @per_sample_combo_vcf_list;
-    my $java="java";
     my $gatk=&getExe(&SeqMule::Utils::getProgramExe("gatklite"),&SeqMule::Utils::getProgramExe("gatk"));
 
     for my $sample(@sample)
@@ -431,7 +432,7 @@ sub run_gatk_combine_var
 	for my $local_vcf(@per_sample_vcf)
 	{
 	    my $local_out = File::Spec->catfile($tmpdir,$sample.$$.rand($$).".".(basename $local_vcf));
-	    !system("$java -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l ERROR ") or die "ERROR: Failed to split VCF by sample\n";
+	    !system("$jexe -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l ERROR ") or die "ERROR: Failed to split VCF by sample\n";
 	    my $local_out_nomissing = File::Spec->catfile($tmpdir,$sample.$$.rand($$).".".(basename $local_vcf));
 	    #records with missing genotype cannot be handled correctly
 	    !system("grep -v '\\.\\/\\.' $local_out > $local_out_nomissing") or die "ERROR: failed to generate single-sample VCF that doesn't missing genotypes ($!).\n";
@@ -444,7 +445,7 @@ sub run_gatk_combine_var
 	
 	my $per_sample_combo_vcf = File::Spec->catfile($tmpdir,$$.rand($$)."per_sample_combo.vcf");
 	my $cmd =
-	"$java -Xmx$jmem -jar $gatk -T CombineVariants".
+	"$jexe -Xmx$jmem -jar $gatk -T CombineVariants".
 	" -R $ref".
 	" -nt $nt".
 	" -l ERROR".
@@ -469,7 +470,7 @@ sub run_gatk_combine_var
 	push @per_sample_combo_vcf_list,$per_sample_combo_vcf;
     }
     my $cmd = 
-    "$java -Xmx$jmem -jar $gatk -T CombineVariants".
+    "$jexe -Xmx$jmem -jar $gatk -T CombineVariants".
     " -R $ref".
     " -nt $nt".
     " -l ERROR".
@@ -1359,12 +1360,14 @@ Options:
 	--paternal <STRING>	  sample ID for paternal ID (case-sensitive). Rest are either maternal or offspring. Only one family allowed.
 	--maternal <STRING>	  sample ID for maternal ID (case-sensitive). Rest are either paternal or offspring. Only one family allowed.
 	-N <INT>		  extract variants appearing in at least N input files. Currently only effective for --c-vcf option.
-	-jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
+	--jmem <STRING>		  max java memory. Only effective for --c-vcf and --u-vcf. Default: 1750m
+	--jexe <STRING>		  Java executable path. Default: java
 	-t <INT>		  number of threads. Only effective for --aln, --c-vcf and --u-vcf. Default: 1
 	--tmpdir <DIR>		  use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
 	--nofilter	          If specified, consider all variants, otherwise, only unfiltered variants.
 	-h,--help                 help
 	--noclean                 do not clean temporary files
+	-v,--verbose		  verbose
 
 
 	EXAMPLE	

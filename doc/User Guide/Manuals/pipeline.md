@@ -39,11 +39,13 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
         --wgs,-g                  the input is whole-genome sequencing data
         --capture <BED>           calculate coverage stats and extract (or call) variants over the regions defined by this file. If you do not have a custom BED file, use '-capture default' to use default BED file.
         --no-resolve-conflict     seqmule will NOT try to resolve any conflict among BED, BAM and reference. Run 'seqmule pipeline -h' for details.
+        --no-check-chr            skip checking chromosome consistency. By default, SeqMule forces chromosomes in input to be consistent with builtin reference.
         --threads,-t <INT>        number of threads, also effective for -sge. Default: 1.
         --sge <TEXT>              run each command via Sun Grid Engine. A template with XCPUX keyword required. See examples.
         --nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host.
         --quick,-q                enable parallel processing at variant calling
         --jmem <STRING>           max memory used for java virtual machine. Default: 1750m.
+        --jexe <STRING>           Java executable path. Default: java
         --gatknt <INT>            number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
         --advanced [FILE]         generate or use an advanced configuration file
         --tmpdir <DIR>            use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp

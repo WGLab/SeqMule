@@ -51,8 +51,8 @@ my (
     $normal_fq1,$normal_fq2,$normal_bam,$tumor_fq1,$tumor_fq2,$tumor_bam,
     $merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
-    $threads, $sge, $nodeCapacity, $quick, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
-    $no_resolve_conflict,$overwrite,
+    $threads, $sge, $nodeCapacity, $quick, $jexe, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
+    $no_resolve_conflict,$no_check_chr,$overwrite,
     $capture,$ref, $index_prefix, $bowtie_index_prefix, $bowtie2_index_prefix, 
     $soap_index_prefix, $hapmap, $dbsnp,  $dbsnpver,  $kg, $indel,
     $verbose, $help, 
@@ -123,6 +123,7 @@ GetOptions(
     'nodeCapacity|nc=i' =>	\$nodeCapacity,
     'quick|q'		=>	\$quick,
     'jmem=s'		=>	\$java_mem,
+    'jexe=s'		=>	\$jexe,
     'tmpdir=s'		=>	\$tmpdir,
     'gatknt=i'		=>	\$gatk_nt,
     'advanced:s'	=>	\$advanced,
@@ -134,6 +135,7 @@ GetOptions(
     #associated db
     'capture=s'		=>	\$capture,
     'no-resolve-conflict'=>	\$no_resolve_conflict,
+    'no-check-chr'	=>	\$no_check_chr,
     'ref=s'	        =>	\$ref,
     'index=s'	        =>	\$index_prefix,
     'bowtie=s'	        =>	\$bowtie_index_prefix,
@@ -219,6 +221,8 @@ sub procGlobalConf {
 	    $threads= $threads || $value;
 	} elsif ($key=~/_jmem=/)
 	{ $java_mem=$java_mem || $value;
+	} elsif ($key=~/_jexe=/)
+	{ $jexe=$jexe || $value;
 	}elsif ($key=~/_gatknt=/){
 	    $gatk_nt=$gatk_nt || $value;
 	}elsif ($key=~/_platform=/i) {
@@ -316,6 +320,7 @@ sub reportParam {
     warn "NOTICE: Reference genome build is $buildver\n";
     warn "NOTICE: dbsnp$dbsnpver will be used for variant calling and recalibration.\n";
     warn "NOTICE: Java memory usage is limited to $java_mem\n";
+    warn "NOTICE: java executable path: $jexe\n" if $jexe;
     warn "NOTICE: Max number of processes: $threads\n";
     warn "NOTICE: Variants shared by at least $minN combinations of aligners and callers will be printed.\n" if $minN;
     warn "NOTICE: Variant calling will be run in parallel mode [EXPERIMENTAL].\n" if $quick;
@@ -353,6 +358,7 @@ sub writeLog {
     print LOG "Reference genome build is $buildver\n";
     print LOG "dbsnp$dbsnpver is used for variant calling and recalibration (in GATK VQSR).\n";
     print LOG "Java memory usage is limited to $java_mem\n";
+    print LOG "java executable path: $jexe\n" if $jexe;
     print LOG "Max number of processes: $total_threads\n";
     print LOG "Variant calling are run in parallel mode [EXPERIMENTAL].\n" if $quick;
     print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
@@ -530,45 +536,48 @@ sub procBAM {
 	&checkBAMSample($samtools,@obj_list);
     }
     #check contig, try to resolve inconsistency
-    for my $local_bam_obj(@obj_list) {
-        next unless $local_bam_obj->filetype() eq 'BAM';
-        #compare chromosome name in ref and BED, complain if they don't match
-        my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-        my $local_bam = $local_bam_obj->file();
-        my $chr_compare=&SeqMule::Utils::compareChr({
-        	samtools=>$samtools,
-        	type1=>'fasta',
-        	file1=>$local_ref,
-        	type2=>'bam',
-        	file2=>$local_bam, 
-            });
-        if ($chr_compare==0) {
-            die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
-        } elsif ($chr_compare==1) { 
-            warn "NOTICE: contig names in BAM file and reference match with each other.\n";
-        } elsif ($chr_compare==2) {
-            warn "WARNING: contig names in BAM file do NOT match reference.\n";
-            if ($no_resolve_conflict) {
-        	die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BAM file.\n";
-            } else {
-        	#try remove or add 'chr'
-        	#check @SQ tags, try to fix inconsistent tags
-        	warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
-        	my $newbam_obj = $local_bam_obj->clone();
-        	my $newbam_file = $local_bam_obj->file();
-        	$newbam_file =~ s/\.bam/.chrmod.bam/;
-        	$newbam_obj->file($newbam_file);
-        	$newbam_obj->parent($local_bam_obj);
-        	$local_bam_obj->child($newbam_obj);
+    if (not $no_check_chr) {
+	warn "NOTICE: use --no-check-chr to skip chromosome name checking\n";
+	for my $local_bam_obj(@obj_list) {
+	    next unless $local_bam_obj->filetype() eq 'BAM';
+	    #compare chromosome name in ref and BED, complain if they don't match
+	    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
+	    my $local_bam = $local_bam_obj->file();
+	    my $chr_compare=&SeqMule::Utils::compareChr({
+		    samtools=>$samtools,
+		    type1=>'fasta',
+		    file1=>$local_ref,
+		    type2=>'bam',
+		    file2=>$local_bam, 
+		});
+	    if ($chr_compare==0) {
+		die "ERROR: $local_bam contains chromosome names that are not in reference.\n" 
+	    } elsif ($chr_compare==1) { 
+		warn "NOTICE: contig names in BAM file and reference match with each other.\n";
+	    } elsif ($chr_compare==2) {
+		warn "WARNING: contig names in BAM file do NOT match reference.\n";
+		if ($no_resolve_conflict) {
+		    die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BAM file.\n";
+		} else {
+		    #try remove or add 'chr'
+		    #check @SQ tags, try to fix inconsistent tags
+		    warn "NOTICE: SeqMule now tries to fix inconsistent contig names. A new copy of BAM file will created.\n";
+		    my $newbam_obj = $local_bam_obj->clone();
+		    my $newbam_file = $local_bam_obj->file();
+		    $newbam_file =~ s/\.bam/.chrmod.bam/;
+		    $newbam_obj->file($newbam_file);
+		    $newbam_obj->parent($local_bam_obj);
+		    $local_bam_obj->child($newbam_obj);
 
-        	warn "WARNING: $newbam_file will be overwritten.\n" if -e $newbam_file or -l $newbam_file;
-        	&SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam_file);
+		    warn "WARNING: $newbam_file will be overwritten.\n" if -e $newbam_file or -l $newbam_file;
+		    &SeqMule::Utils::addOrRmChrInBAM($samtools,$local_bam,$newbam_file);
 
-        	$local_bam_obj=$newbam_obj;
-            }
-        } else {
-            die "ERROR: unrecognized return code for contig name comparison.\n";
-        }
+		    $local_bam_obj=$newbam_obj;
+		}
+	    } else {
+		die "ERROR: unrecognized return code for contig name comparison.\n";
+	    }
+	}
     }
 
     #sort all BAMs as we cannot assume they are aligned
@@ -629,38 +638,41 @@ sub confOptCheck {
 	#compare chromosome name in ref and BED, complain if they don't match
 	my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 	my $chr_compare=&SeqMule::Utils::compareChr({	type1=>'fasta', file1=>$local_ref, type2=>'bed', file2=>$capture, });
-	if ($chr_compare==0)
-	{
-	    die "ERROR: $capture file contain chromosome names that are not in reference.\n" 
-	} elsif ($chr_compare==1)
-	{ 
-	    warn "NOTICE: contig names in capture file and reference match with each other.\n";
-	} elsif ($chr_compare==2)
-	{
-	    warn "WARNING: contig names in capture file do NOT match reference.\n";
-	    if ($no_resolve_conflict)
+	if (not $no_check_chr) {
+	    warn "NOTICE: use --no-check-chr to skip chromosome name checking\n";
+	    if ($chr_compare==0)
 	    {
-		die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BED file.\n";
-	    }else
+		die "ERROR: $capture file contain chromosome names that are not in reference.\n" 
+	    } elsif ($chr_compare==1)
+	    { 
+		warn "NOTICE: contig names in capture file and reference match with each other.\n";
+	    } elsif ($chr_compare==2)
 	    {
-		#try remove or add 'chr'
-		warn "NOTICE: SeqMule now tries to resolve inconsistent contig names.\n";
-		my $tmp=basename $capture; 
-		$tmp=~s/\.bed$/.chrmod.bed/;#fix the naming to avoid generating new file each run
-		warn "NOTICE: $tmp will be used to replace $capture.\n";
-		if (!$overwrite and -e $tmp) {
-		    my $tmp_chr_compare=&SeqMule::Utils::compareChr({type1=>'fasta', file1=>$local_ref, type2=>'bed', file2=>$tmp, });
-		    if ($tmp_chr_compare == 1) {
-			$capture=$tmp;
+		warn "WARNING: contig names in capture file do NOT match reference.\n";
+		if ($no_resolve_conflict)
+		{
+		    die "ERROR: SeqMule cannot continue unless contig names are matched between reference and BED file.\n";
+		}else
+		{
+		    #try remove or add 'chr'
+		    warn "NOTICE: SeqMule now tries to resolve inconsistent contig names.\n";
+		    my $tmp=basename $capture; 
+		    $tmp=~s/\.bed$/.chrmod.bed/;#fix the naming to avoid generating new file each run
+		    warn "NOTICE: $tmp will be used to replace $capture.\n";
+		    if (!$overwrite and -e $tmp) {
+			my $tmp_chr_compare=&SeqMule::Utils::compareChr({type1=>'fasta', file1=>$local_ref, type2=>'bed', file2=>$tmp, });
+			if ($tmp_chr_compare == 1) {
+			    $capture=$tmp;
+			} else {
+			    die "ERROR: SeqMule tries to create $tmp for you, but target exists and its content differs from what SeqMule expects.\nPlease remove or rename it.\n";
+			}
 		    } else {
-			die "ERROR: SeqMule tries to create $tmp for you, but target exists and its content differs from what SeqMule expects.\nPlease remove or rename it.\n";
+			$capture=&SeqMule::Utils::addOrRmChrInBED($capture,$tmp);
 		    }
-		} else {
-		    $capture=&SeqMule::Utils::addOrRmChrInBED($capture,$tmp);
 		}
+	    } else {
+		die "ERROR: unrecognized return code for contig name comparison.\n";
 	    }
-	} else {
-	    die "ERROR: unrecognized return code for contig name comparison.\n";
 	}
     }
     if ($capture && &SeqMule::Utils::checkOverlapBED($capture)) {
@@ -1407,7 +1419,6 @@ sub gatk
 	my $caller='gatklite';
 	my $mode;
 	my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatklite"));
-	my $exe_java="java";
 	my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEFILTER");
 	my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKLITECALL");
 
@@ -1427,8 +1438,8 @@ sub gatk
 		die "Missing filter name or expression for GATKLite indel/SNP filtering.\n" unless ($filtername && $filterexp);
 	    }
 	}
-	my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
-	my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+	my $cmd_common_filter="$runGATKCMDFILTER -advanced $advanced  -n $n -gatk-hfilter-size $GATKLITE_HARD_FILTER_BAM_SIZE -gatk-indelfilter-size $GATKLITE_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg -dbsnp $local_dbsnp -goldindel $local_indel -java $jexe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+	my $cmd_common_call="$runGATKCMDCALL -advanced $advanced  -n $n -ref $local_ref -java $jexe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
 	warn "CAUTION: GATKLite variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATKLite\n" and sleep 1 if (grep { /soap/ } (SeqMule::SeqUtils->get_attr_enum('aligner',@obj_list)));
 
@@ -1473,7 +1484,6 @@ sub gen_gatk_realign_recal_cmd {
     my $operation = shift; #realn vs recal
     my %options=%{shift @_};
     my $exe;
-    my $exe_java="java";
     my $exe_samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $local_indel=&SeqMule::Utils::search_db({type=>"indel",target=>$indel,build=>$buildver,install_dir=>$install_dir});
@@ -1504,7 +1514,7 @@ sub gen_gatk_realign_recal_cmd {
 	die "ERROR: unknown GATK version: $version\n";
     }
 
-    my $cmd_common ="$run_gatk -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+    my $cmd_common ="$run_gatk -advanced $advanced -n $n -ref $local_ref -java $jexe -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
     $cmd_common .= " -bed $capture" if $wes;
     $cmd_common .= " -goldindel $local_indel " if $local_indel;
     $cmd_common .= " -dbsnp $local_dbsnp " if $local_dbsnp;
@@ -1583,7 +1593,6 @@ sub gatk_full {
     } elsif ($subprogram eq 'unifiedgenotyper' || $subprogram eq 'haplotypecaller') {
 	my $mode;
 	my $exe=&getExe(&SeqMule::Utils::getProgramExe("gatk"));
-	my $exe_java="java";
 	my $runGATKCMDCALL=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLCALL");
 	my $runGATKCMDFILTER=File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLFILTER");
 
@@ -1605,8 +1614,8 @@ sub gatk_full {
 	    }
 	}
 
-	my $cmd_common_call="$runGATKCMDCALL -internal-caller $subprogram -advanced $advanced -n $n -ref $local_ref -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-	my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $subprogram -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $exe_java -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+	my $cmd_common_call="$runGATKCMDCALL -internal-caller $subprogram -advanced $advanced -n $n -ref $local_ref -java $jexe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+	my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $subprogram -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $jexe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
 
 	warn "CAUTION: GATK variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK UnifiedGenotyper.\n" and sleep 1 if (grep { /soap/ } &get_aligner);
@@ -1647,7 +1656,6 @@ sub gatk_full {
 sub picard {
     my ($n,$program,$subprogram,$opt_ref)=@_;
     my %options=%{$opt_ref};
-    my $exe_java="java";
     my $exe=&getExe("markduplicates.jar");
     if ($subprogram=~/markduplicates/i) {
 	for my $local_bam_obj(@obj_list) {
@@ -1662,7 +1670,7 @@ sub picard {
 	    $newbam_obj->parent($local_bam_obj);
 	    $local_bam_obj->child($newbam_obj);
 	    #only mark duplicates, do not really remove them from BAM
-	    $cmd.="$exe_java ";
+	    $cmd.="$jexe ";
 	    $cmd.=" -Djava.io.tmpdir=$TMPDIR " if $TMPDIR;
 	    $cmd.=" -Xmx$java_mem -jar $exe INPUT=$local_bam OUTPUT=$newbam METRICS_FILE=$metrics REMOVE_DUPLICATES=false VALIDATION_STRINGENCY=SILENT";
 	    push @commands,{
@@ -1686,10 +1694,9 @@ sub varscan {
     my $caller = 'varscan';
     my $exe=File::Spec->catfile($install_dir,"bin","secondary","runVARSCAN");
     my $varscan=&getExe(&SeqMule::Utils::getProgramExe("varscan"));
-    my $java="java";
     my $samtools=&getExe(&SeqMule::Utils::getProgramExe("samtools"));
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
-    my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -java $java -jmem $java_mem -varscan $varscan -ref $local_ref -tmpdir $TMPDIR ";
+    my $cmd_common="$exe -advanced $advanced -n $n -samtools $samtools -java $jexe -jmem $java_mem -varscan $varscan -ref $local_ref -tmpdir $TMPDIR ";
 
     my @target_obj;
 
@@ -2212,6 +2219,7 @@ sub getConsensusCall
     my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
     my $cmd_common = "$exe stats -tmpdir $TMPDIR -ref $local_ref ".
     " -jmem $java_mem ".
+    " -jexe $jexe ".
     " -t ".($threads>$gatk_nt? $gatk_nt:$threads); #use smaller one
     $cmd_common .= " -N $minN" if $minN;
 
@@ -2306,6 +2314,7 @@ sub vcf_merge_cmd_gen {
     $cmd=
     "$exe stats -tmpdir $TMPDIR -ref $local_ref".
     " -jmem $java_mem".
+    " -jexe $jexe ".
     " -t ".($threads>$gatk_nt? $gatk_nt:$threads). #use smaller one
     " -u-vcf ".join(",",@vcf).
     " -p $out_prefix";
@@ -2412,6 +2421,7 @@ sub assignDefault {
     #assign default values for global options
     $threads=$threads || 1;
     $java_mem=$java_mem || '1750m';
+    $jexe = $jexe || 'java';
     $gatk_nt=$gatk_nt || 2;
     $pl=$pl || 'ILLUMINA';
     $phred=$phred || 1;
@@ -2564,11 +2574,13 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 	--wgs,-g		  the input is whole-genome sequencing data
 	--capture <BED>		  calculate coverage stats and extract (or call) variants over the regions defined by this file. If you do not have a custom BED file, use '-capture default' to use default BED file.
 	--no-resolve-conflict	  seqmule will NOT try to resolve any conflict among BED, BAM and reference. Run 'seqmule pipeline -h' for details.
+	--no-check-chr		  skip checking chromosome consistency. By default, SeqMule forces chromosomes in input to be consistent with builtin reference.
 	--threads,-t <INT>	  number of threads, also effective for -sge. Default: 1.
       	--sge <TEXT>		  run each command via Sun Grid Engine. A template with XCPUX keyword required. See examples.
 	--nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host.
 	--quick,-q		  enable parallel processing at variant calling
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
+	--jexe <STRING>		  Java executable path. Default: java
 	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
 	--advanced [FILE]	  generate or use an advanced configuration file
 	--tmpdir <DIR>		  use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
