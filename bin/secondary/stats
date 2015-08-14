@@ -24,6 +24,12 @@ use Getopt::Long qw/GetOptions/;
 my $ARGCOUNT=100000; #number of regions to extract using command line, max number if restricted by kernel config
 my $INDEL_EXTENSION = 10; #when determining indel overlapping, interalize indels by extending indel INDEL_EXTENSION bp towards both ends
 my $TMPDIR = $ENV{TMPDIR} || "/tmp";
+my %LEGAL_VAR_FILETYPE = (
+    'avinput'	=>	1,
+    'vcf'	=>	1,
+    'consensus'	=>	1,
+    'vcf.gz'	=>	1,
+);
 ##################################################
 my ($prefix,
     $bam,$vcf,
@@ -111,18 +117,22 @@ if ($union_files)
 	&conv2anno(split /,/,$union_files) );
 }
 
-if ($consensus_files)
-{
+if ($consensus_files) {
     &var_consensus(
 	&conv2anno(split /,/,$consensus_files) 
     );
 }
 
-if ($venn)
-{
+if ($venn) {
     my @files=split /,/,$venn;
-    @files=&SeqMule::Utils::getNonEmptyVCF(@files);
-    &venn( \@files,&conv2anno(&normalize_vcf(@files)) );
+    &SeqMule::Utils::checkFileType(\%LEGAL_VAR_FILETYPE,1,@files);
+
+    if(&SeqMule::Utils::getSuffix($files[0]) =~ /^vcf$|^vcf\.gz$/) {
+	@files=&SeqMule::Utils::getNonEmptyVCF(@files);
+	&venn( \@files,&conv2anno(&normalize_vcf(@files)) );
+    } else {
+	&venn( \@files,&conv2anno(@files) );
+    }
 }
 
 if (defined $capture) 
@@ -809,8 +819,7 @@ sub coverage_stat
 }
 
 #generate Venn Diagram
-sub venn 
-{
+sub venn {
     warn "NOTICE: Do not support more than 5 files right now\n" and return undef unless (@_<=5);
     warn "NOTICE: No need to plot for single file\n" and return undef if (@_==1);
 
@@ -838,16 +847,14 @@ sub venn
     my $non_snp_index_pool;
 
     #remove empty file
-    for (@avinput_pool)
-    {
+    for (@avinput_pool) {
 	$_=undef unless (-s $_ >0);
     }
     @avinput_pool=grep {defined $_} @avinput_pool;
     warn "WARNING: failed to plot Venn diagram, number of nonempty files is more than 5 or smaller than 2.\n" and return unless @avinput_pool<=5 && @avinput_pool>=2;
 
     #generate index matrix
-    for my $count(0..$#avinput_pool)
-    {
+    for my $count(0..$#avinput_pool) {
 	#*_index_matrix is array of array
 	#first layer is array of file index
 	#2nd layer is array of file name plus variants
@@ -857,18 +864,19 @@ sub venn
 	open IN,"<",$input or die "Cannot open $input:$!\n";
 	$snp_index_matrix[$count]=[];
 	$non_snp_index_matrix[$count]=[];
-	while (<IN>) 
-	{
+	my $illegal_input_count = 0;
+	while (<IN>) {
 	    #chr	start	end	ref	obs	...
 	    #1		2	3	4	5
-	    /^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t.*$/ or next;
+	    unless(/^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t?.*$/) {
+		$illegal_input_count++;
+		next;
+	    }
 
-	    if ($2 == $3 and length($4) == 1 and length($5) == 1 ) #start == end means this is a SNP
-	    {
+	    if ($2 == $3 and length($4) == 1 and length($5) == 1 ) {#start == end means this is a SNP 
 		my $key=[$1,$2,$3,$4,$5];
 		push @{$snp_index_matrix[$count]},$key and $snp_appear{$key}=1 unless $snp_appear{$key};
-	    } else
-	    {
+	    } else {
 		#for indels, MVNs
 		#use intervalization of 20bp (10bp in each direction)
 		#as long as there's an overlap of interval
@@ -879,11 +887,11 @@ sub venn
 	    }
 	}
 	close IN;
+	warn "WARNING: $input has $illegal_input_count illegal lines, expect >= 5 tab delimited fields\n" if $illegal_input_count > 0;
     }
 
     @non_snp_index_matrix = &gen_index_for_interval(\@non_snp_index_matrix);
-    for my $count(0..$#avinput_name)
-    {
+    for my $count(0..$#avinput_name) {
 	#add file name to head of array
 	my $input = $avinput_name[$count];
 	my ($name_prefix) = $input=~/^(.*)(\.avinput|\.tmp|\.vcf|\.consensus)$/i;
@@ -904,8 +912,7 @@ sub venn
     &genPlot("SNV",$snp_index_pool,scalar @avinput_pool);
     &genPlot("NON-SNV",$non_snp_index_pool,scalar @avinput_pool);
 }
-sub gen_index_for_interval
-{
+sub gen_index_for_interval {
     #be careful here
     #we are dealing with references
     #so any change to the content may have unexpected side effects
@@ -992,14 +999,12 @@ sub gen_index_for_interval
     #and there shouldn't be duplicates
     return @new;
 }
-sub write_index_pool
-{
+sub write_index_pool {
     my $max=0;
     my $outfile = shift;
     my @index_matrix = @_;
 
-    for my $i(0..$#index_matrix)
-    {
+    for my $i(0..$#index_matrix) {
 	$max = @{$index_matrix[$i]} if @{$index_matrix[$i]} > $max;
     }
 
@@ -1009,9 +1014,8 @@ sub write_index_pool
 	my @line;
 	for my $j(0..$#index_matrix)
 	{
-	    if(defined $index_matrix[$j][$i])
-	    {
-		push @line,(join "+",@{$index_matrix[$j][$i]});
+	    if(defined $index_matrix[$j][$i] and @{$index_matrix[$j][$i]}>0) {
+		push @line,(join "+",(grep {defined} @{$index_matrix[$j][$i]}));
 	    } else
 	    {
 		push @line,"NA";
@@ -1021,8 +1025,7 @@ sub write_index_pool
     }
     close OUT;
 }
-sub genPlot
-{
+sub genPlot {
     my $category = shift; #SNP or NON-SNP
     die "ERROR: category missing" unless defined $category;
     my $variant_index_pool=shift;
@@ -1044,8 +1047,7 @@ sub genPlot
     "y=list()\n".
     "title='Overlapping of $category variants'\n";
     #convert dataframe to list such that na=remove works
-    for my $no(1..$count) 
-    {
+    for my $no(1..$count) {
 	$rscript.=
 	"y[[$no]]=x[[$no]]\nnames(y)[$no]=$no\n".
 	"tmp=paste($no,names(x)[$no],sep=':')\n".
@@ -1066,41 +1068,35 @@ sub genPlot
     }\n";
 
     #high resolution tiff output
-    if ($count==5)
-    {
+    if ($count==5) {
 	$rscript.="
 	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=0.65,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
 	";
-    } elsif ($count==4) 
-    {
+    } elsif ($count==4) {
 	$rscript.="
 	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=0.8,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
 	";
-    } else
-    {
+    } else {
 	$rscript.="
 	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=1,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=0,ext.length=0.9)
 	";
     }
 #jpeg output for html report
-    if ($count==5)
-    {
+    if ($count==5) {
 	$rscript.="
 	obj=venn.diagram(y,fill=rainbow(length(y)),filename=NULL,na=\"remove\",cex=0.65,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
 	jpeg('$jpg',width=5,height=5,units='in',res=500)
 	grid.draw(obj)
 	garbage <- dev.off()
 	";
-    } elsif ($count==4) 
-    {
+    } elsif ($count==4) {
 	$rscript.="
 	obj=venn.diagram(y,fill=rainbow(length(y)),filename=NULL,na=\"remove\",cex=0.8,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=-0.1,ext.length=0.9)
 	jpeg('$jpg',width=5,height=5,units='in',res=500)
 	grid.draw(obj)
 	garbage <- dev.off()
 	";
-    } else
-    {
+    } else {
 	$rscript.="
 	obj=venn.diagram(y,fill=rainbow(length(y)),filename=NULL,na=\"remove\",cex=1,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=0,ext.length=0.9)
 	jpeg('$jpg',width=5,height=5,units='in',res=500)
@@ -1117,13 +1113,11 @@ sub genPlot
 }
 
 #convert files to annovar input format for easy handling
-sub conv2anno 
-{
+sub conv2anno {
     my @files=@_;
     my @return_files;
     my $exe_conver=&getExe("convert2annovar.pl");
-    for (@files) 
-    {
+    for (@files) {
 	if (/^(.*)\.vcf(\.gz)?$/i)
 	{
 	    my $local_prefix=$1;

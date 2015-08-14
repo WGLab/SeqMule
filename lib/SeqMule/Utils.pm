@@ -13,6 +13,33 @@ no warnings 'File::Find';
 use SeqMule::SeqUtils;
 
 
+sub checkFileType {
+    #take accepted filetype (hash ref)
+    #and a list of files
+    #make sure file types are all accepted and are the same
+    my $ft = shift; 
+    my $same_flag = shift; #require all files to be the same?
+    my @files = @_;
+    my $first = shift @files;
+    my $first_ft = &getSuffix($first);
+    unless ($ft->{$first_ft}) {
+	croak("ERROR: illegal file type ($first_ft), only accept ".(join(",",keys %$ft))."\n");
+    }
+    if($same_flag) {
+	for my $i(@files) {
+	    my $i_ft = &getSuffix($i);
+	    croak("ERROR: suffix $i_ft is not same as suffix $first_ft\n") unless $i_ft eq $first_ft;
+	}
+    }
+}
+sub getSuffix {
+    my $file = shift;
+    my ($suffix) = $file=~/\.([^\.]+)$/ or croak("ERROR: did not find suffix ($file)\n");
+    if($suffix eq 'gz') {
+	return &getSuffix($file=~/(.*?)\.$suffix$/).".$suffix";
+    }
+    return $suffix;
+}
 sub get_rank_by_mergingrule
 {
     #given index for sample, index for file, and merging rule
