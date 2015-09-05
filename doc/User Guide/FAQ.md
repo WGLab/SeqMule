@@ -1,5 +1,3 @@
-# SeqMule FAQ
-
 ### Is there a log file showing the runtime error? 
 
 SeqMule only saves runtime parameters to `*.log` file. If you want to check the runtime output after running SeqMule in the background (or submitted to a cluster), please use `nohup your_seqmule_command > output.txt &`. `nohup` can run your command even after you log out. All messages that were printed on screen will be saved in `output.txt` file. Alternatively, you can append `2>stderr.txt` to your SeqMule command. The STDERR message (all error messages) will be saved in output.txt and stderr.txt, respectively. 

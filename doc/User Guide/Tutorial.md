@@ -1,5 +1,3 @@
-#Tutorial
-
 After you have downloaded and installed SeqMule (assume in `seqmule` folder), this tutorial will tell you most important steps to get your analysis done.
 
 ## Example output
