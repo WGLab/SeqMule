@@ -29,6 +29,6 @@ update          automatic update SeqMule
 \n" if (!defined $subprogram or !(grep{$subprogram eq $_} @all_subprograms));
 
 warn "Current version: $version\n";
-#system(File::Spec->catfile($RealBin,"secondary","checkupgrade"));
+system(File::Spec->catfile($RealBin,"secondary","checkupgrade"));
 
 exec(File::Spec->catfile($RealBin,"secondary",$subprogram),@ARGV);
