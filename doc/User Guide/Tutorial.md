@@ -2,36 +2,37 @@
 
 After you have downloaded and installed SeqMule (assume in `seqmule` folder), this tutorial will tell you most important steps to get your analysis done.
 
-### Example output
+## Example output
 
 Click [here](http://www.openbioinformatics.org/seqmule/example/trio_report/summary.html) to see what output report looks like.
 
 You can find an application example in my [poster](../misc/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
 
-### Quick start
+## Quick start
 
-#### Step 1: Prepare database
+### Step 1: Prepare database
 
 Reference genome, index of reference genome, various SNP and INDEL databases are needed for alignment and variant calling. The following command will download all necessary files.
 
 	seqmule download -down hg19all
 
-#### Step 2: Prepare input
+### Step 2: Prepare input
 
 Once external databases are downloaded. SeqMule is ready for analysis!  If you do not have data yet, please download the following example files:[normal_R1.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R1.fastq.gz),[normal_R2.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R2.fastq.gz).
 
 
 
-#### Step 3: Run pipeline
+### Step 3: Run pipeline
 
 	seqmule pipeline -a normal_R1.fastq.gz -b normal_R2.fastq.gz -prefix example -N 2 -capture default -threads 4 -e 
 
 `normal_R1.fastq.gz` and `normal_R2.fastq.gz` are the FASTQ files you get from a sequencer, in gzipped format. They contain reads and read qualities. Assuming you did paired-end sequencing, there are two files.  `-prefix example` tells SeqMule your sample name is `example`.  `-capture default` asks SeqMule to use default region definition file, which is hg19 exome region from Agilent SureSelect kit. `-threads 4` asks SeqMule to use 4 threads wherever possible.  Change it if you don't have 4 CPUs to use. `-e` means this data set is exome or captured sequencing data set (not whole genome data set). `-N 2` means at the end of analysis, SeqMule will extract variants shared by at least 2 sets of variants. The default analysis pipeline conists of BWA-MEM, GATKLite, FreeBayes and SAMtools, so 3 sets of variants will be generated: BWA+GATKLite, BWA+FreeBayes, BWA+SAMtools.
 
-#### Step 4: Check results
+### Step 4: Check results
 
 Wait until all executions are finished (approximately an hour). In the directory where you run your analysis, `example_report` contains a report in HTML format (webpage), `example_result` contains alignment results (in BAM format) and variants (in VCF format). Download the report folder as a whole to your computer, open `Summary.html` with any browser to view summary statistics about your analysis. We also provide a [report](http://www.openbioinformatics.org/seqmule/example/example_report/) from the same data set for comparison . The exact numbers may differ a little due to stochastic behavior of some algorithms.
 
+##Analysis
 ### Database preparation 
 
 SeqMule requires external databases to work. You can either use your own databases, or download default databases using the following commands.  Refer to manual of a specific tool to figure out what database exactly is needed. We recommend you use DEFAULT databases due to software compatibility issues. All databases will be downloaded to `seqmule/database` directory. Right now only human genome is supported.
@@ -46,7 +47,6 @@ All region definition (BED) files are also downloaded along with databases and s
 ### Use region definition (BED) file 
 
 If you have downloaded region definition files for different capture kits, you can use them in your analysis. By default they are located inside `seqmule/database`. Find your region definition file according to manufacture and capture kit. Then use `-capture path_to_your_file` along with other options for pipeline command.  For example
-
 
 
 	seqmule pipeline -a example.1.fq.gz -b example.2.fq.gz -prefix exomeData -capture seqmule/database/hg19agilent/hg19_SureSelect_Human_All_Exon_V5.bed -threads 4 -e
@@ -82,7 +82,7 @@ Some users maybe don't know how to edit a file on Linux if they don't have graph
 
 ### Whole genome analysis 
 
-Change `-e` to `-g` in seqmule command.
+Change `-e` to `-g` in seqmule command. Consequently, SeqMule will use whole genome as the region definition for analysis.
 
 ### Multiple samples 
 
@@ -104,21 +104,6 @@ This command will resume the analysis.
 
 This command will run your analysis from step 10.
 
-### Finetune pipeline (modify script) 
-
-Each time you run `seqmule pipeline`, a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output (it is also your sample name). An example script file is shown below.
-
-````
-    #step   command message nCPU_requested  nCPU_total  status  pid
-    1   seqmule/bin/secondary/mod_status father-mother-son.script 1 seqmule/bin/secondary/phred64to33 father_result/father.1.fastq mother_result/mother.1.fastq son_result/son.1.fastq father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq Convert phred64 to phred33  8   8   finished    31171
-    2   seqmule/bin/secondary/mod_status father-mother-son.script 2 seqmule/bin/secondary/phred64to33 father_result/father.2.fastq mother_result/mother.2.fastq son_result/son.2.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq Convert phred64 to phred33  8   8   finished    526
-    3   seqmule/bin/secondary/mod_status father-mother-son.script 3 seqmule/exe/fastqc/fastqc --extract -t 8 father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq  QC assesment on FASTQ files 8   8   finished    2438
-````
-Every line consists of some tab-delimited fields, the column name is shown on the first line. Any line that is blank or begins with `#` will be ignored. The 1st field shows the step number. 2nd shows the exact command for each step. Second last column shows the status of this step, it can be `finished`, `waiting`, `started` or `error`. The 2nd field begins with `mod_status your_analysis.script step_no`, where `mod_status` is an internal program handling this script. This begining part has nothing to do with analysis itself, so no need to change it. Only change commands after it.
-
-This script is not meant to be changed by users. If you really want to, modify the 2nd field `ONLY`. Do `NOT` add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
-
-Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMules explicit programs (e.g. `stats`).
 
 ### Generate Mendelian error statistics 
 
@@ -128,33 +113,6 @@ Assume you get a VCF with a family trio. The sample ID is `father` for father, `
 
 The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained. If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with `seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa`, where `123combo` is the prefix for the merged VCF.
 
-### Running SeqMule with SGE
-
-SGE stands for Sun Grid Engine. SGE is a popular resource management system in computation cluster environment. SeqMule normally achieves multiprocessing by forking child process to execute commands. With SGE, SeqMule will submit tasks to the system and waits for them to finish. The `-threads` option controls total number of CPUs requested at any given time when it is used with `-sge` option. An example command looks like the following:
-
-```
-seqmule pipeline -ow -prefix sample -a sample.1.fastq.gz -b sample.2.fastq.gz -e -capture default -t 4 -jmem 1750m --advanced seqmule/predefined_config/bowtie2_gatk.config -sge "qsub -V -cwd -pe smp XCPUX" --nodeCapacity 4
-```
-
-Here, the double quoted string following `-sge` is a template for job submission. `XCPUX` is a keyword that will be replaced by actual number of CPUs needed for each task. SeqMule has to be run on a submission node. Do NOT specify `-e`,`-o`,`-S` options in the template as SeqMule will do it for you. SeqMule adds `-S /bin/bash` for all tasks. You can specify other options like queue name, memory request, email address in the template. Because some programs require lots of memory, you may want to try different arguments for `-jmem`, `-threads` and request larger amount of memory in the template in case you are not sure. `--nodeCapacity` tells SeqMule maximum number of threads to run on a single node, usually this is just the number of CPU cores on your compute node.
-
-### Running in the cloud 
-
-With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. Here are the steps:
-
-+ Install [StarCluster](http://star.mit.edu/cluster/docs/latest/quickstart.html)
-+ Use one of the following Amazon Machine Images (AMI) to launch a cluster by specifying the desired AMI-ID for `NODE_IMAGE_ID` in StarCluster config file. This image comes with SeqMule and necessary databases for hg19. If you want to launch a starcluster in other regions, please copy the image to another region first, see [here](http://serverfault.com/a/506687/175299) for how to copy. All these images use HVM (Hardware Virtual Machine) virtualization, and are only supported by current generation instances and a few previous generation instances. See [details about HVM](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/virtualization_types.html).
-
-
-|Region   			|AMI-ID  	|
-|---				|---		|
-|us-west-1(northern California)	|ami-6b4dbd2f  	|
-|eu-west-1(Ireland) 		|ami-9289c4e5	|
-|ap-northeast-1(Tokyo)  	|ami-7859f778   |
-
-
-+ Log into the virtual cluster and run SeqMule. All the executables and database files are located in `/usr/share/seqmule`. If you want to make changes to this folder, please log in as user `ubuntu`.
-+ Users interested in running SeqMule in Amazon cloud should get familiar with some concepts like [EBS](http://aws.amazon.com/ebs/), [S3](http://aws.amazon.com/s3/), [regions](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html). [qwikLABS](https://qwiklabs.com/) provides some hands-on labs for free.
 
 ### Call somatic variants
 
@@ -178,7 +136,53 @@ seqmule pipeline -a fa_run1.1.fq.gz,fa_run2.1.fq.gz,ma_run1.1.fq.gz,ma_run2.1.fq
 
 The above command specifies 8 input files which can be found [here](http://www.openbioinformatics.org/seqmule/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://www.openbioinformatics.org/seqmule/example/multi-sample_merging_report/summary.html).
 
-### Caveat 
+## Execution
+
+### Running SeqMule with SGE
+
+SGE stands for Sun Grid Engine. SGE is a popular resource management system in computation cluster environment. SeqMule normally achieves multiprocessing by forking child process to execute commands. With SGE, SeqMule will submit tasks to the system and waits for them to finish. The `-threads` option controls total number of CPUs requested at any given time when it is used with `-sge` option. An example command looks like the following:
+
+```
+seqmule pipeline -ow -prefix sample -a sample.1.fastq.gz -b sample.2.fastq.gz -e -capture default -t 4 -jmem 1750m --advanced seqmule/predefined_config/bowtie2_gatk.config -sge "qsub -V -cwd -pe smp XCPUX" --nodeCapacity 4
+```
+
+Here, the double quoted string following `-sge` is a template for job submission. `XCPUX` is a keyword that will be replaced by actual number of CPUs needed for each task. SeqMule has to be run on a submission node. Do NOT specify `-e`,`-o`,`-S` options in the template as SeqMule will do it for you. SeqMule adds `-S /bin/bash` for all tasks. You can specify other options like queue name, memory request, email address in the template. Because some programs require lots of memory, you may want to try different arguments for `-jmem`, `-threads` and request larger amount of memory in the template in case you are not sure. `--nodeCapacity` tells SeqMule maximum number of threads to run on a single node, usually this is just the number of CPU cores on your compute node.
+
+### Finetune pipeline (modify script) 
+
+Each time you run `seqmule pipeline`, a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output (it is also your sample name). An example script file is shown below.
+
+````
+    #step   command message nCPU_requested  nCPU_total  status  pid
+    1   seqmule/bin/secondary/mod_status father-mother-son.script 1 seqmule/bin/secondary/phred64to33 father_result/father.1.fastq mother_result/mother.1.fastq son_result/son.1.fastq father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq Convert phred64 to phred33  8   8   finished    31171
+    2   seqmule/bin/secondary/mod_status father-mother-son.script 2 seqmule/bin/secondary/phred64to33 father_result/father.2.fastq mother_result/mother.2.fastq son_result/son.2.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq Convert phred64 to phred33  8   8   finished    526
+    3   seqmule/bin/secondary/mod_status father-mother-son.script 3 seqmule/exe/fastqc/fastqc --extract -t 8 father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq  QC assesment on FASTQ files 8   8   finished    2438
+````
+Every line consists of some tab-delimited fields, the column name is shown on the first line. Any line that is blank or begins with `#` will be ignored. The 1st field shows the step number. 2nd shows the exact command for each step. Second last column shows the status of this step, it can be `finished`, `waiting`, `started` or `error`. The 2nd field begins with `mod_status your_analysis.script step_no`, where `mod_status` is an internal program handling this script. This begining part has nothing to do with analysis itself, so no need to change it. Only change commands after it.
+
+This script is not meant to be changed by users. If you really want to, modify the 2nd field `ONLY`. Do `NOT` add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
+
+Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMules explicit programs (e.g. `stats`).
+
+### Running in the cloud 
+
+With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. Here are the steps:
+
++ Install [StarCluster](http://star.mit.edu/cluster/docs/latest/quickstart.html)
++ Use one of the following Amazon Machine Images (AMI) to launch a cluster by specifying the desired AMI-ID for `NODE_IMAGE_ID` in StarCluster config file. This image comes with SeqMule and necessary databases for hg19. If you want to launch a starcluster in other regions, please copy the image to another region first, see [here](http://serverfault.com/a/506687/175299) for how to copy. All these images use HVM (Hardware Virtual Machine) virtualization, and are only supported by current generation instances and a few previous generation instances. See [details about HVM](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/virtualization_types.html).
+
+
+|Region   			|AMI-ID  	|
+|---				|---		|
+|us-west-1(northern California)	|ami-6b4dbd2f  	|
+|eu-west-1(Ireland) 		|ami-9289c4e5	|
+|ap-northeast-1(Tokyo)  	|ami-7859f778   |
+
+
++ Log into the virtual cluster and run SeqMule. All the executables and database files are located in `/usr/share/seqmule`. If you want to make changes to this folder, please log in as user `ubuntu`.
++ Users interested in running SeqMule in Amazon cloud should get familiar with some concepts like [EBS](http://aws.amazon.com/ebs/), [S3](http://aws.amazon.com/s3/), [regions](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html). [qwikLABS](https://qwiklabs.com/) provides some hands-on labs for free.
+
+## Caveats
 
 NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under `seqmule/misc/predefined_config` folder.
 
