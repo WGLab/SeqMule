@@ -2,13 +2,13 @@
 
 After you have downloaded and installed SeqMule (assume in `seqmule` folder), this tutorial will tell you most important steps to get your analysis done.
 
-### EXAMPLE OUTPUT 
+### Example output
 
 Click [here](http://www.openbioinformatics.org/seqmule/example/trio_report/summary.html) to see what output report looks like.
 
 You can find an application example in my [poster](../misc/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
 
-### QUICK START 
+### Quick start
 
 #### Step 1: Prepare database
 
@@ -32,7 +32,7 @@ Once external databases are downloaded. SeqMule is ready for analysis!  If you d
 
 Wait until all executions are finished (approximately an hour). In the directory where you run your analysis, `example_report` contains a report in HTML format (webpage), `example_result` contains alignment results (in BAM format) and variants (in VCF format). Download the report folder as a whole to your computer, open `Summary.html` with any browser to view summary statistics about your analysis. We also provide a [report](http://www.openbioinformatics.org/seqmule/example/example_report/) from the same data set for comparison . The exact numbers may differ a little due to stochastic behavior of some algorithms.
 
-### DATABASE PREPARATION 
+### Database preparation 
 
 SeqMule requires external databases to work. You can either use your own databases, or download default databases using the following commands.  Refer to manual of a specific tool to figure out what database exactly is needed. We recommend you use DEFAULT databases due to software compatibility issues. All databases will be downloaded to `seqmule/database` directory. Right now only human genome is supported.
 
@@ -43,7 +43,7 @@ The following commands download default databases to seqmule directory for hg19(
 
 All region definition (BED) files are also downloaded along with databases and saved inside individual folders with manufacture name.
 
-### USE REGION DEFINITION (BED) FILE 
+### Use region definition (BED) file 
 
 If you have downloaded region definition files for different capture kits, you can use them in your analysis. By default they are located inside `seqmule/database`. Find your region definition file according to manufacture and capture kit. Then use `-capture path_to_your_file` along with other options for pipeline command.  For example
 
@@ -53,12 +53,12 @@ If you have downloaded region definition files for different capture kits, you c
 
 Each line in BED represents a region in your captured sequence.  Definition of BED format can be found on [UCSC genome browser.](http://genome.ucsc.edu/FAQ/FAQformat.html#format1)
 
-### EXTRACT SHARED VARIANTS 
+### Extract shared variants 
 
 When you use 1 aligner, 3 variant callers, 3 sets of variants will be generated at the end. When you use 2 aligners, 2 variant callers, 4 sets of variants will be generated at the end. By default, SeqMule will try to extract variants shared by all sets of variants at the end. You can change this behavior by `-N INT` option. Only variants shared by at least INT sets will be retained. For an example, see Step 3 in QUICK START.
 
 
-### CHANGE PIPELINE (CHANGE advanced_config) 
+### Change pipeline (change ADVANCED_CONFIG) 
 
 If you want to change the default pipeline:
 
@@ -80,11 +80,11 @@ After you have modified the `advanced_config` file, you can use it by append `-a
 
 Some users maybe don't know how to edit a file on Linux if they don't have graphics user interface (GUI). The easiest way is download it to your PC, change it with NotePad, upload it. Alternatively, you can refer to a [VIM tutorial](https://www.math.northwestern.edu/resources/computer_information/vimtutor).
 
-### WHOLE GENOME ANALYSIS 
+### Whole genome analysis 
 
 Change `-e` to `-g` in seqmule command.
 
-### MULTIPLE SAMPLES 
+### Multiple samples 
 
 Suppose you have two samples, sampleA and sampleB, how to perform basic analysis? (`.fq` is the same thing as `.fastq`)
 
@@ -92,7 +92,7 @@ Suppose you have two samples, sampleA and sampleB, how to perform basic analysis
 
 Basically you concatenate input files or sample names by commas. If you know your samples come from a single family, you can do multi-sample variant calling by simply adding `-ms` to the above command. It is believed that multi-sample calling could be more accurate.
 
-### ANALYSIS EXIT WITH ERROR (CONTINUE STOPPED ANALYSIS) 
+### Analysis exit with error (continue stopped analysis) 
 
 If your analysis exits erroneously. You can examine the runtime logging information to identify the error, then fix it by changing `advanced_config` or the script, and at last continue the analysis. Commands are shown below.
 
@@ -104,7 +104,7 @@ This command will resume the analysis.
 
 This command will run your analysis from step 10.
 
-### FINETUNE PIPELINE (MODIFY SCRIPT) 
+### Finetune pipeline (modify script) 
 
 Each time you run `seqmule pipeline`, a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output (it is also your sample name). An example script file is shown below.
 
@@ -120,7 +120,7 @@ This script is not meant to be changed by users. If you really want to, modify t
 
 Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMules explicit programs (e.g. `stats`).
 
-### GENERATE MENDELIAN ERROR STATISTICS 
+### Generate Mendelian error statistics 
 
 Assume you get a VCF with a family trio. The sample ID is `father` for father, `mother` for mother, `son` for offspring, respectively. To generate Mendelian error statistics (e.g. how many genotypes are impossible in son based on parents' genotypes), simply run the following command:
 
@@ -128,7 +128,7 @@ Assume you get a VCF with a family trio. The sample ID is `father` for father, `
 
 The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained. If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with `seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa`, where `123combo` is the prefix for the merged VCF.
 
-### RUNNING SEQMULE WITH SGE
+### Running SeqMule with SGE
 
 SGE stands for Sun Grid Engine. SGE is a popular resource management system in computation cluster environment. SeqMule normally achieves multiprocessing by forking child process to execute commands. With SGE, SeqMule will submit tasks to the system and waits for them to finish. The `-threads` option controls total number of CPUs requested at any given time when it is used with `-sge` option. An example command looks like the following:
 
@@ -138,7 +138,7 @@ seqmule pipeline -ow -prefix sample -a sample.1.fastq.gz -b sample.2.fastq.gz -e
 
 Here, the double quoted string following `-sge` is a template for job submission. `XCPUX` is a keyword that will be replaced by actual number of CPUs needed for each task. SeqMule has to be run on a submission node. Do NOT specify `-e`,`-o`,`-S` options in the template as SeqMule will do it for you. SeqMule adds `-S /bin/bash` for all tasks. You can specify other options like queue name, memory request, email address in the template. Because some programs require lots of memory, you may want to try different arguments for `-jmem`, `-threads` and request larger amount of memory in the template in case you are not sure. `--nodeCapacity` tells SeqMule maximum number of threads to run on a single node, usually this is just the number of CPU cores on your compute node.
 
-### RUNNING IN THE CLOUD 
+### Running in the cloud 
 
 With increasing popularity of cloud computing, more users may want to run large computational jobs in the cloud. SeqMule now can be deployed in the cloud via a program called *StarCluster*. Here are the steps:
 
@@ -156,7 +156,7 @@ With increasing popularity of cloud computing, more users may want to run large 
 + Log into the virtual cluster and run SeqMule. All the executables and database files are located in `/usr/share/seqmule`. If you want to make changes to this folder, please log in as user `ubuntu`.
 + Users interested in running SeqMule in Amazon cloud should get familiar with some concepts like [EBS](http://aws.amazon.com/ebs/), [S3](http://aws.amazon.com/s3/), [regions](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html). [qwikLABS](https://qwiklabs.com/) provides some hands-on labs for free.
 
-### CALL SOMATIC VARIANTS
+### Call somatic variants
 
 Calling somatic variants requires two sets of sequencing data, one from normal tissue, the other from tumor tissue. An example looks like this:
 
@@ -168,7 +168,7 @@ seqmule pipeline -ow -a normal_R1.fastq.gz -b normal_R2.fastq.gz -a2 tumor_R1.fa
 
 The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://www.openbioinformatics.org/seqmule/example/PatientXsomatic_report/).
 
-### MERGING MULTIPLE RUNS FROM MULTIPLE SAMPLES
+### Merging multiple runs from multiple samples
 
 Say you have generated 2 runs for sample father, and 2 runs for sample mother. Each run was done by paired-end sequencing, so there are 2 FASTQ files for each run, and 4 for each sample. How to analyze them with SeqMule?
 
@@ -178,7 +178,7 @@ seqmule pipeline -a fa_run1.1.fq.gz,fa_run2.1.fq.gz,ma_run1.1.fq.gz,ma_run2.1.fq
 
 The above command specifies 8 input files which can be found [here](http://www.openbioinformatics.org/seqmule/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://www.openbioinformatics.org/seqmule/example/multi-sample_merging_report/summary.html).
 
-### CAVEAT 
+### Caveat 
 
 NOT all combinations of alingers and variant callers work. For example, SOAPaligner and SOAPsnp don't support SAM, BAM formats natively, so they don't work well with the rest of algorithms. Also, bowtie doesn't report mapping quality, so it shouldn't be used with GATK. For combinations we have tested, please use predefined configuration files under `seqmule/misc/predefined_config` folder.
 
