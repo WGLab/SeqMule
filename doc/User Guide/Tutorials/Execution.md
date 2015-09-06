@@ -1,5 +1,3 @@
-## Execution
-
 ### Quick mode
 
 Add `-q` or `-quick` option to `seqmule pipeline` will put variant calling under parallel execution. This applies to all variant callers in SeqMule except for SOAPsnp. The region of interest will be split into `N` parts, and variant calling is performed over each interval independently. `N` refers to number of CPU cores. Quick mode does not require any cluster computing infrastructure by itself. However, when `N` is large, it is recommend to run quick mode with SGE as some system resources may be depleted easily. For instance, running ~20 GATK-HaplotypeCaller instances simultaneously may generate over 1000 threads and exceed `nproc` (number of processes) limit easily.

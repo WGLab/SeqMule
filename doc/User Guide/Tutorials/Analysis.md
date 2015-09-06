@@ -1,4 +1,3 @@
-##Analysis
 ### Database preparation 
 
 SeqMule requires external databases to work. You can either use your own databases, or download default databases using the following commands.  Refer to manual of a specific tool to figure out what database exactly is needed. We recommend you use DEFAULT databases due to software compatibility issues. All databases will be downloaded to `seqmule/database` directory. Right now only human genome is supported.
