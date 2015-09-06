@@ -134,6 +134,40 @@ seqmule pipeline -a fa_run1.1.fq.gz,fa_run2.1.fq.gz,ma_run1.1.fq.gz,ma_run2.1.fq
 
 The above command specifies 8 input files which can be found [here](http://www.openbioinformatics.org/seqmule/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://www.openbioinformatics.org/seqmule/example/multi-sample_merging_report/summary.html).
 
+### Finetune pipeline (modify script) 
+
+Each time you run `seqmule pipeline`, a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output (it is also your sample name). An example script file is shown below.
+
+````
+[SETTING_SECTION]
+CPUTOTAL=12
+LOGDIR=/home/user/project/diseaseX/seqmule.09052015.2227.logs
+STEPTOTAL=24
+VERSION=1.2
+
+[1]
+JOBID=0
+PID=2639
+command=/home/user/usr/seqmule/SeqMule/bin/secondary/../../bin/secondary/worker /home/user/project/diseaseX/seqmule.09052015.2227.logs 1 "/home/user/usr/seqmule/SeqMule/bin/secondary/../../bin/secondary/phred64to33 test1_result/test1.0.fastq test1_result/test1.0_phred33.fastq"
+dependency=
+message=Convert phred64 to phred33
+nCPU_requested=1
+status=finished
+
+[2]
+JOBID=0
+PID=2652
+command=/home/user/usr/seqmule/SeqMule/bin/secondary/../../bin/secondary/worker /home/user/project/diseaseX/seqmule.09052015.2227.logs 2 "/home/user/usr/seqmule/SeqMule/bin/secondary/../../bin/secondary/phred64to33 test1_result/test1.1.fastq test1_result/test1.1_phred33.fastq"
+dependency=
+message=Convert phred64 to phred33
+nCPU_requested=1
+status=waiting
+
+...
+````
+The script file is written by Perl `Config::Tiny` module. There is a `SETTING_SECTION` specifying global settings. Global settings include total number of CPU cores (`CPUTOTAL`), logging folder (`LOGDIR`), total number of steps (`STEPTOTAL`), and version number (`VERSION`). The remaining sections consist of steps. One step is a section. In each section, there are a few fields specifying job ID, process ID, etc. This script is not meant to be changed by users. If you really want to, only modify the `command` field. The string enclosed by double quotes is the actual command that will be executed. Most of the commands will not make sense to users, because many internal wrappers are used. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
+
+
 ## Execution
 
 ### Running SeqMule with SGE
@@ -145,22 +179,6 @@ seqmule pipeline -ow -prefix sample -a sample.1.fastq.gz -b sample.2.fastq.gz -e
 ```
 
 Here, the double quoted string following `-sge` is a template for job submission. `XCPUX` is a keyword that will be replaced by actual number of CPUs needed for each task. SeqMule has to be run on a submission node. Do NOT specify `-e`,`-o`,`-S` options in the template as SeqMule will do it for you. SeqMule adds `-S /bin/bash` for all tasks. You can specify other options like queue name, memory request, email address in the template. Because some programs require lots of memory, you may want to try different arguments for `-jmem`, `-threads` and request larger amount of memory in the template in case you are not sure. `--nodeCapacity` tells SeqMule maximum number of threads to run on a single node, usually this is just the number of CPU cores on your compute node.
-
-### Finetune pipeline (modify script) 
-
-Each time you run `seqmule pipeline`, a script file *.script will be generated in your working directory. The prefix of this file is the same as the prefix for your output (it is also your sample name). An example script file is shown below.
-
-````
-    #step   command message nCPU_requested  nCPU_total  status  pid
-    1   seqmule/bin/secondary/mod_status father-mother-son.script 1 seqmule/bin/secondary/phred64to33 father_result/father.1.fastq mother_result/mother.1.fastq son_result/son.1.fastq father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq Convert phred64 to phred33  8   8   finished    31171
-    2   seqmule/bin/secondary/mod_status father-mother-son.script 2 seqmule/bin/secondary/phred64to33 father_result/father.2.fastq mother_result/mother.2.fastq son_result/son.2.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq Convert phred64 to phred33  8   8   finished    526
-    3   seqmule/bin/secondary/mod_status father-mother-son.script 3 seqmule/exe/fastqc/fastqc --extract -t 8 father_result/father.1_phred33.fastq mother_result/mother.1_phred33.fastq son_result/son.1_phred33.fastq father_result/father.2_phred33.fastq mother_result/mother.2_phred33.fastq son_result/son.2_phred33.fastq  QC assesment on FASTQ files 8   8   finished    2438
-````
-Every line consists of some tab-delimited fields, the column name is shown on the first line. Any line that is blank or begins with `#` will be ignored. The 1st field shows the step number. 2nd shows the exact command for each step. Second last column shows the status of this step, it can be `finished`, `waiting`, `started` or `error`. The 2nd field begins with `mod_status your_analysis.script step_no`, where `mod_status` is an internal program handling this script. This begining part has nothing to do with analysis itself, so no need to change it. Only change commands after it.
-
-This script is not meant to be changed by users. If you really want to, modify the 2nd field `ONLY`. Do `NOT` add or remove any tabs. You are free to add any number of spaces, though. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
-
-Most of the commands in this script will not make sense to users, because many internal wrappers are used. The only kind of commands recommended for modification is a command involving SeqMules explicit programs (e.g. `stats`).
 
 ### Running in the cloud 
 
