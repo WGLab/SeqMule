@@ -1,5 +1,3 @@
-#SeqMule Technical Notes
-
 ### Small contigs in human genome 
 
 Contigs like GL000192.1 will be treated the same way as chromomsome 1 and others since some genes are mapped to these contigs.

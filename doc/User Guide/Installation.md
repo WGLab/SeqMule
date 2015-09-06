@@ -1,5 +1,3 @@
-# SeqMule Installation
-
 ### Supported platform
 
 x86-64 Linux
