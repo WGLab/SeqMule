@@ -124,7 +124,18 @@ seqmule pipeline -ow -a normal_R1.fastq.gz -b normal_R2.fastq.gz -a2 tumor_R1.fa
 
 The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://www.openbioinformatics.org/seqmule/example/PatientXsomatic_report/).
 
-### Merging multiple runs from multiple samples
+### Merging multiple runs from ONE sample
+
+Say you have generated 4 runs of data for a sample X. Each run was done by paired-end sequencing, so there are 2 FASTQ files for each run, and 8 for sample X in total. How to analyze them with SeqMule?
+
+```
+seqmule pipeline -a x_run1.1.fq.gz,x_run2.1.fq.gz,x_run3.1.fq.gz,x_run4.1.fq.gz -b x_run1.2.fq.gz,x_run2.2.fq.gz,x_run3.2.fq.gz,x_run4.2.fq.gz -capture default -e -t 12 -prefix sampleX -merge -advanced ~/Downloads/SeqMule/misc/predefined_config/bwa_samtools.config
+```
+
+The above command specifies 8 input files. `x_run1.1.fq.gz` and `x_run1.2.fq.gz` are for first run of sample X, `x_run2.1.fq.gz` and `x_run2.2.fq.gz` are for second run. It is the same case for 3rd run and 4th run. `-merge` options asks SeqMule to merge all alignments of the same sample.
+
+
+### Merging multiple runs from MULTIPLE samples
 
 Say you have generated 2 runs for sample father, and 2 runs for sample mother. Each run was done by paired-end sequencing, so there are 2 FASTQ files for each run, and 4 for each sample. How to analyze them with SeqMule?
 
