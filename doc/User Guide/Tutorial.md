@@ -90,17 +90,17 @@ Suppose you have two samples, sampleA and sampleB, how to perform basic analysis
 
 Basically you concatenate input files or sample names by commas. If you know your samples come from a single family, you can do multi-sample variant calling by simply adding `-ms` to the above command. It is believed that multi-sample calling could be more accurate.
 
-### Analysis exit with error (continue stopped analysis) 
+### Analysis exit with error (resume stopped analysis) 
 
-If your analysis exits erroneously. You can examine the runtime logging information to identify the error, then fix it by changing `advanced_config` or the script, and at last continue the analysis. Commands are shown below.
+If your analysis exits due to errors. You can examine the runtime logging information (in output from SeqMule or `seqmule.*.logs` folder) to identify the error, then fix it by changing `advanced_config` or the command line, and at last resume the analysis. Commands are shown below.
 
 	seqmule run your_analysis.script
 
-This command will resume the analysis.
+This command will resume the analysis from where it stops.
 
 	seqmule run -n 10 your_analysis.script
 
-This command will run your analysis from step 10.
+This command will run your analysis from step 10 regardless of what happened before.
 
 
 ### Generate Mendelian error statistics 
@@ -187,6 +187,7 @@ Add `-q` or `-quick` option to `seqmule pipeline` will put variant calling under
 
 ### Running SeqMule with SGE
 
+#### Run with SGE from the beginning
 SGE stands for Sun Grid Engine. SGE is a popular resource management system in computation cluster environment. SeqMule normally achieves multiprocessing by forking child process to execute commands. With SGE, SeqMule will submit tasks to the system and waits for them to finish. The `-threads` option controls total number of CPUs requested at any given time when it is used with `-sge` option. An example command looks like the following:
 
 ```
@@ -194,6 +195,13 @@ seqmule pipeline -ow -prefix sample -a sample.1.fastq.gz -b sample.2.fastq.gz -e
 ```
 
 Here, the double quoted string following `-sge` is a template for job submission. `XCPUX` is a keyword that will be replaced by actual number of CPUs needed for each task. SeqMule has to be run on a submission node. Do NOT specify `-e`,`-o`,`-S` options in the template as SeqMule will do it for you. SeqMule adds `-S /bin/bash` for all tasks. You can specify other options like queue name, memory request, email address in the template. Because some programs require lots of memory, you may want to try different arguments for `-jmem`, `-threads` and request larger amount of memory in the template in case you are not sure. `--nodeCapacity` tells SeqMule maximum number of threads to run on a single node, usually this is just the number of CPU cores on your compute node.
+
+#### Run with SGE when resuming stopped analysis
+When you resume your analysis by `seqmule run`, it is necessary to specify the SGE parameters again. The following is an example.
+
+```
+seqmule run -sge 'qsub -V -cwd -pe smp XCPUX' prefix.script
+```
 
 ### Running in the cloud 
 
