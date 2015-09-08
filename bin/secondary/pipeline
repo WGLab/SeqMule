@@ -2093,27 +2093,29 @@ sub genStat {
 	{
 	    #we don't include consensus results as they are extracted from other VCFs
 	    my @venn_obj = grep { $_->filetype eq 'VCF' and $_->caller ne 'consensus'} @per_sample_obj;
-	    my $venn_stat_obj = $venn_obj[0]->clone();
-	    $venn_stat_obj->filetype('STATS');
-	    $venn_stat_obj->file("${stat_prefix}_venn.jpg"); #this obj is only used for resolving dependency
-	    $venn_stat_obj->parent(@venn_obj);
-	    map {$_->child($_->child,$venn_stat_obj)} @venn_obj;
-	    my $cmd_common = "$seqmule stats -tmpdir $TMPDIR ".
-	    #each VCF may contain multiple samples
-	    #sample names will match samples associated with obj for FASTQ/BAM with/without merging
-	    " -prefix $stat_prefix -ref $local_ref -s $sample ";
+	    if(@venn_obj) {
+		my $venn_stat_obj = $venn_obj[0]->clone();
+		$venn_stat_obj->filetype('STATS');
+		$venn_stat_obj->file("${stat_prefix}_venn.jpg"); #this obj is only used for resolving dependency
+		$venn_stat_obj->parent(@venn_obj);
+		map {$_->child($_->child,$venn_stat_obj)} @venn_obj;
+		my $cmd_common = "$seqmule stats -tmpdir $TMPDIR ".
+		#each VCF may contain multiple samples
+		#sample names will match samples associated with obj for FASTQ/BAM with/without merging
+		" -prefix $stat_prefix -ref $local_ref -s $sample ";
 
-	    if(@venn_obj <= 5 && @venn_obj >=2) {
-		push @commands,{
-		    nCPU_requested		=>	1,
-		    message			=>	"Generate Venn digram",
-		    command			=>	["$cmd_common -venn ".join(',',(map {$_->file()} @venn_obj))],
-		    in				=>	[@venn_obj],
-		    out				=>	[$venn_stat_obj],
-		};
-		push @obj_list,$venn_stat_obj;
-	    } else {
-		warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
+		if(@venn_obj <= 5 && @venn_obj >=2) {
+		    push @commands,{
+			nCPU_requested		=>	1,
+			message			=>	"Generate Venn digram",
+			command			=>	["$cmd_common -venn ".join(',',(map {$_->file()} @venn_obj))],
+			in				=>	[@venn_obj],
+			out				=>	[$venn_stat_obj],
+		    };
+		    push @obj_list,$venn_stat_obj;
+		} else {
+		    warn "WARNING: For each sample, there are >5 or <2 VCF files, no Venn diagram will be drawn.\n";
+		}
 	    }
 	}
 	#output alignment and coverage statistics
