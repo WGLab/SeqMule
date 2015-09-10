@@ -32,4 +32,8 @@ Venn Diagram is plotted this way: ANNOVAR is used to convert VCF to AVINPUT; the
 
 You can specify a larger folder for storing temporary files. There are 2 ways to do this: first, set `$TMPDIR` in your environment variables; second, use `-tmpdir YOUR_TMP_DIRECTORY` option in `seqmule pipeline` or `seqmule stats` program.
 
+### After I finish seqmule analysis, I realized that I used a wrong capture file. How should I address this? Can I just manually change 'finished' to 'waiting' in that step (in the script file)?
+
+Capture file is typically used in multiple stages of analysis (variant calling, stats calculation). Therefore it might not enough to change only one step of the analysis. One way you can try is that run `seqmule pipeline -norun` with the correct capture file, and then rerun analysis right after alignment `seqmule run -n X` (X stands for the step number after alignment). If you understand the script, you can modify the bed file name and rerun steps involving that file manually. Note however, right now it is not possible to rerun one particular step (unless that step is the last step) by `seqmule run`, SeqMule will run the script from a specified step (or resume where it stops) to the end.
+
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
