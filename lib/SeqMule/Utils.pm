@@ -151,35 +151,28 @@ sub md5check
     }
 }
 
-sub getstore 
-{
+sub getstore {
     my $url = shift;
     my $file = shift;
     my $arg_ref =shift;
     my @arg=@$arg_ref if defined $arg_ref;
     
     croak "ERROR: no URL\n" unless defined $url;
-    if(&sys_which("wget"))
-    {
+    if(&sys_which("wget")) {
 	#2014Jan24 Usually stable connections are expected, so I set the timeout and number of retry to be small.
-	my $command = "wget --dns-timeout=30 --connect-timeout=30 --read-timeout=30 --tries=10 \'$url\' -nd  --retr-symlinks -r -O $file --no-check-certificate ";
+	my $command = "wget --timeout=7 --tries=2 \'$url\' -nd  --retr-symlinks -r -O $file --no-check-certificate ";
 	$command.=$arg[0] if defined $arg[0];
 	return !system($command); 
-    }
-    elsif(&sys_which("curl"))
-    {
-	my $command = "curl --connect-timeout 30 -f -L \'$url\' -o $file -C - ";
+    } elsif(&sys_which("curl")) {
+	my $command = "curl --connect-timeout 10 -f -L \'$url\' -o $file -C - ";
 	$command.=$arg[1] if defined $arg[1];
 	return !system($command);
-    }
-    else
-    {
+    } else {
 	croak "Cannot find wget or curl, please download $file manually\n";
     }
 }
 
-sub readLocFile
-{
+sub readLocFile {
     #read database location file, return references to loc, name, and md5
     my $file=shift;
     open DBLOC, "<", $file or die "ERROR:Cannot open $file :$!\n";
@@ -187,16 +180,14 @@ sub readLocFile
     my %name;
     my %md5;
 
-    while (<DBLOC>) 
-    {
+    while (<DBLOC>) {
 	#format: item_name\tfile1name\tURL\tmd5\tfile2name\tURL\tmd5
 	next if /^#|^\s*$/;
 	chomp;
 	s/\s+/\t/g;
 	my @tmp=split;
 	my $item=shift @tmp;
-	while(@tmp)
-	{
+	while(@tmp) {
 	    push @{$name{$item}},(shift @tmp);
 	    push @{$loc{$item}},(shift @tmp);
 	    push @{$md5{$item}},(shift @tmp);
@@ -206,8 +197,7 @@ sub readLocFile
     return \%loc,\%name,\%md5;
 }
 #untars a package. 
-sub extract_archive 
-{
+sub extract_archive {
     my $file = shift;
     my $dir=shift;
     
