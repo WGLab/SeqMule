@@ -145,4 +145,14 @@ status=waiting
 ````
 The script file is written by Perl `Config::Tiny` module. There is a `SETTING_SECTION` specifying global settings. Global settings include total number of CPU cores (`CPUTOTAL`), logging folder (`LOGDIR`), total number of steps (`STEPTOTAL`), and version number (`VERSION`). The remaining sections consist of steps. One step is a section. In each section, there are a few fields specifying job ID, process ID, etc. This script is not meant to be changed by users. If you really want to, only modify the `command` field. The string enclosed by double quotes is the actual command that will be executed. Most of the commands will not make sense to users, because many internal wrappers are used. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
 
-
+### Run analysis with non-default genome
+Suppose you want to carry out analysis using a custom reference genome `x.fa`. First you have to generate index files for it. For BWA, you can use the following command to generate a set of index files (both BWA and SAMtools can be found in `seqmule/exe` directory):
+```
+bwa index x.fa
+samtools faidx x.fa
+```
+Then you can run SeqMule over the custom reference genome. Note, however, only BWA can be used in this case unless you have generated index files for other aligners.
+```
+seqmule pipeline -a 1.fq.gz -b 2.fq.gz -ref x.fa -g -t 12 -p myGenome
+```
+CAUTION: analysis with a custom genome can vary depending on the genome and therefore may run into unexpected problems.
