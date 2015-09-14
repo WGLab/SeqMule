@@ -42,7 +42,7 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
         --no-check-chr            skip checking chromosome consistency. By default, SeqMule forces chromosomes in input to be consistent with builtin reference.
         --threads,-t <INT>        number of threads, also effective for -sge. Default: 1.
         --sge <TEXT>              run each command via Sun Grid Engine. A template with XCPUX keyword required. See examples.
-        --nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host.
+        --nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host. Default: unlimited.
         --quick,-q                enable parallel processing at variant calling
         --jmem <STRING>           max memory used for java virtual machine. Default: 1750m.
         --jexe <STRING>           Java executable path. Default: java
@@ -123,7 +123,7 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 
 - **--sge**
 
-    To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically. "-S /bin/bash" is added automatically. Do NOT specify -e,-o or -S in the qsub template.
+    To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically. "-S /bin/bash" is added automatically. Do NOT specify -e,-o or -S in the qsub template. -V, -cwd, -pe options must be present.
 
 - **--platform**
 
