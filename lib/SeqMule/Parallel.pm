@@ -170,6 +170,7 @@ sub run {
     my $file=shift; #format:step	cmd	ncpu_require	ncpu_total	status(started,finished,waiting,error)
     my $step=shift;
     my $qsub=shift;
+    &checkQsubTemplate($qsub) if defined $qsub;
 
     my $config = Config::Tiny->read($file);
     my $allsetting = $config->{$CONFIG_KEYWORD{SETTING_SECTION}};
@@ -801,6 +802,21 @@ sub getSubmitCmd {
 	$submit_cmd .= " -S /bin/bash ";
     }
     return $submit_cmd;
+}
+sub checkQsubTemplate {
+    my $qsub = shift;
+    #must have 
+    #qsub, -V, -cwd, -pe, XCPUX
+    croak("ERROR: qsub required in <<$qsub>>\n") unless $qsub =~ /qsub/;
+    croak("ERROR: -V required in <<$qsub>>\n") unless $qsub =~ /-V/;
+    croak("ERROR: -cwd required in <<$qsub>>\n") unless $qsub =~ /-cwd/;
+    croak("ERROR: -pe required in <<$qsub>>\n") unless $qsub =~ /-pe/;
+    croak("ERROR: XCPUX required after -pe in <<$qsub>>\n") unless $qsub =~ /-pe.*?XCPUX/;
+    #must not have
+    #-S, -e, -o
+    croak("ERROR: -S must be removed in <<$qsub>>\n") if $qsub =~ /-S/;
+    croak("ERROR: -e must be removed in <<$qsub>>\n") if $qsub =~ /-e/;
+    croak("ERROR: -o must be removed in <<$qsub>>\n") if $qsub =~ /-o/;
 }
 sub signal_A_PID { 
     #tries to signal a PID

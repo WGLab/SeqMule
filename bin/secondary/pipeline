@@ -2661,7 +2661,7 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 
 =item B<--sge>
 
-To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically. "-S /bin/bash" is added automatically. Do NOT specify -e,-o or -S in the qsub template.
+To run commands via Sun Grid Engine, SGE must be installed first. -e, -o will be added automatically. "-S /bin/bash" is added automatically. Do NOT specify -e,-o or -S in the qsub template. -V, -cwd, -pe options must be present.
 
 =item B<--platform>
 
