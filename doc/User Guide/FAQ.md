@@ -36,4 +36,25 @@ You can specify a larger folder for storing temporary files. There are 2 ways to
 
 Capture file is typically used in multiple stages of analysis (variant calling, stats calculation). Therefore it might not enough to change only one step of the analysis. One way you can try is that run `seqmule pipeline -norun` with the correct capture file, and then rerun analysis right after alignment `seqmule run -n X` (X stands for the step number after alignment). If you understand the script, you can modify the bed file name and rerun steps involving that file manually. Note however, right now it is not possible to rerun one particular step (unless that step is the last step) by `seqmule run`, SeqMule will run the script from a specified step (or resume where it stops) to the end.
 
+### How to solve the `java.lang.NullPointerException` problem?
+
+Some users may see the following error message with GATK or GATKLite:
+```
+##### ERROR ------------------------------------------------------------------------------------------
+##### ERROR stack trace
+    java.lang.ExceptionInInitializerError
+    at org.broadinstitute.sting.gatk.GenomeAnalysisEngine.<init>(GenomeAnalysisEngine.java:160)
+    at org.broadinstitute.sting.gatk.CommandLineExecutable.<init>(CommandLineExecutable.java:53)
+    at org.broadinstitute.sting.gatk.CommandLineGATK.<init>(CommandLineGATK.java:54)
+at org.broadinstitute.sting.gatk.CommandLineGATK.main(CommandLineGATK.java:90)
+    Caused by: java.lang.NullPointerException
+    at org.reflections.Reflections.scan(Reflections.java:220)
+    at org.reflections.Reflections.scan(Reflections.java:166)
+    at org.reflections.Reflections.<init>(Reflections.java:94)
+at org.broadinstitute.sting.utils.classloader.PluginManager.<clinit>(PluginManager.java:77)
+    ... 4 more
+```
+This error is likely to be caused by Java version incompatibility. Please make sure you are using Java 1.7 and put make it your default java program (put the folder containing java at the beginning of your PATH variable).
+
+
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
