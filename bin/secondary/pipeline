@@ -398,7 +398,7 @@ sub procFQ {
     }
 
     die "ERROR: number of FASTQ files for 1st and 2nd read pair must be equal!\n" 
-    if (@fq1_list && $#fq1_list != $#fq2_list);
+    if (@fq1_list && @fq2_list && $#fq1_list != $#fq2_list);
 
     for my $i(0..$#prefix_list) {
 	#create symlinks such that all corresponding output have consistent prefix
