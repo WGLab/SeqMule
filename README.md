@@ -54,6 +54,10 @@ yunfeigu@usc.edu
 
 Please join [SeqMule-dev](https://groups.google.com/forum/#!forum/seqmule-dev) for updates!
 
+## Citation
+
+Guo Y, Ding X, Shen Y, Lyon GJ, Wang K. [SeqMule: automated human exome/genome variants detection](http://www.nature.com/articles/srep14283). Scientific Reports, doi: 10.1038/srep14283, 2015
+
 ## More information
 
 * [SeqMule Homepage](http://seqmule.openbioinformatics.org)
