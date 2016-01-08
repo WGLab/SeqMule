@@ -56,5 +56,9 @@ at org.broadinstitute.sting.utils.classloader.PluginManager.<clinit>(PluginManag
 ```
 This error is likely to be caused by Java version incompatibility. Please make sure you are using Java 1.7 and put make it your default java program (put the folder containing java at the beginning of your PATH variable).
 
+### How are default exome regions defined? Where do they come from?
+
+The default exome defintions (to use them, specify `-capture default` with `seqmule pipeline` command) came from UCSC genome browser's RefSeq Gene track (refGene table). Only exons were included plus 5bp at each end of each region. The regions were sorted and further processed to only retain chromosomes 1 to 22, X and Y for hg18 and hg19 genome builds. Overlapping regions were merged. Exonic variants and splicing variants can therefore be included in the results. However, variants in UTR and other regions may not show up. If you want to restrict your analysis for a particular capture kit, please refer to `seqmule download -help` to download common region definitions or use your own `BED` file.
+
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
