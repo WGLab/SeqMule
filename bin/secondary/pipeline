@@ -628,8 +628,9 @@ sub confOptCheck {
     #check capture file
     if ($capture && $capture=~/^default$/i) {
 	#see if we should modify default capture file to match custom reference
-	warn "NOTICE: use default BED file ${buildver}_exome.bed\n";
-	$capture=File::Spec->catfile($install_dir,"misc","${buildver}_exome.bed"); #make sure buildver is assigned a value
+	my $defaultCapture = "${buildver}_exonPlus5bp_UCSCrefGene.bed";
+	warn "NOTICE: use default BED file $defaultCapture\n";
+	$capture=File::Spec->catfile($install_dir,"misc",$defaultCapture); #make sure buildver is assigned a value
     }
     if ($capture) {
 	$capture = &SeqMule::Utils::abs_path_failsafe($capture);

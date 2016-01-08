@@ -1,3 +1,11 @@
+# v1.2.4 
+2016-01-07 Yunfei Guo <yunfeigu@usc.edu>
+
+* Default exome definition changed to RefSeq exon
+* Citation added (SeqMule published on Scientific Reports!)
+* Updated tutorials and FAQs
+* Bug fixes
+
 # v1.2.2 
 2015-08-05 Yunfei Guo <yunfeigu@usc.edu>
 
