@@ -3,10 +3,10 @@ set -e
 #checkout latest source code, package it, upload it to website
 
 cd /home/yunfeiguo/projects/SeqMule/misc/
-wget https://github.com/WangGenomicsLab/SeqMule/archive/master.zip -O master.zip
+wget https://github.com/WGLab/SeqMule/archive/master.zip -O master.zip
 unzip master.zip
 rm master.zip
-echo `git ls-remote git://github.com/WangGenomicsLab/SeqMule.git | grep refs/heads/master | cut -f 1` >> SeqMule-master/version
+echo `git ls-remote git://github.com/WGLab/SeqMule.git | grep refs/heads/master | cut -f 1` >> SeqMule-master/version
 tar czf seqmule.latest.tar.gz SeqMule-master/*
-scp -r SeqMule-master/misc/*locations SeqMule-master/version seqmule.latest.tar.gz yunfeiguo@bioinform2.usc.edu:/var/www/html/openbioinformatics.org/seqmule
+scp -r SeqMule-master/misc/*locations SeqMule-master/version seqmule.latest.tar.gz yunfeiguo@bioinform.usc.edu:/var/www/html/openbioinformatics.org/seqmule
 rm -rf SeqMule-master seqmule.latest.tar.gz
