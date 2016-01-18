@@ -60,5 +60,9 @@ This error is likely to be caused by Java version incompatibility. Please make s
 
 The default exome defintions (to use them, specify `-capture default` with `seqmule pipeline` command) came from UCSC genome browser's RefSeq Gene track (refGene table). Only exons were included plus 5bp at each end of each region. The regions were sorted and further processed to only retain chromosomes 1 to 22, X and Y for hg18 and hg19 genome builds. Overlapping regions were merged. Exonic variants and splicing variants can therefore be included in the results. However, variants in UTR and other regions may not show up. If you want to restrict your analysis for a particular capture kit, please refer to `seqmule download -help` to download common region definitions or use your own `BED` file.
 
+### How to solve `ERROR MESSAGE: Bad input: Error during negative model training. Minimum number of variants to use in training is larger than the whole call set. One can attempt to lower the --minNumBadVariants arugment but this is unsafe.` issue?
+
+Here GATK is complaining about too few variants used in model training. This statistical model is used for VQSR (variant quality score recalibration). It is a better method for variant filtering. However, when your capture region is small (e.g. only a few genes), or your average depth is very low, the input might be not sufficient for model training. Hard filtering should be used instead. SeqMule has limited support for automatic hard filtering (when input `BAM` is smaller than 1GB for SNP, and 15GB for INDEL). The automatic detection is not guaranteed to work, so a safe option is to set `forceSNPHardFilter` or `forceINDELHardFilter` to 1 to enforce hard filtering. Note, there are a separate pair of such flags for each calling method of GATK, namely GATK UnifiedGenotype caller, GATK HaplotypeCaller and GATKLite UnifiedGenotype caller. They work independently.
+
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
