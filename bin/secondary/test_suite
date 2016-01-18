@@ -10,10 +10,10 @@ my $ncpu=4;
 my $mem="6g"; #request larger mem for GATK
 my $jmem="1750m";
 my $gatknt=4;
-my $exe="/home/yunfeiguo/projects/SeqMule_dev/bin/seqmule";
+my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
 my $test_folder="/home/yunfeiguo/projects/SeqMule/testrun/test";
 my $data_folder="/home/yunfeiguo/projects/SeqMule/example_data";
-my $config_folder="/home/yunfeiguo/projects/SeqMule_dev/misc/predefined_config";
+my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
 #for no merge, no ms
 my $first_fq="part.1.fastq.gz";
 my $second_fq="part.2.fastq.gz";
@@ -47,7 +47,7 @@ for my $q("","-quick")
 	for my $ms("","-ms","-merge","-somatic")
 	#for my $ms("")
 	{
-	    next if $ms eq '-ms';
+	    next if $ms eq '-ms' or $ms eq '-merge' or $ms eq '-somatic';
 		my @cmd;
 		my @target_files;
 		my $starting_point;
@@ -93,12 +93,12 @@ for my $q("","-quick")
 		$starting_point =~ s/-t \d+/-t 4 -nc 12/;
 		#push @cmd, "$starting_point $q --advanced $j -nr";
 		#qsub by seqmule itself
-		push @cmd, "nohup $starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" & ";
+		push @cmd, "nohup $starting_point $q -build hg18 --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" & ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) if grep {$count == $_} (0,1);
+		&exec(@cmd) and exit if $count == 10;
 		$count++;
 	}
     }

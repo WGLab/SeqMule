@@ -10,7 +10,7 @@ my $mem="6g";
 my $jmem="1750m";
 my $gatknt=4;
 my $exe="/home/yunfeiguo/projects/SeqMule/bin/seqmule";
-my $test_folder="/home/yunfeiguo/projects/data/test_exome";
+my $test_folder="/home/yunfeiguo/projects/SeqMule/testrun/test_exome";
 my $config_folder="/home/yunfeiguo/projects/SeqMule/misc/predefined_config";
 my $tmpdir = "/state/partition1";
 #for no merge, no ms
@@ -81,9 +81,15 @@ for my $q("","-quick")
 		    my $target=File::Spec->catfile($test_folder,$_);
 		    push @cmd,"ln -sf $target .";
 		}
-		push @cmd, "echo '$starting_point $q --advanced $j ' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
+		if($j=~/snap/i)
+		{
+		    $mem="12g";
+		}
+		$starting_point =~ s/-t \d+/-t 4 -nc 12/;
+		#push @cmd, "echo '$starting_point $q --advanced $j ' | qsub -l h=\"compute-0-1[0-9]\" -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job";
 		#push @cmd, "echo '$starting_point $q --advanced $j ' | qsub -l h_vmem=$mem -V -cwd -pe smp $ncpu -N $job -m a -M guoyunfei1989\@gmail.com";
 		#push @cmd, "$starting_point $q --advanced $j -nr";
+		push @cmd, "nohup $starting_point $q --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\ -m ea -M guoyunfei1989\@gmail.com \" & ";
 		push @cmd, "cd $test_folder";
 
 		#print join "\n",@cmd;
@@ -99,7 +105,7 @@ sub exec
     my @cmd=@_;
     my $tmp="/tmp/seqmule_test.$$".rand($$);
     open OUT,'>',$tmp or die "Can't open $tmp: $!\n";
-    print OUT "#!/bin/bash\nset -e\n";
+    print OUT "#!/bin/bash -x\nset -e\n";
     print OUT join("\n",@cmd);
     close OUT;
     chmod 0755,$tmp;

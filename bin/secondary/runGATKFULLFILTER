@@ -105,7 +105,8 @@ if ($options{filter}==1) {
 #VQSR and filtering
 
     #SNP
-    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR}) {
+    die "ERROR: only one of forceSNPVQSR and forceSNPHardFilter can be set to 1.\n" if $options{forceSNPVQSR} and $options{forceSNPHardFilter};
+    if (not $options{forceSNPHardFilter} and (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR})) {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
 	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $snp";
@@ -152,7 +153,8 @@ if ($options{filter}==1) {
 
 
     #indel
-    if (&SeqMule::Utils::get_bam_size(@bam)>$gatk_indel_hard_filter_bam_size or $options{forceINDELVQSR})
+    die "ERROR: only one of forceINDELVQSR and forceINDELHardFilter can be set to 1.\n" if $options{forceINDELVQSR} and $options{forceINDELHardFilter};
+    if (not $options{forceINDELHardFilter} and (&SeqMule::Utils::get_bam_size(@bam)>$gatk_indel_hard_filter_bam_size or $options{forceINDELVQSR}))
     {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
