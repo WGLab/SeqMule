@@ -19,6 +19,8 @@ gzip, tar, java
 
 ### Download and Install
 
+Stable releases of SeqMule can be found [here](https://github.com/WGLab/SeqMule/releases). You can either directly download the source code or use `git clone` (see below).
+
 Executables of SeqMule itself are basically some scripts in Perl, you can use them right after unpacking. However, external programs do need installation. SeqMule ignores what you have outside seqmule directory for sake of compatibility.
 
 The following commands will download and install SeqMule for you.
