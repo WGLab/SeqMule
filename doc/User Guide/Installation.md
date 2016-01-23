@@ -17,35 +17,25 @@ perl, make, cmake, gcc, g++ (4.4.7 or 4.6.3), curses.h, R, unzip, automake, auto
 gzip, tar, java
 
 
-### Download
-Download SeqMule here [seqmule.latest.tar.gz](http://www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz). ***Users of SeqMule 1.1.x and before, please be aware of the change of SeqMule website address.***
+### Download and Install
 
-SeqMule is also available on GitHub:
-
-	git clone https://github.com/WangGenomicsLab/SeqMule.git
-
-NOTE: if you download seqmule via Git, updating it is easy. Just run the
-following command:
-
-	cd SeqMule
-	git pull origin master
-
-### Install
+Stable releases of SeqMule can be found [here](https://github.com/WGLab/SeqMule/releases). You can either directly download the source code or use `git clone` (see below).
 
 Executables of SeqMule itself are basically some scripts in Perl, you can use them right after unpacking. However, external programs do need installation. SeqMule ignores what you have outside seqmule directory for sake of compatibility.
 
-The following commands will download and install SeqMule for you. \# and texts after it are just comments.
+The following commands will download and install SeqMule for you.
 
-	wget www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz            
-	tar zxvf seqmule.latest.tar.gz
-	cd SeqMule-master
+	git clone https://github.com/WGLab/SeqMule.git
+	#if HTTPS is not supported, use git protocol instead
+	#git clone git://github.com/WGLab/SeqMule.git
+	cd SeqMule
 	./Build freshinstall
 
 Alternatively, you can use the following command to just install MISSING programs:
 
 	./Build installexes
 
-Due to copyright limitations, you have to download and install GATK (one of default variant callers) yourself. Use `./Build gatk` to get instructions. If everything goes smooth, you are ready to go. Enjoy!
+Due to copyright limitations, you have to download and install GATK (GATKLite does not need to install manually) yourself. Use `./Build gatk` to get instructions. If everything goes smooth, you are ready to go. Enjoy!
 
 ### NOTES
 
