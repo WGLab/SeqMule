@@ -1,0 +1,31 @@
+site_name: SeqMule Documentation
+site_url: http://seqmule.openbioinformatics.org/
+repo_url: http://github.com/WGLab/SeqMule/
+repo_name: GitHub
+site_description: Documentation for SeqMule software
+site_author: Yunfei Guo, et al
+site_favicon: favicon.ico
+copyright: 2012-2016 USC WangLab
+
+docs_dir: .
+include_search: true
+
+pages:
+- SeqMule: index.md
+- Installation: Installation.md
+- Tutorials:
+  - "Quick Start": "Tutorials/Quick start.md"
+  - Analysis: Tutorials/Analysis.md
+  - Caveats: Tutorials/Caveats.md
+  - Execution: Tutorials/Execution.md
+  - More Examples: Tutorials/More examples.md
+- Manuals:
+  - "seqmule download": Manuals/download.md
+  - seqmule pipeline: Manuals/pipeline.md
+  - seqmule run: Manuals/run.md
+  - seqmule stats: Manuals/stats.md
+  - seqmule update: Manuals/update.md
+- Miscellaneous    
+  - FAQ: Miscellaneous/FAQ.md
+  - Version History: Miscellaneous/ChangeLog.md
+  - TechNotes: Miscellaneous/TechNotes.md
