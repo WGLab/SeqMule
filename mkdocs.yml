@@ -7,7 +7,7 @@ site_author: Yunfei Guo, et al
 site_favicon: favicon.ico
 copyright: 2012-2016 USC WangLab
 
-docs_dir: .
+docs_dir: doc
 include_search: true
 
 pages:
