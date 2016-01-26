@@ -12,20 +12,24 @@ include_search: true
 
 pages:
 - SeqMule: index.md
+
 - Installation: Installation.md
-- Tutorials:
+
+- Tutorials: !!omap
   - "Quick Start": "Tutorials/Quick start.md"
   - Analysis: Tutorials/Analysis.md
   - Caveats: Tutorials/Caveats.md
   - Execution: Tutorials/Execution.md
-  - More Examples: Tutorials/More examples.md
-- Manuals:
+  - "More Examples": "Tutorials/More examples.md"
+
+- Manuals: !!omap
   - "seqmule download": Manuals/download.md
-  - seqmule pipeline: Manuals/pipeline.md
-  - seqmule run: Manuals/run.md
-  - seqmule stats: Manuals/stats.md
-  - seqmule update: Manuals/update.md
-- Miscellaneous    
+  - "seqmule pipeline": Manuals/pipeline.md
+  - "seqmule run": Manuals/run.md
+  - "seqmule stats": Manuals/stats.md
+  - "seqmule update": Manuals/update.md
+
+- Miscellaneous: !!omap   
   - FAQ: Miscellaneous/FAQ.md
-  - Version History: Miscellaneous/ChangeLog.md
+  - "Version History": Miscellaneous/ChangeLog.md
   - TechNotes: Miscellaneous/TechNotes.md
