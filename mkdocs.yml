@@ -14,21 +14,21 @@ pages:
 
 - Installation: Installation.md
 
-- Tutorials: !!omap
+- Tutorials: 
   - 'Quick Start': 'Tutorials/Quick start.md'
   - 'Analysis': 'Tutorials/Analysis.md'
   - 'Caveats': 'Tutorials/Caveats.md'
   - 'Execution': 'Tutorials/Execution.md'
   - 'More Examples': 'Tutorials/More examples.md'
 
-- Manuals: !!omap
+- Manuals: 
   - 'seqmule download': 'Manuals/download.md'
   - 'seqmule pipeline': 'Manuals/pipeline.md'
   - 'seqmule run': 'Manuals/run.md'
   - 'seqmule stats': 'Manuals/stats.md'
   - 'seqmule update': 'Manuals/update.md'
 
-- Miscellaneous: !!omap   
+- Miscellaneous: 
   - 'FAQ': 'Miscellaneous/FAQ.md'
   - 'Version History': 'Miscellaneous/ChangeLog.md'
   - 'TechNotes': 'Miscellaneous/TechNotes.md'
