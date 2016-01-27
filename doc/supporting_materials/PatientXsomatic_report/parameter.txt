@@ -1,0 +1,22 @@
+#This file is ONLY for LOGGING purposes, so do NOT run SeqMule with it.
+1P_fastqc=1
+2P_bwamem=1
+o_bwamem_gapOpenPenalty=6
+o_bwamem_clipPenalty=5
+o_bwamem_additional=
+o_bwamem_gapExtensionPenalty=1
+o_bwamem_matchScore=1
+o_bwamem_readSingletonPenalty=17
+o_bwamem_mismatchPenalty=4
+3P_samtools_filter=1
+o_samtools_mapQ=30
+4P_samtools_index=1
+5P_varscan=1
+o_varscan_VARSOMATICadditional= --min-coverage-normal 8 --min-coverage-tumor 6 --normal-purity 1.00 --tumor-purity 1.00 --somatic-p-value 0.05
+o_varscan_minDepth=10
+o_varscan_VARadditional=
+o_varscan_minBaseQ=20
+o_varscan_P=0.1
+o_varscan_minSupport=2
+o_varscan_SAMadditional=
+o_varscan_originalBAM=1

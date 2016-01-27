@@ -1,0 +1,143 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>SeqMule Report</title>
+<meta name="keywords" content="green jelly, theme, free templates, nivo image slider, website, templatemo, CSS, HTML" />
+<meta name="description" content="Green Jelly Theme, free CSS template provided by templatemo.com" />
+<link href="../css/templatemo_style.css" rel="stylesheet" type="text/css" />
+
+<link rel="stylesheet" href="../css/nivo-slider.css" type="text/css" media="screen" />
+
+<script language="javascript" type="text/javascript">
+function clearText(field)
+{
+    if (field.defaultValue == field.value) field.value = '';
+    else if (field.value == '') field.value = field.defaultValue;
+}
+</script>
+
+<link rel="stylesheet" type="text/css" href="../css/ddsmoothmenu.css" />
+
+<script type="text/javascript" src="../js/jquery.min.js"></script>
+<script type="text/javascript" src="../js/ddsmoothmenu.js">
+
+/***********************************************
+* Smooth Navigational Menu- (c) Dynamic Drive DHTML code library (www.dynamicdrive.com)
+* This notice MUST stay intact for legal use
+* Visit Dynamic Drive at http://www.dynamicdrive.com/ for full source code
+***********************************************/
+
+</script>
+
+<script type="text/javascript">
+
+ddsmoothmenu.init({
+	mainmenuid: "templatemo_menu", //menu DIV id
+	orientation: 'h', //Horizontal or vertical menu: Set to "h" or "v"
+	classname: 'ddsmoothmenu', //class added to menu's outer DIV
+	//customtheme: ["#1c5a80", "#18374a"],
+	contentsource: "markup" //"markup" or ["container_id", "path_to_menu_file"]
+})
+
+</script>
+  
+</head>
+<body>
+
+<div id="templatemo_wrapper">
+	<div id="templatemo_header"></div> <!-- end of header -->
+      <div id="templatemo_menu" class="ddsmoothmenu">
+        <ul>
+            <li><a href="../summary.html" >Summary</a></li>
+            <li><a href="#" class="selected">Samples</a>
+<ul>
+<li><a href='example.html'>example</a></li>
+<span></span>
+</ul>
+            </li>
+            <li><a href="../pages/pipeline.html">Pipeline</a> </li>
+          	<li><a href="../pages/parameter.html">Parameter</a></li>
+          	<li><a href="../pages/help.html">Help</a></li>
+            </ul>
+        <br style="clear: left" />
+    </div> <!-- end of menu -->
+    
+    <script type="text/javascript" src="../js/jquery-1.4.3.min.js"></script>
+    <script type="text/javascript" src="../js/jquery.nivo.slider.js"></script>
+    <script type="text/javascript">
+    $(window).load(function() {
+    $('#slider').nivoSlider();
+    });
+    </script>
+    
+    <div id="templatemo_main"><br class="cleaner" />
+<h1>example</h1>
+<h2>Input Quality Assessment</h2>
+<br><a href='example.0_fastqc/fastqc_report.html'>example.0</a><br><a href='example.1_fastqc/fastqc_report.html'>example.1</a><br><br>
+<h2>Statistics</h2>
+<table><caption>Alignment stats</caption>
+<tr><td colspan=2>source: example_result/example.0_bwamem.sort.rmdup.readfiltered.bam</td></tr>
+<tr><td>QC-passed reads</td><td>294058</td></tr>
+<tr><td>QC-failed-reads</td><td>0</td></tr>
+<tr><td>Duplicates</td><td>0</td></tr>
+<tr><td>Mapped reads</td><td>201139(68.40%)</td></tr>
+<tr><td>Paired reads</td><td>294058</td></tr>
+<tr><td>Read1</td><td>144504</td></tr>
+<tr><td>Read2</td><td>149554</td></tr>
+<tr><td>Properly paired</td><td>167300(56.89%)</td></tr>
+<tr><td>Reads with itself and mate mapped</td><td>201118</td></tr>
+<tr><td>Singletons</td><td>21(0.01%)</td></tr>
+<tr><td>Reads with mate mapped to a different chromosome</td><td>42735</td></tr>
+<tr><td>Reads with mate mapped to a different chr (mapQ at least 5)</td><td>42735</td></tr>
+</table><br><br>
+<table><caption>Coverage stats</caption>
+<tr><td colspan=2>source: example_result/example.0_bwamem.sort.rmdup.readfiltered.bam</td></tr>
+<tr><td>total length (defined by /auto/rcf-proj/kw/yunfeigu/Downloads/SeqMule/misc/hg19_exome.bed) </td><td> 46.21Mb</td></tr>
+<tr><td>Fraction of reads mapped to target region </td><td> 12.83%</td></tr>
+<tr><td>Average coverage in target region </td><td> 0.04</td></tr>
+<tr><td>Percentage above 30</td><td>0.03%</td></tr>
+<tr><td>Percentage above 20</td><td>0.05%</td></tr>
+<tr><td>Percentage above 10</td><td>0.09%</td></tr>
+<tr><td>Percentage above 5</td><td>0.16%</td></tr>
+</table><br><br>
+<table><caption>Variant stats(filter applied)</caption>
+<tr><td colspan=2>source: example_result/example.0_bwamem.sort.rmdup.readfiltered.realn.0_gatklite.extract.vcf</td></tr>
+<tr><td>Sample</td><td>example</td></tr>
+<tr><td>Number of variants</td><td>54</td></tr>
+<tr><td>Number of SNVs</td><td>52</td></tr>
+<tr><td>Number of indels</td><td>2</td></tr>
+<tr><td>Transitions</td><td>24</td></tr>
+<tr><td>Transversions</td><td>28</td></tr>
+<tr><td>Ti/Tv Ratio</td><td>0.86</td></tr>
+<tr><td>Ref/Alt heterozygotes</td><td>27</td></tr>
+<tr><td>Homozygotes</td><td>27</td></tr>
+</table><br><br>
+
+<h2>Venn Diagram (SNV)</h2>
+<p>Showing overlapping of up to 5 SNV variant output</p>
+<img class='center' src='../example/example_SNV_venn.jpg' width=500 height=500>
+<h2>Venn Diagram (non-SNV)</h2>
+<p>Showing overlapping of up to 5 NON-SNV variant output</p>
+<img class='center' src='../example/example_NON-SNV_venn.jpg' width=500 height=500>
+<h2>Coverage Plot</h2>
+<img class='center' src='../example/example_cov.jpg' width=500 height=1000>
+
+
+    </div> <!-- end of main -->
+    
+    <div id="templatemo_footer">
+      <div class="cleaner"></div>
+    </div> <!-- end of footer -->
+</div>
+
+<div id="templatemo_cr_bar_wrapper">
+	<div id="templatemo_cr_bar">
+    	Copyright 2014 <a href="http://genomics.usc.edu">USC Wang Lab</a> | Designed by <a href="http://www.templatemo.com" target="_parent">Free CSS Templates</a>
+    </div>
+</div>
+
+
+<script type='text/javascript' src='../js/logging.js'></script>
+</body>
+</html>

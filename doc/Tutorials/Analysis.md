@@ -72,11 +72,19 @@ This command will run your analysis from step 10 regardless of what happened bef
 
 ### Generate Mendelian error statistics 
 
-Assume you get a VCF with a family trio. The sample ID is `father` for father, `mother` for mother, `son` for offspring, respectively. To generate Mendelian error statistics (e.g. how many genotypes are impossible in son based on parents' genotypes), simply run the following command:
+Assume you get a VCF with a family trio. The sample ID is `father` for father, `mother` for mother, `son` for offspring, respectively. To generate Mendelian error statistics (e.g. how many genotypes are impossible in son based on genotypes of parents), simply run the following command:
 
-	seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother
+```
+seqmule stats -vcf sample.vcf --plink --mendel-stat --paternal father --maternal mother
+```	
 
-The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained. If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with `seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa`, where `123combo` is the prefix for the merged VCF.
+The VCF file will be converted to PLINK format (PED and MAP) first, and then statistics is obtained. If not all your samples are in the same VCF, you need to combine them first, and the ID for each sample must be unique. Merging VCF can be done with 
+
+```
+seqmule stats --u-vcf 1.vcf,2.vcf,3.vcf -p 123combo -ref hg19.fa
+```
+
+Where `123combo` is the prefix for the merged VCF.
 
 
 ### Call somatic variants
@@ -89,7 +97,7 @@ seqmule pipeline -ow -a normal_R1.fastq.gz -b normal_R2.fastq.gz -a2 tumor_R1.fa
 
 `-a`,`-b` specify two paired-end sequencing files ([normal_R1.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R1.fastq.gz), [normal_R2.fastq.gz](http://www.openbioinformatics.org/seqmule/example/normal_R2.fastq.gz)) from normal tissue; `-a2`,`-b2` specify two paired-end sequencing files ([tumor_R1.fastq.gz](http://www.openbioinformatics.org/seqmule/example/tumor_R1.fastq.gz), [tumor_R2.fastq.gz](http://www.openbioinformatics.org/seqmule/example/tumor_R2.fastq.gz)) from tumor tissue. [somatic_calling.bed](http://www.openbioinformatics.org/seqmule/example/somatic_calling.bed) defines the region of interest. Multiple samples are supported. You can use commas to separate them. Somatic variant calling is enabled for SAMtools and VarScan2 in SeqMule. In this example, *bwa+varscan* combination is used. Look into `predefined_config/` folder for more tested configuration files.
 
-The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](http://www.openbioinformatics.org/seqmule/example/PatientXsomatic_report/).
+The analysis takes 20 minutes to finish on a machine with Xeon E5345 2.33GHz and 16GB memory using 4 threads. The result should look similar to what is reported [here](/supporting_materials/PatientXsomatic_report/summary.html).
 
 ### Merging multiple runs from ONE sample
 
@@ -110,7 +118,7 @@ Say you have generated 2 runs for sample father, and 2 runs for sample mother. E
 seqmule pipeline -a fa_run1.1.fq.gz,fa_run2.1.fq.gz,ma_run1.1.fq.gz,ma_run2.1.fq.gz -b fa_run1.2.fq.gz,fa_run2.2.fq.gz,ma_run1.2.fq.gz,ma_run2.2.fq.gz -capture default -e -t 12 -prefix father,mother -merge -mergingrule 2,2 -advanced ~/Downloads/SeqMule/misc/predefined_config/bwa_samtools.config
 ```
 
-The above command specifies 8 input files which can be found [here](http://www.openbioinformatics.org/seqmule/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](http://www.openbioinformatics.org/seqmule/example/multi-sample_merging_report/summary.html).
+The above command specifies 8 input files which can be found [here](http://www.openbioinformatics.org/seqmule/example/). `fa_run1.1.fq.gz` and `fa_run1.2.fq.gz` are for first run of sample father, `fa_run2.1.fq.gz` and `fa_run2.2.fq.gz` are for second run of sample father. It is the same case for mother. `-merge` options asks SeqMule to merge all alignments of the same sample. `-mergingrule 2,2` means the first 2 pairs of input files are for the first sample, and the last 2 pairs of input files are for the second sample. If `-mergingrule` is not specified, SeqMule will assume numbers of input files for each sample are equal. This command can be modified to take only one sample (by removing `-mergingrule` option) or more than two samples (by adding more files and changing the string after `-mergingrule`). A report for the above multi-sample merging command is available [here](/supporting_materials/multi-sample_merging_report/summary.html).
 
 ### Finetune pipeline (modify script) 
 

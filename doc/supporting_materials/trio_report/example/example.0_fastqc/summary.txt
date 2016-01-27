@@ -1,0 +1,12 @@
+PASS	Basic Statistics	example.0.fastq.gz
+FAIL	Per base sequence quality	example.0.fastq.gz
+PASS	Per tile sequence quality	example.0.fastq.gz
+WARN	Per sequence quality scores	example.0.fastq.gz
+FAIL	Per base sequence content	example.0.fastq.gz
+PASS	Per sequence GC content	example.0.fastq.gz
+PASS	Per base N content	example.0.fastq.gz
+PASS	Sequence Length Distribution	example.0.fastq.gz
+PASS	Sequence Duplication Levels	example.0.fastq.gz
+WARN	Overrepresented sequences	example.0.fastq.gz
+PASS	Adapter Content	example.0.fastq.gz
+FAIL	Kmer Content	example.0.fastq.gz

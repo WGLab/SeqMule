@@ -1,0 +1,12 @@
+PASS	Basic Statistics	mother.0.1_phred33.fastq.gz
+PASS	Per base sequence quality	mother.0.1_phred33.fastq.gz
+PASS	Per tile sequence quality	mother.0.1_phred33.fastq.gz
+PASS	Per sequence quality scores	mother.0.1_phred33.fastq.gz
+PASS	Per base sequence content	mother.0.1_phred33.fastq.gz
+PASS	Per sequence GC content	mother.0.1_phred33.fastq.gz
+PASS	Per base N content	mother.0.1_phred33.fastq.gz
+PASS	Sequence Length Distribution	mother.0.1_phred33.fastq.gz
+PASS	Sequence Duplication Levels	mother.0.1_phred33.fastq.gz
+PASS	Overrepresented sequences	mother.0.1_phred33.fastq.gz
+PASS	Adapter Content	mother.0.1_phred33.fastq.gz
+FAIL	Kmer Content	mother.0.1_phred33.fastq.gz

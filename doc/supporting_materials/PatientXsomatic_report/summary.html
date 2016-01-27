@@ -1,0 +1,108 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>SeqMule Report</title>
+<meta name="keywords" content="green jelly, theme, free templates, nivo image slider, website, templatemo, CSS, HTML" />
+<meta name="description" content="Green Jelly Theme, free CSS template provided by templatemo.com" />
+<link href="css/templatemo_style.css" rel="stylesheet" type="text/css" />
+
+<link rel="stylesheet" href="css/nivo-slider.css" type="text/css" media="screen" />
+
+<script language="javascript" type="text/javascript">
+function clearText(field)
+{
+    if (field.defaultValue == field.value) field.value = '';
+    else if (field.value == '') field.value = field.defaultValue;
+}
+</script>
+
+<link rel="stylesheet" type="text/css" href="css/ddsmoothmenu.css" />
+
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/ddsmoothmenu.js">
+
+/***********************************************
+* Smooth Navigational Menu- (c) Dynamic Drive DHTML code library (www.dynamicdrive.com)
+* This notice MUST stay intact for legal use
+* Visit Dynamic Drive at http://www.dynamicdrive.com/ for full source code
+***********************************************/
+
+</script>
+
+<script type="text/javascript">
+
+ddsmoothmenu.init({
+	mainmenuid: "templatemo_menu", //menu DIV id
+	orientation: 'h', //Horizontal or vertical menu: Set to "h" or "v"
+	classname: 'ddsmoothmenu', //class added to menu's outer DIV
+	//customtheme: ["#1c5a80", "#18374a"],
+	contentsource: "markup" //"markup" or ["container_id", "path_to_menu_file"]
+})
+
+</script>
+  
+</head>
+<body>
+
+<div id="templatemo_wrapper">
+	<div id="templatemo_header"></div> <!-- end of header -->
+      <div id="templatemo_menu" class="ddsmoothmenu">
+        <ul>
+            <li><a href="summary.html" class="selected">Summary</a></li>
+            <li><a href="#">Samples</a>
+<ul>
+<li><a href='PatientXsomatic/PatientXsomatic.html'>PatientXsomatic</a></li>
+<span></span>
+</ul>
+            </li>
+            <li><a href="pages/pipeline.html">Pipeline</a> </li>
+          	<li><a href="pages/parameter.html">Parameter</a></li>
+          	<li><a href="http://seqmule.usc.edu">Help</a></li>
+            </ul>
+        <br style="clear: left" />
+    </div> <!-- end of menu -->
+    
+    <div id="templatemo_slider_wrapper">
+      <div id="htmlcaption" class="nivo-html-caption">
+       	  <strong>This</strong> is an example of a HTML caption with <a href="#">a link</a>.
+        </div>
+    
+    </div>
+    
+    <script type="text/javascript" src="js/jquery-1.4.3.min.js"></script>
+    <script type="text/javascript" src="js/jquery.nivo.slider.js"></script>
+    <script type="text/javascript">
+    $(window).load(function() {
+    $('#slider').nivoSlider();
+    });
+    </script>
+    
+    <div id="templatemo_main"><br class="cleaner" />
+<p>On IE, please ENABLE scripts or ActiveX.</p>
+<h1>Analysis Summary</h1>
+<p>1 sample(s) in this analysis: PatientXsomatic</br>Somatic mutation calling mode</br>Input is exome (or captured) sequencing data.</br>1 variant caller(s) used: VarScan</br>1 aligner(s) used: bwamem</br>File used for caculating coverage statistics and extracting variants: somatic_calling.bed</br>Readgroup : PATIENTX_PatientXsomatic</br>Library : LIBRARY</br>Sequencing platform: ILLUMINA</br>Reference genome build is hg19</br>dbsnp138 is used for variant calling and recalibration (in GATK VQSR).</br>Java memory usage is limited to 1750m</br>Max number of processes: 4</br>NOTICE: /tmp will be used for storing temporary files</br>###################################################</br>FINAL OUTPUT for PatientXsomatic:</br>###################################################</br>NOTICE: Both consensus results and individual results are listed.</br>WARNING: consensus results may not be available because some variant callers or aligners may fail to generate output.</br></br>PatientXsomatic_result/PatientXsomatic.0_bwamem.sort.readfiltered.0_varscan.somatic-call.extract.vcf</br></br></p>
+<h1>Result highlights</h1>
+<h2>PatientXsomatic</h2>
+<p>There are 458754 QC-passed reads.</br>347409(75.73%) reads are mapped. </br> 41.59% reads are mapped to target region.</br>Average coverage is  42.59 (in target region if this is captured sequencing).</br>178 SNVs are called.</br>21 indels are found.</br></p></br>
+<p></br><b>Details can be found on each SAMPLE page.</b></p>
+
+
+
+    </div> <!-- end of main -->
+    
+    <div id="templatemo_footer">
+      <div class="cleaner"></div>
+    </div> <!-- end of footer -->
+</div>
+
+<div id="templatemo_cr_bar_wrapper">
+	<div id="templatemo_cr_bar">
+    	Copyright 2014 <a href="http://genomics.usc.edu">USC Wang Lab</a> | Designed by <a href="http://www.templatemo.com" target="_parent">Free CSS Templates</a>
+    </div>
+</div>
+
+
+<script type='text/javascript' src='js/logging.js'></script>
+</body>
+</html>
