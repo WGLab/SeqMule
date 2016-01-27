@@ -505,7 +505,7 @@ sub extractVar
     warn "Extracting variants based on specified BED file.\n";
     !system("$bgzip -c $vcf > $gzvcf") and 
     !system("$tabix -p vcf $gzvcf") or die "Can't compress and index $vcf: $!\n"; 
-    !system("$tabix $gzvcf -h -B $bed > $outfile") or die "ERROR: Failed to extract variants from $vcf: $!\n";
+    !system("$tabix -f $gzvcf -h -B $bed > $outfile") or die "ERROR: Failed to extract variants from $vcf: $!\n";
     my $varcount=`grep -v '#' $outfile | wc -l `;chomp $varcount; $varcount=~s/^(\d+)\s.*/$1/;
     warn "NOTICE: $varcount extracted variants written to $outfile\n";
 
