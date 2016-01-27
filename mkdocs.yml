@@ -19,7 +19,6 @@ pages:
   - 'Analysis': 'Tutorials/Analysis.md'
   - 'Caveats': 'Tutorials/Caveats.md'
   - 'Execution': 'Tutorials/Execution.md'
-  - 'More Examples': 'Tutorials/More examples.md'
 
 - Manuals: 
   - 'seqmule download': 'Manuals/download.md'
