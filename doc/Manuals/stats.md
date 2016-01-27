@@ -37,8 +37,7 @@ Options:
         --noclean                 do not clean temporary files
         -v,--verbose              verbose
 
-
-        EXAMPLE 
+# EXAMPLES
 
         #draw Venn Diagram to examine overlapping between different VCF files
         seqmule stats -p gatk-soap-varscan -venn gatk.vcf,soap.avinput,varscan.vcf
