@@ -93,12 +93,12 @@ for my $q("","-quick")
 		$starting_point =~ s/-t \d+/-t 4 -nc 12/;
 		#push @cmd, "$starting_point $q --advanced $j -nr";
 		#qsub by seqmule itself
-		push @cmd, "nohup $starting_point $q -build hg18 --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" & ";
+		push @cmd, "nohup $starting_point $q -build hg19 --advanced $j -sge \"qsub -V -cwd -pe smp XCPUX -l h_vmem=$mem\" & ";
 		
 		#after job is submitted, return to parent folder
 		push @cmd, "cd $test_folder";
 
-		&exec(@cmd) and exit if $count == 10;
+		&exec(@cmd) and exit if $count == 1;
 		$count++;
 	}
     }
