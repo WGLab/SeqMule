@@ -2,9 +2,9 @@ After you have downloaded and installed SeqMule (assume in `seqmule` folder), th
 
 ## Example output
 
-Click [here](/supporting_materials/trio_report/summary.html) to see what output report looks like.
+Click [here](http://www.openbioinformatics.org/seqmule/example/trio_report/summary.html) to see what output report looks like.
 
-You can find an application example in my [poster](/supporting_material/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
+You can find an application example in my [poster](http://www.openbioinformatics.org/seqmule/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
 
 ## Quick start
 
@@ -28,4 +28,4 @@ Once external databases are downloaded. SeqMule is ready for analysis!  If you d
 
 ### Step 4: Check results
 
-Wait until all executions are finished (approximately an hour). In the directory where you run your analysis, `example_report` contains a report in HTML format (webpage), `example_result` contains alignment results (in BAM format) and variants (in VCF format). Download the report folder as a whole to your computer, open `Summary.html` with any browser to view summary statistics about your analysis. We also provide a [report](/supporting_materials/example_report2/summary.html) from the same data set for comparison . The exact numbers may differ a little due to stochastic behavior of some algorithms.
+Wait until all executions are finished (approximately an hour). In the directory where you run your analysis, `example_report` contains a report in HTML format (webpage), `example_result` contains alignment results (in BAM format) and variants (in VCF format). Download the report folder as a whole to your computer, open `Summary.html` with any browser to view summary statistics about your analysis. We also provide a [report](http://www.openbioinformatics.org/seqmule/example/example_report/summary.html) from the same data set for comparison . The exact numbers may differ a little due to stochastic behavior of some algorithms.
