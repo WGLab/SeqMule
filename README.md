@@ -1,3 +1,4 @@
+![SeqMule](/img/seqmule.png)
 # SeqMule: Automated human exome/genome variants detection
 
 SeqMule takes single-end or paird-end FASTQ or BAM files, generates a script consisting of more than 10 popular alignment, analysis tools and runs the script line by line. Users can change the pipeline or fine-tune the parameters by modifying its configuration file. SeqMule also has some built-in functions, such as pooling consensus calls from various callers, plotting a Venn diagram showing intersection among different callers, and downloading databases.
@@ -22,7 +23,7 @@ SeqMule takes single-end or paird-end FASTQ or BAM files, generates a script con
 
 * Fast and easy customization
 
-   Just change the 'advanced_config' file!
+   Just use predefined `advanced_config` or change it yourself!
 
 * Sun Grid Engine (SGE) integration
 
