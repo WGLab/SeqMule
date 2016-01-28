@@ -2550,59 +2550,89 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 
 =head1 OPTIONS
 
-	--prefix,-p		  comma-delimited list of sample names, will be used for output file naming.
-				  Mandatory for FASTQ input or BAM input with merge enabled.
+	--prefix,-p		  comma-delimited list of sample names, will be used for
+				  output file naming. Mandatory for FASTQ input or BAM input
+				  with merge enabled.
 
 	-a <FASTQ>             	  1st FASTQ file (or comma-delimited list)
 	-b <FASTQ>             	  2nd FASTQ file (or comma-delimited list)
-	--bam <BAM>		  BAM file (or comma-delimited list). Exclusive of -a,-b options.
+	--bam <BAM>		  BAM file (or comma-delimited list). Exclusive of -a,-b 
+				  options.
 	-a2 <FASTQ>            	  1st FASTQ file (or comma-delimited list) from tumor tissue.
 	-b2 <FASTQ>            	  2nd FASTQ file (or comma-delimited list) from tumor tissue.
-	--bam2 <BAM>		  BAM file (or comma-delimited list) from tumor tissue. Exclusive of FASTQ input.
+	--bam2 <BAM>		  BAM file (or comma-delimited list) from tumor tissue. 
+				  Exclusive of FASTQ input.
 
 	--merge,-m		  merge FASTQ or BAM files before analysis
-	--mergingrule <TEXT>	  comma-delimited numbers for how many files merged for each sample.
+	--mergingrule <TEXT>	  comma-delimited numbers for how many files merged for 
+				  each sample.
 				  Default: equal number of files for each samples.
-	-ms			  do multiple-sample variant calling (only valid for GATK,VarScan and SAMtools)
+	-ms			  do multiple-sample variant calling (only valid for GATK
+				  ,VarScan and SAMtools)
 
-	-N <INT>		  if more than one set of variants are generated, extract variants shared by at least INT VCF output
+	-N <INT>		  if more than one set of variants are generated, extract
+				  variants shared by at least INT VCF output
 	--build <hg18,hg19>	  genome build. Default is hg19.
-	--readgroup,-rg <TEXT>    readgroup ID. Specify one ID for all input or a comma-separated list. Default: READGROUP_[SAMPLE NAME]
-	--platform,-pl <TEXT>	  sequencing platform, only Illumina and IonTorrent are supported. Specify one platform for all input or a comma-separated list. Only for FASTQ input. Default: ILLUMINA.
-	--library,-lb <TEXT>	  sequencing library. Specify one library for all input or a comma-separated list. Only for FASTQ input. Default: LIBRARY.
-	--forceOneRG		  force use of one readgroup ID for BAM when merging is enabled. See details.
-	--unionRG		  When merging BAM files, combine reads with same readgroup ID, keep reads with different readgroup IDs intact.
-	--phred <1,33,64>	  Phred score scheme. 1 is default, for auto-detection. Has no effect on BAM input.
+	--readgroup,-rg <TEXT>    readgroup ID. Specify one ID for all input or a comma-
+				  separated list. Default: READGROUP_[SAMPLE NAME]
+	--platform,-pl <TEXT>	  sequencing platform, only Illumina and IonTorrent are 
+				  supported. Specify one platform for all input or a comma-
+				  separated list. Only for FASTQ input. Default: ILLUMINA.
+	--library,-lb <TEXT>	  sequencing library. Specify one library for all input or 
+				  a comma-separated list. Only for FASTQ input. Default:
+				  LIBRARY.
+	--forceOneRG		  force use of one readgroup ID for BAM when merging is 
+				  enabled. See details.
+	--unionRG		  When merging BAM files, combine reads with same readgroup 
+				  ID, keep reads with different readgroup IDs intact.
+	--phred <1,33,64>	  Phred score scheme. 1 is default, for auto-detection. 
+				  Has no effect on BAM input.
 	--wes,-e                  the input is captured sequencing data
 	--wgs,-g		  the input is whole-genome sequencing data
-	--capture <BED>		  calculate coverage stats and extract (or call) variants over the regions defined by this file. If you do not have a custom BED file, use '-capture default' to use default BED file.
-	--no-resolve-conflict	  seqmule will NOT try to resolve any conflict among BED, BAM and reference. Run 'seqmule pipeline -h' for details.
-	--no-check-chr		  skip checking chromosome consistency. By default, SeqMule forces chromosomes in input to be consistent with builtin reference.
+	--capture <BED>		  calculate coverage stats and extract (or call) variants
+				  over the regions defined by this file. If you do not have
+				  a custom BED file, use '-capture default' to use default
+				  BED file.
+	--no-resolve-conflict	  seqmule will NOT try to resolve any conflict among BED,
+				  BAM and reference. Run 'seqmule pipeline -h' for details.
+	--no-check-chr		  skip checking chromosome consistency. By default, SeqMule
+				  forces chromosomes in input to be consistent with builtin
+				  reference.
 	--threads,-t <INT>	  number of threads, also effective for -sge. Default: 1.
-      	--sge <TEXT>		  run each command via Sun Grid Engine. A template with XCPUX keyword required. See examples.
-	--nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host. Default: unlimited.
+      	--sge <TEXT>		  run each command via Sun Grid Engine. A template with 
+				  XCPUX keyword required. See examples.
+	--nodeCapacity,-nc <INT>  max number of processes/threads for a single node/host.
+				  Default: unlimited.
 	--quick,-q		  enable parallel processing at variant calling
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
 	--jexe <STRING>		  Java executable path. Default: java
-	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening too many files. Default: 2.
+	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening 
+				  too many files. Default: 2.
 	--advanced [FILE]	  generate or use an advanced configuration file
-	--tmpdir <DIR>		  use DIR for storing large temporary files. Default: $TMPDIR(in your ENV variables) or /tmp
+	--tmpdir <DIR>		  use DIR for storing large temporary files. Default: 
+				  $TMPDIR(in your ENV variables) or /tmp
 	--norun,-nr		  do NOT run analysis, only generate script
 	--nostat,-ns 		  do NOT generate statistics
 	--norm			  do NOT remove intermediate SAM, BAM and other files
-	--forceRmDup		  force removal of duplicates. This overrides default behavior which disables duplicate removal for small capture regions.
+	--forceRmDup		  force removal of duplicates. This overrides default 
+				  behavior which disables duplicate removal for small capture regions.
 	--overWrite,-ow		  overwrite files whose names conflict with current analysis.
 
-	--ref <FILE>              reference genome. Override default database (the following is the same). 
-				  When you use custom databases, make sure they are compatible with each other.
-	--index <PREFIX>          prefix for bowtie, bowtie2, soap index files. Including path.
+	--ref <FILE>              reference genome. Override default database (the following
+				  is the same). 
+				  When you use custom databases, make sure they are 
+				  compatible with each other.
+	--index <PREFIX>          prefix for bowtie, bowtie2, soap index files. Including 
+				  path.
 	--bowtie <PREFIX>         prefix ONLY for bowtie index files, including path
 	--bowtie2 <PREFIX>        prefix only for bowtie2 index files, including path
 	--soap <PREFIX>           prefix only for soap index files, including path
 	--hapmap <FILE>           HapMap VCF file for variant quality recalibration
 	--dbsnp <FILE>            dbSNP VCF file for variant quality recalibration
-	--dbsnpver,-dv <INT>      dbSNP version for variant quality recalibration. By default, it's 138.
-	--kg <FILE>               1000 genome project VCF file for variant quality recalibration
+	--dbsnpver,-dv <INT>      dbSNP version for variant quality recalibration. By 
+				  default, it's 138.
+	--kg <FILE>               1000 genome project VCF file for variant quality 
+	 			  recalibration
 	--indel <FILE>		  Indel VCF file for GATK realignment and VQSR
 
 	--verbose,-v		  verbose output
