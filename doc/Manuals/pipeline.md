@@ -12,28 +12,41 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 
 # OPTIONS
 
-        --prefix,-p               comma-delimited list of sample names, will be used for output file naming.
+        --prefix,-p               comma-delimited list of sample names, will be used for
+                                  output file naming.
                                   Mandatory for FASTQ input or BAM input with merge enabled.
 
         -a <FASTQ>                1st FASTQ file (or comma-delimited list)
         -b <FASTQ>                2nd FASTQ file (or comma-delimited list)
-        --bam <BAM>               BAM file (or comma-delimited list). Exclusive of -a,-b options.
+        --bam <BAM>               BAM file (or comma-delimited list). Exclusive of -a,-b 
+                                  options.
         -a2 <FASTQ>               1st FASTQ file (or comma-delimited list) from tumor tissue.
         -b2 <FASTQ>               2nd FASTQ file (or comma-delimited list) from tumor tissue.
-        --bam2 <BAM>              BAM file (or comma-delimited list) from tumor tissue. Exclusive of FASTQ input.
+        --bam2 <BAM>              BAM file (or comma-delimited list) from tumor tissue. 
+                                  Exclusive of FASTQ input.
 
         --merge,-m                merge FASTQ or BAM files before analysis
-        --mergingrule <TEXT>      comma-delimited numbers for how many files merged for each sample.
+        --mergingrule <TEXT>      comma-delimited numbers for how many files merged for 
+                                  each sample.
                                   Default: equal number of files for each samples.
-        -ms                       do multiple-sample variant calling (only valid for GATK,VarScan and SAMtools)
+        -ms                       do multiple-sample variant calling (only valid for GATK
+                                  ,VarScan and SAMtools)
 
-        -N <INT>                  if more than one set of variants are generated, extract variants shared by at least INT VCF output
+        -N <INT>                  if more than one set of variants are generated, extract
+                                  variants shared by at least INT VCF output
         --build <hg18,hg19>       genome build. Default is hg19.
-        --readgroup,-rg <TEXT>    readgroup ID. Specify one ID for all input or a comma-separated list. Default: READGROUP_[SAMPLE NAME]
-        --platform,-pl <TEXT>     sequencing platform, only Illumina and IonTorrent are supported. Specify one platform for all input or a comma-separated list. Only for FASTQ input. Default: ILLUMINA.
-        --library,-lb <TEXT>      sequencing library. Specify one library for all input or a comma-separated list. Only for FASTQ input. Default: LIBRARY.
-        --forceOneRG              force use of one readgroup ID for BAM when merging is enabled. See details.
-        --unionRG                 When merging BAM files, combine reads with same readgroup ID, keep reads with different readgroup IDs intact.
+        --readgroup,-rg <TEXT>    readgroup ID. Specify one ID for all input or a comma-
+                                  separated list. Default: READGROUP_[SAMPLE NAME]
+        --platform,-pl <TEXT>     sequencing platform, only Illumina and IonTorrent are 
+                                  supported. Specify one platform for all input or a comma-
+                                  separated list. Only for FASTQ input. Default: ILLUMINA.
+        --library,-lb <TEXT>      sequencing library. Specify one library for all input or 
+                                  a comma-separated list. Only for FASTQ input. Default:
+                                  LIBRARY.
+        --forceOneRG              force use of one readgroup ID for BAM when merging is 
+                                  enabled. See details.
+        --unionRG                 When merging BAM files, combine reads with same readgroup 
+                                  ID, keep reads with different readgroup IDs intact.
         --phred <1,33,64>         Phred score scheme. 1 is default, for auto-detection. Has no effect on BAM input.
         --wes,-e                  the input is captured sequencing data
         --wgs,-g                  the input is whole-genome sequencing data
