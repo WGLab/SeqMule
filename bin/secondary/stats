@@ -78,7 +78,7 @@ GetOptions(
     'noclean'		=>	\$noclean,
     'verbose|v'		=>	\$verbose,
 ) or pod2usage({-exitval => 2});
-$help and pod2usage ({-verbose=>1});
+$help and pod2usage ({-verbose=>2});
 
 #option check
 die "ERROR:No prefix while multiple input files are used!\n" if ( ($consensus_files || $union_files || $venn || $consensus_vcf || $union_vcf ) && !$prefix);
@@ -1364,7 +1364,7 @@ Options:
 	-v,--verbose		  verbose
 
 
-	EXAMPLE	
+=head1 EXAMPLES
 
 	#draw Venn Diagram to examine overlapping between different VCF files
 	seqmule stats -p gatk-soap-varscan -venn gatk.vcf,soap.avinput,varscan.vcf
