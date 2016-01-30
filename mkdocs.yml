@@ -17,7 +17,6 @@ pages:
 - Tutorials: 
   - 'Quick Start': 'Tutorials/Quick start.md'
   - 'Analysis': 'Tutorials/Analysis.md'
-  - 'Caveats': 'Tutorials/Caveats.md'
   - 'Execution': 'Tutorials/Execution.md'
 
 - Manuals: 
@@ -31,3 +30,4 @@ pages:
   - 'FAQ': 'Miscellaneous/FAQ.md'
   - 'Version History': 'Miscellaneous/ChangeLog.md'
   - 'TechNotes': 'Miscellaneous/TechNotes.md'
+  - 'Caveats': 'Miscellaneous/Caveats.md'
