@@ -9,6 +9,7 @@ use SeqMule::Utils;
 
 warn "Check for upgrade ...\n";
 my $server="http://www.openbioinformatics.org/seqmule";
+my $hostedCopy="http://www.openbioinformatics.org/seqmule/seqmule.latest.tar.gz";
 my $localVersionFile=File::Spec->catfile($RealBin,"../../version");
 my $webVersionFile="/tmp/$$".rand($$).".seqmuleversion.tmp";
 &SeqMule::Utils::getstore("$server/version",$webVersionFile,["-q","-s"]);
@@ -22,7 +23,7 @@ if (-s $webVersionFile && -s $localVersionFile)
 	warn "-----------------------------UPDATE AVAILABLE---------------------------------\n";
 	warn "------------------------------------------------------------------------------\n";
 	warn "RECOMMEND: run 'seqmule update'\n";
-	warn "ALTERNATIVE: download from '$server' and unzip it to \n";
+	warn "ALTERNATIVE: download from '$hostedCopy' and unzip it to \n";
 	warn "$RealBin\n";
 	warn "to overwrite old stuff\n";
 	warn "------------------------------------------------------------------------------\n";
