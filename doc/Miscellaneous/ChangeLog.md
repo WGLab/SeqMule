@@ -1,3 +1,9 @@
+# v1.2.5
+2016-02-03 Yunfei Guo <yunfeigu@usc.edu>
+
+* Stability improvement
+* Documentation improvement
+
 # v1.2.4 
 2016-01-07 Yunfei Guo <yunfeigu@usc.edu>
 
