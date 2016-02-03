@@ -1,3 +1,55 @@
+### I submitted a SeqMule job to SGE, it aborted without any error, what's wrong here?
+
+One possible cause is that SeqMule exceeded the requested memory limit. How to troubleshoot? First, run `qacct -j JOBID` to identify job exit status. Make sure to replace `JOBID` with your actual job ID assigned by SGE. Then you will see something like this(assume `accounting_summary` to set to `TRUE`):
+
+```
+$ qacct -j 584552
+==============================================================
+qname        all.q
+hostname     compute-0-3.local
+group        wanglab
+owner        user
+project      NONE
+department   defaultdepartment
+jobname      STDIN
+jobnumber    584552
+taskid       undefined
+account      sge
+priority     0
+qsub_time    Sat Jan 30 14:53:20 2016
+start_time   Sat Jan 30 14:53:31 2016
+end_time     Sat Jan 30 21:11:33 2016
+granted_pe   smp
+slots        12
+failed       100 : assumedly after job
+exit_status  137 #137-128=9, which is SIGKILL
+ru_wallclock 22682
+ru_utime     0.080
+ru_stime     0.037
+ru_maxrss    2760
+ru_ixrss     0
+ru_ismrss    0
+ru_idrss     0
+ru_isrss     0
+ru_minflt    16265
+ru_majflt    0
+ru_nswap     0
+ru_inblock   16
+ru_oublock   32
+ru_msgsnd    0
+ru_msgrcv    0
+ru_nsignals  0
+ru_nvcsw     337
+ru_nivcsw    62
+cpu          66629.510
+mem          338134.237
+io           1547.102
+iow          0.000
+maxvmem      52.969G
+arid         undefined
+```
+The line `exit_status` indicates that exit code is `137 - 128 = 9` which means `SIGKILL`. The line `maxvmem` tells us maximum memory used is `52.969G`, if we only asked for `4G` for each CPU, we were supposed to use only a total of `4G * 12 = 48G` memory. This explains why SGE killed our job without letting SeqMule complain. Under such circumstances, we can request more memory by adjusting `-l h_vmem` option in `qsub` command, for example we can change `-l h_vmem=4G` to `-l h_vmem=6G`. Alternatively, we can decrease SeqMule memory usage by changing `-jmem` option in `seqmule pipeline` command, for example, we can change `-jmem 1750m` (the default) to `-jmem 1024m`. **WARNING**: changing `-jmem` only works if GATK is using too much memory and may have a side effect of insufficient memory for GATK.
+
 ### Is there a log file showing the runtime error? 
 
 SeqMule only saves runtime parameters to `*.log` file. If you want to check the runtime output after running SeqMule in the background (or submitted to a cluster), please use `nohup your_seqmule_command > output.txt &`. `nohup` can run your command even after you log out. All messages that were printed on screen will be saved in `output.txt` file. Alternatively, you can append `2>stderr.txt` to your SeqMule command. The STDERR message (all error messages) will be saved in output.txt and stderr.txt, respectively. 
@@ -20,7 +72,7 @@ Yes. Run `seqmule pipeline -m` with other arguments. In this case, all BAM files
 
 Please use `-jmem` option to give GATK more memory. Note, however, you have to request more memory than specified by `-jmem` if you run your analysis on a computation cluster as there is memory overhead for java virtual machine.
 
-### How does the QUICK mode work? 
+### How does the QUICK mode work?
 
 Under QUICK mode, total region to be called will be split into N parts.  N is the number of threads. Variant calling is then performed on each part simultaneously. Afterwards, the resulting VCF will be merged. For GATK, variant filtering is not done until after merging because VQSR filtering requires a lot of variants to calculate some statistics.
 
