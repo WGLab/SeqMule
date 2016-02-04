@@ -454,7 +454,7 @@ sub search
 	#if multiple targets are found, only the last one will be output
 	return $path_to_target if $path_to_target;
     }
-    croak "ERROR: Failed to find $target\nPlease use \'cd $install_dir\' and then \'./Build installexes\' or add path to $target to PATH environmental variable\n";
+    croak("ERROR: Failed to find $target.\nPlease use \'cd $install_dir\' and then \'./Build installexes\'\nProgams in your PATH are NOT used by SeqMule.\n");
 }
 
 
