@@ -398,7 +398,7 @@ sub var_stat
     $dump.="print 'Ti/Tv Ratio='.(\$titv).\"\\n\" if defined \$titv;\n";
     $dump.="print 'Total heterozygotes='.(\$nhet).\"\\n\" if defined \$nhet;\n";
     $dump.="print 'Ref/Alt heterozygotes='.(\$nhet_RA).\"\\n\" if defined \$nhet_RA;\n";
-    $dump.="print 'Alt/Alt heterozygotes='.(\$nhet_AA).\"\\n\" if defined \$nhet_AA;\n";
+    $dump.="print 'Alt1/Alt2 heterozygotes='.(\$nhet_AA).\"\\n\" if defined \$nhet_AA;\n";
     $dump.="print 'Homozygotes='.(\$nhom).\"\\n\" if defined \$nhom;\n";
 
     my $tmp_script="/tmp/$$.seqmule.varstat";
