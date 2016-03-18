@@ -1737,7 +1737,7 @@ sub gen_variant_call_cmd {
     warn "1733: mode: $mode for $caller\n" if $debug;
     while(@bam_obj) {
 	#number of tasks, when quick is enabled, equal to number of threads
-	my $ntask = $quick ? $threads : 1;
+	my $ntask = $quick ? $total_threads : 1;
 	my @bam_obj_for_this_task;
 	my $suffix;
 	#after we process a BAM, we remove it from the list to be processed
@@ -1998,11 +1998,11 @@ sub genScript {
     #prepare new tmp folder
     if ($quick) {
 	if ($wes) {
-	    @small_bed=&SeqMule::Utils::splitRegion({threads=>$threads,bed=>$capture,prefix=>$analysis_prefix});
+	    @small_bed=&SeqMule::Utils::splitRegion({threads=>$total_threads,bed=>$capture,prefix=>$analysis_prefix});
 	} else {
 	    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",target=>$ref,build=>$buildver,install_dir=>$install_dir});
 	    my $bed=$capture || &SeqMule::Utils::fa2BED($local_ref);
-	    @small_bed=&SeqMule::Utils::splitRegion({bed=>$bed,threads=>$threads});
+	    @small_bed=&SeqMule::Utils::splitRegion({bed=>$bed,threads=>$total_threads});
 	}
 	#remove temp BED files after analysis is done
 	push @script_unlink_list,@small_bed;
