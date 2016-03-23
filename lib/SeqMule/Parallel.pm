@@ -172,7 +172,7 @@ sub run {
     my $qsub=shift;
     &checkQsubTemplate($qsub) if defined $qsub;
 
-    my $config = Config::Tiny->read($file);
+    my $config = Config::Tiny->read($file) or croak("ERROR: failed to read or parse SeqMule script <<$file>>\n");
     my $allsetting = $config->{$CONFIG_KEYWORD{SETTING_SECTION}};
     &checkVersion($allsetting);
 
@@ -623,8 +623,8 @@ sub checkVersion {
     my $allsetting = shift;
     my $v =$allsetting->{$CONFIG_KEYWORD{VERSION}};
     unless(defined $v && $COMPATIBLE_VERSION{$v}) {
-	die "ERROR: incompatible execution script version ".($v?$v:'')."\n".
-	"Supported versions: ".join(" ",keys %COMPATIBLE_VERSION)."\n";
+	croak("ERROR: incompatible execution script version ".($v?$v:'')."\n".
+	"Supported versions: ".join(" ",keys %COMPATIBLE_VERSION)."\n");
     }
 }
 sub touch {
