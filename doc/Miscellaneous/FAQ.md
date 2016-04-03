@@ -118,7 +118,7 @@ Here GATK is complaining about too few variants used in model training. This sta
 
 ### How much space is needed for SeqMule databases?
 
-`hg19all` and `hg18all` EACH needs approximately 60GB of space after decompressing, which includes the reference genome, index files for BWA, Bowtie, Bowtie2, SNAP and SOAP, databases for GATK. However, because compressed files and decompressed files must co-exist during decompression, one may need another 30 to 40GB of space during download.
+`hg19all` and `hg18all` EACH needs approximately 60GB of space after decompressing, which includes the reference genome, index files for BWA, Bowtie, Bowtie2, SNAP and SOAP, databases for GATK. However, because compressed files and decompressed files must co-exist during decompression, one may need another 30 to 40GB of space during download. Note, the space requirement just mentioned is only for database, your input data typically has over 10GB, 20GB or 100GB of sizes depending on your situation, and two times or three times of additional space (relative to raw data) is needed to store intermediate analysis files. If space is limited, one option is to only download hg19 and its index for bwa (`seqmule download -d hg19,hg19ibwa`), and disable GATK VQSR filtering (set `forceSNPHardFilter` to 1 in `advanced_config`) such that auxillary variant databases are not needed. Using the above option, SeqMule only needs about 10GB of space for databases.
 
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
