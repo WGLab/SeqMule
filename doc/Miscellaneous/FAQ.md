@@ -116,5 +116,9 @@ The default exome defintions (to use them, specify `-capture default` with `seqm
 
 Here GATK is complaining about too few variants used in model training. This statistical model is used for VQSR (variant quality score recalibration). It is a better method for variant filtering. However, when your capture region is small (e.g. only a few genes), or your average depth is very low, the input might be not sufficient for model training. Hard filtering should be used instead. SeqMule has limited support for automatic hard filtering (when input `BAM` is smaller than 1GB for SNP, and 15GB for INDEL). The automatic detection is not guaranteed to work, so a safe option is to set `forceSNPHardFilter` or `forceINDELHardFilter` to 1 (in `advanced_config`) to enforce hard filtering. Note, there are a separate pair of such flags for each calling method of GATK, namely GATK UnifiedGenotype caller, GATK HaplotypeCaller and GATKLite UnifiedGenotype caller. They work independently.
 
+### How much space is needed for SeqMule databases?
+
+`hg19all` and `hg18all` EACH needs approximately 60GB of space after decompressing, which includes the reference genome, index files for BWA, Bowtie, Bowtie2, SNAP and SOAP, databases for GATK. However, because compressed files and decompressed files must co-exist during decompression, one may need another 30 to 40GB of space during download.
+
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
