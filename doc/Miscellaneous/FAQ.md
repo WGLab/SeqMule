@@ -120,5 +120,76 @@ Here GATK is complaining about too few variants used in model training. This sta
 
 `hg19all` and `hg18all` EACH needs approximately 60GB of space after decompressing, which includes the reference genome, index files for BWA, Bowtie, Bowtie2, SNAP and SOAP, databases for GATK. However, because compressed files and decompressed files must co-exist during decompression, one may need another 30 to 40GB of space during download. Note, the space requirement just mentioned is only for database, your input data typically has over 10GB, 20GB or 100GB of sizes depending on your situation, and two times or three times of additional space (relative to raw data) is needed to store intermediate analysis files. If space is limited, one option is to only download hg19 and its index for bwa (`seqmule download -d hg19,hg19ibwa`), and disable GATK VQSR filtering (set `forceSNPHardFilter` to 1 in `advanced_config`) such that auxillary variant databases are not needed. Using the above option, SeqMule only needs about 10GB of space for databases.
 
+### If I have to manually download all the databases due to unstable Internet connection, how should I place them in the `database/` folder?
+
+The `database/` folder should have the following structure (for *hg19*) after unzipping:
+
+```
+database/
+|-- 1000G_omni2.5.b36.vcf
+|-- 1000G_omni2.5.b36.vcf.idx
+|-- 1000G_omni2.5.b37.vcf
+|-- 1000G_omni2.5.b37.vcf.idx
+|-- bowtie
+|   |-- human_g1k_v37.1.ebwt
+|   |-- human_g1k_v37.2.ebwt
+|   |-- human_g1k_v37.3.ebwt
+|   |-- human_g1k_v37.4.ebwt
+|   |-- human_g1k_v37.rev.1.ebwt
+|   `-- human_g1k_v37.rev.2.ebwt
+|-- bowtie2
+|   |-- human_g1k_v37.1.bt2
+|   |-- human_g1k_v37.2.bt2
+|   |-- human_g1k_v37.3.bt2
+|   |-- human_g1k_v37.4.bt2
+|   |-- human_g1k_v37.rev.1.bt2
+|   `-- human_g1k_v37.rev.2.bt2
+|-- bwa
+|   |-- human_g1k_v37.fasta -> /absolute_path_to/database/human_g1k_v37.fasta
+|   |-- human_g1k_v37.fasta.amb
+|   |-- human_g1k_v37.fasta.ann
+|   |-- human_g1k_v37.fasta.bwt
+|   |-- human_g1k_v37.fasta.fai
+|   |-- human_g1k_v37.fasta.pac
+|   `-- human_g1k_v37.fasta.sa
+|-- dbsnp_hg18_138.vcf
+|-- dbsnp_hg18_138.vcf.idx
+|-- dbsnp_hg19_138.vcf
+|-- dbsnp_hg19_138.vcf.idx
+|-- hapmap_3.3.b36.vcf
+|-- hapmap_3.3.b36.vcf.idx
+|-- hapmap_3.3.b37.vcf
+|-- hapmap_3.3.b37.vcf.idx
+|-- human_b36_both.dict
+|-- human_b36_both.fasta
+|-- human_b36_both.fasta.fai
+|-- human_g1k_v37.dict
+|-- human_g1k_v37.fasta
+|-- human_g1k_v37.fasta.fai
+|-- Mills_and_1000G_gold_standard.indels.b36.vcf
+|-- Mills_and_1000G_gold_standard.indels.b36.vcf.idx
+|-- Mills_and_1000G_gold_standard.indels.b37.vcf
+|-- Mills_and_1000G_gold_standard.indels.b37.vcf.idx
+|-- snap
+|   |-- human_g1k_v37.fasta
+|   |   |-- Genome
+|   |   |-- GenomeIndex
+|   |   |-- GenomeIndexHash
+|   |   `-- OverflowTable
+`-- soap
+    |-- human_g1k_v37.fasta.index.amb
+    |-- human_g1k_v37.fasta.index.ann
+    |-- human_g1k_v37.fasta.index.bwt
+    |-- human_g1k_v37.fasta.index.fmv
+    |-- human_g1k_v37.fasta.index.hot
+    |-- human_g1k_v37.fasta.index.lkt
+    |-- human_g1k_v37.fasta.index.pac
+    |-- human_g1k_v37.fasta.index.rev.bwt
+    |-- human_g1k_v37.fasta.index.rev.fmv
+    |-- human_g1k_v37.fasta.index.rev.lkt
+    |-- human_g1k_v37.fasta.index.rev.pac
+    |-- human_g1k_v37.fasta.index.sa
+    `-- human_g1k_v37.fasta.index.sai
+```    
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
