@@ -51,7 +51,7 @@ lls, generating coverage/alignment statistics in specific genomic regions, calcu
 
 ## Revision History
 
-For details, please go [here](https://github.com/WangGenomicsLab/SeqMule/commits/master)
+For release history, please visit [here](https://github.com/WGLab/SeqMule/releases). For details, please go [here](https://github.com/WangGenomicsLab/SeqMule/commits/master).
 
 ## Contact
 
