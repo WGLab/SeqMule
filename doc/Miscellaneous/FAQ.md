@@ -126,8 +126,6 @@ The `database/` folder should have the following structure (for *hg19*) after un
 
 ```
 database/
-|-- 1000G_omni2.5.b36.vcf
-|-- 1000G_omni2.5.b36.vcf.idx
 |-- 1000G_omni2.5.b37.vcf
 |-- 1000G_omni2.5.b37.vcf.idx
 |-- bowtie
@@ -152,22 +150,13 @@ database/
 |   |-- human_g1k_v37.fasta.fai
 |   |-- human_g1k_v37.fasta.pac
 |   `-- human_g1k_v37.fasta.sa
-|-- dbsnp_hg18_138.vcf
-|-- dbsnp_hg18_138.vcf.idx
 |-- dbsnp_hg19_138.vcf
 |-- dbsnp_hg19_138.vcf.idx
-|-- hapmap_3.3.b36.vcf
-|-- hapmap_3.3.b36.vcf.idx
 |-- hapmap_3.3.b37.vcf
 |-- hapmap_3.3.b37.vcf.idx
-|-- human_b36_both.dict
-|-- human_b36_both.fasta
-|-- human_b36_both.fasta.fai
 |-- human_g1k_v37.dict
 |-- human_g1k_v37.fasta
 |-- human_g1k_v37.fasta.fai
-|-- Mills_and_1000G_gold_standard.indels.b36.vcf
-|-- Mills_and_1000G_gold_standard.indels.b36.vcf.idx
 |-- Mills_and_1000G_gold_standard.indels.b37.vcf
 |-- Mills_and_1000G_gold_standard.indels.b37.vcf.idx
 |-- snap
