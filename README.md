@@ -55,9 +55,9 @@ For release history, please visit [here](https://github.com/WGLab/SeqMule/releas
 
 ## Contact
 
-yunfeigu@usc.edu
+For questions/bugs/issues, please post on [GitHub](https://github.com/WGLab/SeqMule/issues). In general, please do NOT send questions to `yunfeigu@usc.edu`. Your question may be very likely to help other users.
 
-Please join [SeqMule-dev](https://groups.google.com/forum/#!forum/seqmule-dev) for updates!
+Please join [SeqMule-dev](https://groups.google.com/forum/#!forum/seqmule-dev) for updates.
 
 ## Citation
 
