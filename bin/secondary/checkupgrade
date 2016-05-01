@@ -36,9 +36,8 @@ if (-s $webVersionFile && -s $localVersionFile)
     unlink $webVersionFile;
 } else
 {
-    warn "Downloading \'$localVersionFile\' from $server failed\n";
-    warn "Bad Internet connection??\n";
-    warn "NOTICE: version unknown\n";
+    warn "NOTICE: unable to download \'$localVersionFile\' from $server. Bad Internet connection?\n";
+    warn "NOTICE: unable to check for updates. Results will not be affected.\n";
 }
 
 #################SUBROUTINES#########################

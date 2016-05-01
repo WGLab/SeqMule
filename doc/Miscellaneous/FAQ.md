@@ -54,6 +54,26 @@ The line `exit_status` indicates that exit code is `137 - 128 = 9` which means `
 
 SeqMule only saves runtime parameters to `*.log` file. If you want to check the runtime output after running SeqMule in the background (or submitted to a cluster), please use `nohup your_seqmule_command > output.txt &`. `nohup` can run your command even after you log out. All messages that were printed on screen will be saved in `output.txt` file. Alternatively, you can append `2>stderr.txt` to your SeqMule command. The STDERR message (all error messages) will be saved in output.txt and stderr.txt, respectively. 
 
+###How to debug a runtime error?
+When SeqMule aborts due to a runtime error, you will see a message like this:
+
+```
+----------ERROR----------
+[ => SeqMule Execution Status: step 63 FAILED at Mon Apr  4 13:51:12 PDT 2016, Merge split VCF]
+ERROR: command failed
+/home/yunfeiguo/projects/seqmule_working/bin/secondary/../../bin/secondary/worker /home/yunfeiguo/projects/variant_call/20160404/seqmule.04042016.5207.logs 63 "/home/yunfeiguo/projects/seqmule_working/bin/secondary/../../bin/seqmule stats -tmpdir /tmp -ref /home/yunfeiguo/projects/seqmule_working/database/human_g1k_v37.fasta -jmem 1750m -jexe java  -t 2 -u-vcf ..."
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+After fixing the problem, please execute 'cd /home/yunfeiguo/projects/variant_call/20160404' and 'seqmule run myAnalysisName.script' to resume analysis.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+This message does not tell you the specific reason of error. To find out the exact error, one has to refer to the error message of the failing program. In the above example, the failed program is step 63. All runtime information is stored in `/home/yunfeiguo/projects/variant_call/20160404/seqmule.04042016.5207.logs`. Therefore its messages can be found in `/home/yunfeiguo/projects/variant_call/20160404/seqmule.04042016.5207.logs/63`. For example:
+
+```
+$ ls /home/yunfeiguo/projects/variant_call/20160404/seqmule.04042016.5207.logs/63
+JOBID.625242  MSG  PID.10739  STATUS.error  stderr  stdout
+```
+The `JOBID.625242` shows the job ID assigned by SGE. If you are not running SeqMule via SGE, don't worry about it. If you are running SeqMule via SGE, you can run `qacct -j 625242` (substitute 625242 by the real job ID) to check whether SGE has anything to say about this execution. Watch out for memory usage, time limit. If this program used more resources than requested, SGE will kill it silently. `MSG` is a human-readable message telling us what step 63 is. Here `MSG` says, 'Merge split VCF'. `PID.10739` is the process ID of the program. `STATUS.error` tells SeqMule that this program exited with an error. `stderr` contains `STDERR` output from the program, and usually that can help you understand why the program failed. `stdout` contains `STDOUT` output. `STDOUT` can tell you some important things like the progress of execution, but most of time, it is less helpful for debugging.
+
 ### Why did I get *set: Variable name must begin with a letter.* error when I tried to run the analysis script by qsub? 
 
 SeqMule added `set -e` at the begining of script to make it exit at first error. If your job scheduling system (e.g. SGE) tries to execute the script by csh or tcsh, it will return the above error. Please use bash at qsub instead. For example, under SGE, you can use: 
@@ -180,5 +200,7 @@ database/
     |-- human_g1k_v37.fasta.index.sa
     `-- human_g1k_v37.fasta.index.sai
 ```    
+###Why do I see 'Could not find any mapped reads in target region ...'?
+It is a warning message from FreeBayes. SeqMule will supply FreeBayes a BED file specifying which region to look at. If no reads are in some of regions, FreeBayes will complain with the above message.
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
