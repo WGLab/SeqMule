@@ -206,14 +206,14 @@ It is a warning message from FreeBayes. SeqMule will supply FreeBayes a BED file
 ###I am confused about file naming, which one should I use for downstream analysis?
 The file format for storing variants is `VCF`. The name of each VCF file implies how it is generated. For example, suppose we have the following files:
 ```
-Pt5-S17-th74a.somatic.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call.extract.vcf
+patientX.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call.extract.vcf
 
-Pt5-S17-th74a.somatic.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call_union.vcf.idx
+patientX.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call_union.vcf.idx
 
-Pt5-S17-th74a.somatic.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call_var_stat.txt
+patientX.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call_var_stat.txt
 
-Pt5-S17-th74a.somatic.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call.vcf
+patientX.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call.vcf
 ```
-`Pt5-S17-th74a.somatic` is your sample name. `0` is a number used internally. `bwamem` is the aligner. `sort` and `rmdup` mean the alignments have been sorted and duplicate reads have been removed after alignment. `varscan` is the variant caller. The `somatic-call` means the variants are generated under somatic variant calling mode. `extract` means the VCF file has been extracted based on the region definition by `-capture` option. `*.idx` file is VCF index, you can ignore it. `*_var_stat.txt` denotes variant statistics file. If you have multiple variant callers and enabled consensus variant calling, then `consensus` will appear in the file name. Usually, `consensus` or `extract` will be the file you want to use.
+`patientX` is your sample name. `0` is a number used internally. `bwamem` is the aligner. `sort` and `rmdup` mean the alignments have been sorted and duplicate reads have been removed after alignment. `varscan` is the variant caller. The `somatic-call` means the variants are generated under somatic variant calling mode. `extract` means the VCF file has been extracted based on the region definition by `-capture` option. `*.idx` file is VCF index, you can ignore it. `*_var_stat.txt` denotes variant statistics file. If you have multiple variant callers and enabled consensus variant calling, then `consensus` will appear in the file name. Usually, `consensus` or `extract` will be the file you want to use.
 
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
