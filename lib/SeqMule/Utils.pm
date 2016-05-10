@@ -1276,7 +1276,7 @@ sub getChrCompareCode {
     my $code = 1;
 
     for my $contig(keys %{$dict1}) {
-	unless(exists $dict2->$contig) {
+	unless(exists $dict2->{$contig}) {
 	    if ($contig=~/^chr/) {
 		$contig=~s/^chrM/MT/;
 		$contig=~s/^chr//;
@@ -1284,7 +1284,7 @@ sub getChrCompareCode {
 		$contig=~s/^/chr/;
 		$contig=~s/^chrMT/chrM/;
 	    }
-	    if (exists $dict2->$contig) {
+	    if (exists $dict2->{$contig}) {
 		$code=2;
 	    } else {
 		carp("WARNING: $contig not found in target\n");
