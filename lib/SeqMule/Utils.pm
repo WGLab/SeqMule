@@ -1202,28 +1202,7 @@ sub compareChr
 	}
 
 	&chrNamingConsistencyCheck(keys %bed_contig);
-	for my $contig(keys %bed_contig)
-	{
-	    unless(exists $fa_contig{$contig})
-	    {
-		if ($contig=~/^chr/)
-		{
-		    $contig=~s/^chr//;
-		}else
-		{
-		    $contig=~s/^/chr/;
-		}
-
-		if (exists $fa_contig{$contig})
-		{
-		    $code=2;
-		} else
-		{
-		    $code=0;
-		    last;
-		}
-	    }
-	}
+	$code = &getChrCompareCode(\%bed_contig, \%fa_contig);
     } elsif ($type1 eq 'bam' && $type2 eq 'bed' or $type1 eq 'bed' && $type2 eq 'bam')
     {
 	#return 1 if all contigs in BED show up in BAM, return 2 if previous condition becomes true after removing 'chr' in contig name, otherwise return 0
@@ -1246,28 +1225,7 @@ sub compareChr
 	#check if all contigs have consistent naming format: either preceded by 'chr' or not
 	#uppercase in 'chr' not allowed
 	&chrNamingConsistencyCheck(keys %bed_contig);
-	for my $contig(keys %bed_contig)
-	{
-	    unless(exists $bam_contig{$contig})
-	    {
-		if ($contig=~/^chr/)
-		{
-		    $contig=~s/^chr//;
-		} else
-		{
-		    $contig=~s/^/chr/;
-		}
-
-		if (exists $bam_contig{$contig})
-		{
-		    $code=2;
-		} else
-		{
-		    $code=0;
-		    last;
-		}
-	    }
-	}
+	$code = &getChrCompareCode(\%bed_contig, \%bam_contig);
     } elsif ($type1 eq 'bam' && $type2 eq 'fasta' or $type1 eq 'fasta' && $type2 eq 'bam')
     {
 	#return 1 if all contigs in BAM show up in FASTA, return 2 if previous condition becomes true after removing 'chr' in contig name, otherwise return 0
@@ -1289,25 +1247,7 @@ sub compareChr
 
 	&chrNamingConsistencyCheck(keys %bam_contig);
 
-	for my $contig(keys %bam_contig) {
-	    unless(exists $fa_contig{$contig}) {
-		if ($contig=~/^chr/)
-		{
-		    $contig=~s/^chr//;
-		} else
-		{
-		    $contig=~s/^/chr/;
-		}
-		if (exists $fa_contig{$contig}) {
-		    warn "WARNING: inconsistent with chr: $contig and $fa_contig{$contig}\n";
-		    $code=2;
-		} else {
-		    warn "WARNING: $contig not found in builtin reference\n";
-		    $code=0;
-		    last;
-		}
-	    }
-	}
+	$code = &getChrCompareCode(\%bam_contig, \%fa_contig);
     } elsif ($type1 eq 'bam' && $type2 eq 'bam')
     {
 	#return 1 if all contigs match in both BAMs, return 2 if previous condition becomes true after removing 'chr' in one set of contig names, otherwise return 0
@@ -1320,52 +1260,40 @@ sub compareChr
 	&chrNamingConsistencyCheck(keys %bam_contig1);
 	&chrNamingConsistencyCheck(keys %bam_contig2);
 
-	for my $contig(keys %bam_contig1)
-	{
-	    unless(exists $bam_contig2{$contig})
-	    {
-		if ($contig=~/^chr/)
-		{
-		    $contig=~s/^chr//;
-		} else
-		{
-		    $contig=~s/^/chr/;
-		}
-		if (exists $bam_contig2{$contig})
-		{
-		    $code=2;
-		} else
-		{
-		    $code=0;
-		    last;
-		}
-	    }
+	$code = &getChrCompareCode(\%bam_contig1, \%bam_contig2);
+	if ($code != 0) {
+	    $code = &getChrCompareCode(\%bam_contig2, \%bam_contig1);
 	}
-	for my $contig(keys %bam_contig2)
-	{
-	    unless(exists $bam_contig1{$contig})
-	    {
-		if ($contig=~/^chr/)
-		{
-		    $contig=~s/^chr//;
-		} else
-		{
-		    $contig=~s/^/chr/;
-		}
-		if (exists $bam_contig1{$contig})
-		{
-		    $code=2;
-		} else
-		{
-		    $code=0;
-		    last;
-		}
-	    }
-	}
-    } else
-    {
+    } else {
 	die "ERROR: Unrecognized type for contig comparison: $type1,$type2\n";
     }
+    return $code;
+}
+sub getChrCompareCode {
+    #return 1 if all contigs match, return 2 if previous condition becomes true after removing 'chr' in one set of contig names, otherwise return 0
+    my $dict1 = shift;
+    my $dict2 = shift;
+    my $code = 1;
+
+    for my $contig(keys %{$dict1}) {
+	unless(exists $dict2->{$contig}) {
+	    if ($contig=~/^chr/) {
+		$contig=~s/^chrM/MT/;
+		$contig=~s/^chr//;
+	    }else {
+		$contig=~s/^/chr/;
+		$contig=~s/^chrMT/chrM/;
+	    }
+	    if (exists $dict2->{$contig}) {
+		$code=2;
+	    } else {
+		carp("WARNING: $contig not found in target\n");
+		$code=0;
+		last;
+	    }
+	}
+    }
+
     return $code;
 }
 
@@ -1381,6 +1309,7 @@ sub addOrRmChrInBED
 	my @f=@{$_};
 	if ($f[0]=~/^chr/)
 	{
+	    $f[0]=~s/^chrM/MT/;
 	    $f[0]=~s/^chr//;
 	    push @content,[$f[0],$f[1],$f[2]];
 	} else
@@ -1408,6 +1337,7 @@ sub addOrRmChrInBAM
 	{
 	    if (/SN:chr[^\t]+/)
 	    {
+		s/SN:chrM/SN:MT/;
 		s/SN:chr([^\t]+)/SN:$1/;
 	    } elsif (/SN:[^\t]+/)
 	    {
