@@ -832,7 +832,7 @@ sub venn {
     {
 	warn "NOTICE: VennDiagram not installed, now try to install it.\n";
 	&SeqMule::Utils::install_R_package($exe,"$install_dir/lib/VennDiagram_1.6.5.tar.gz",$rlibpath)
-	    or die "ERROR: Cannot install...\nPlease do it manually\n";
+	    or die "Cannot install VennDiagram: $!\nWARNING:Please do it manually\n";
 	$installed_packages=`$exe --vanilla -e 'installed.packages(lib.loc=c("$rlibpath",.libPaths()))'`;
     }
 
