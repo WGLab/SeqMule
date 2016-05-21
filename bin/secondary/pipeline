@@ -1898,7 +1898,11 @@ sub gen_cmd_for_variant_call_task
 	    if($filter_flag) {
 		#parent is all sibling VCFs from variant calling step
 		$new_vcf_obj->parent(@{$sibling_vcf[$j]});
-		map {$cmd.=" -vcf-part ".$_->file()} $new_vcf_obj->parent();
+		for my $p($new_vcf_obj->parent()) {
+		    $cmd.=" -vcf-part ".$p->file();
+		    #remove all but the first file
+		    push @script_unlink_list, $p->file() if $p->file() ne $local_vcf;
+		}
 		$msg .= " variant filtering";
 	    } else {
 		$new_vcf_obj->parent(@bam_obj);
