@@ -154,6 +154,8 @@ status=waiting
 The script file is written by Perl `Config::Tiny` module. There is a `SETTING_SECTION` specifying global settings. Global settings include total number of CPU cores (`CPUTOTAL`), logging folder (`LOGDIR`), total number of steps (`STEPTOTAL`), and version number (`VERSION`). The remaining sections consist of steps. One step is a section. In each section, there are a few fields specifying job ID, process ID, etc. This script is not meant to be changed by users. If you really want to, only modify the `command` field. The string enclosed by double quotes is the actual command that will be executed. Most of the commands will not make sense to users, because many internal wrappers are used. Shell metacharacters <strong>*$><&?;|`</strong> are not allowed.
 
 ### Run analysis with non-default genome
+
+#### FASTQ as input
 Suppose you want to carry out analysis using a custom reference genome `x.fa`. First you have to generate index files for it. For BWA, you can use the following command to generate a set of index files (both BWA and SAMtools can be found in `seqmule/exe` directory):
 ```
 bwa index x.fa
@@ -164,3 +166,10 @@ Then you can run SeqMule over the custom reference genome. Note, however, only B
 seqmule pipeline -a 1.fq.gz -b 2.fq.gz -ref x.fa -g -t 12 -p myGenome
 ```
 CAUTION: analysis with a custom genome can vary depending on the genome and therefore may run into unexpected problems.
+
+#### BAM as input
+If you do not need alignment while working with a custom reference genome, you do not need to generate index files for it. Index file checking can be skipped with `--no-check-idx` option.
+
+```
+seqmule pipeline --bam your.bam -prefix x -e -ref your_genome.fa -capture your.bed --no-check-idx
+```
