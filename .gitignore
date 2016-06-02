@@ -13,3 +13,5 @@ misc/other_scripts/*
 example_data/*
 testrun/*
 archive/
+du.out
+tmp/

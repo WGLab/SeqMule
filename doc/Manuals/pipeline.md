@@ -60,6 +60,8 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
         --no-check-chr            skip checking chromosome consistency. By default, SeqMule
                                   forces chromosomes in input to be consistent with builtin
                                   reference.
+        --no-check-idx            skip checking index files for aligners. This is recommended
+                                  when using non-default reference genome.
         --threads,-t <INT>        number of threads, also effective for -sge. Default: 1.
         --sge <TEXT>              run each command via Sun Grid Engine. A template with 
                                   XCPUX keyword required. See examples.

@@ -52,7 +52,7 @@ my (
     $merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
     $threads, $sge, $nodeCapacity, $quick, $jexe, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
-    $no_resolve_conflict,$no_check_chr,$overwrite,
+    $no_resolve_conflict,$no_check_chr, $no_check_aligner_index, $overwrite,
     $capture,$ref, $index_prefix, $bowtie_index_prefix, $bowtie2_index_prefix, 
     $soap_index_prefix, $hapmap, $dbsnp,  $dbsnpver,  $kg, $indel,
     $verbose, $help, 
@@ -136,6 +136,7 @@ GetOptions(
     'capture=s'		=>	\$capture,
     'no-resolve-conflict'=>	\$no_resolve_conflict,
     'no-check-chr'	=>	\$no_check_chr,
+    'no-check-idx'	=>	\$no_check_aligner_index,
     'ref=s'	        =>	\$ref,
     'index=s'	        =>	\$index_prefix,
     'bowtie=s'	        =>	\$bowtie_index_prefix,
@@ -1129,7 +1130,7 @@ sub gen_aligner_cmd {
 
     #check if all index files are present
 
-    (defined $local_ref and &index_check($aligner,$local_ref)) or die "ERROR: $aligner index file(s) missing ($local_ref)\n";
+    (defined $local_ref and &index_check($aligner,$local_ref)) or die "ERROR: $aligner index file(s) missing ($local_ref)\nConsider --no-check-idx if you use non-default reference genome.\n";
     warn "gen_aligner_cmd" if $debug;
     &check_obj(@obj_list) if $debug;
     for my $i(@obj_list) {
@@ -2512,6 +2513,9 @@ sub getExe {
 #check if index files exist                        
 sub index_check
 {
+    if ($no_check_aligner_index) {
+	return 1;
+    }
     my ($program,$prefix)=@_;
 
     if( $program=~/^soap$/i) {
@@ -2602,6 +2606,8 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 	--no-check-chr		  skip checking chromosome consistency. By default, SeqMule
 				  forces chromosomes in input to be consistent with builtin
 				  reference.
+        --no-check-idx		  skip checking index files for aligners. This is recommended
+				  when using non-default reference genome.
 	--threads,-t <INT>	  number of threads, also effective for -sge. Default: 1.
       	--sge <TEXT>		  run each command via Sun Grid Engine. A template with 
 				  XCPUX keyword required. See examples.
