@@ -155,7 +155,7 @@ The script file is written by Perl `Config::Tiny` module. There is a `SETTING_SE
 
 ### Run analysis with non-default genome
 
-* FASTQ as input
+#### FASTQ as input
 Suppose you want to carry out analysis using a custom reference genome `x.fa`. First you have to generate index files for it. For BWA, you can use the following command to generate a set of index files (both BWA and SAMtools can be found in `seqmule/exe` directory):
 ```
 bwa index x.fa
@@ -167,7 +167,7 @@ seqmule pipeline -a 1.fq.gz -b 2.fq.gz -ref x.fa -g -t 12 -p myGenome
 ```
 CAUTION: analysis with a custom genome can vary depending on the genome and therefore may run into unexpected problems.
 
-* BAM as input
+#### BAM as input
 If you do not need alignment while working with a custom reference genome, you do not need to generate index files for it. Index file checking can be skipped with `--no-check-idx` option.
 
 ```
