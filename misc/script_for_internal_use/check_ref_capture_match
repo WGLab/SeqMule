@@ -1,0 +1,78 @@
+#!/usr/bin/env perl
+
+#Copyright (C) <2012>  <Yunfei Guo>
+
+##This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+##This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+##You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use warnings;
+use strict;
+#use diagnostics;
+use FindBin qw/$RealBin/;
+use File::Spec;
+use lib File::Spec->catdir($RealBin,"..","..","lib");
+use Pod::Usage qw/pod2usage/;
+use Getopt::Long qw/GetOptions/;
+use File::Copy qw/copy move/;
+use File::Basename qw/basename dirname/;
+use SeqMule::Utils;
+use SeqMule::Parallel;
+use SeqMule::SeqUtils;
+
+warn "Usage: $0 [fix]\n";
+my $install_dir=File::Spec->catdir($RealBin,"..","..");
+my $count = 0;
+#iterate over all possible combinations of references and capture files
+for my $capture (glob "$install_dir/database/*/*.bed") {
+    warn "Examining $capture...\n";
+    my $buildver = $capture =~ /hg19/? "hg19" : "hg18";
+    &check_ref_capture($buildver, $install_dir, $capture);
+    $count++;
+}
+warn "$count capture files checked\n";
+if (@ARGV and $ARGV[0] eq 'fix') {
+    warn "\n\nNow start fixing capture files based on the reference\n";
+    $count = 0;
+    for my $capture (glob "$install_dir/database/*/*.bed") {
+	warn "Examining $capture...\n";
+	my $buildver = $capture =~ /hg19/? "hg19" : "hg18";
+	&fix_ref_capture($buildver, $install_dir, $capture);
+	$count++;
+    }
+    warn "$count capture files fixed\n";
+}
+#die upon mismatched reference and capture file
+sub check_ref_capture {
+    my $buildver = shift;
+    my $install_dir = shift;
+    my $capture = shift;
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",build=>$buildver,install_dir=>$install_dir});
+    my $chr_compare=&SeqMule::Utils::compareChr({	type1=>'fasta', file1=>$local_ref, type2=>'bed', file2=>$capture, });
+    warn "!!Not match: $local_ref, $capture\n" unless (defined $chr_compare) and $chr_compare == 1;
+}
+#die upon mismatched reference and capture file
+sub fix_ref_capture {
+    my $buildver = shift;
+    my $install_dir = shift;
+    my $capture = shift;
+    my $local_ref=&SeqMule::Utils::search_db({type=>"ref",build=>$buildver,install_dir=>$install_dir});
+    my $fix = "$capture.".(basename $local_ref).".fixed";
+    my %chr = &SeqMule::Utils::readFastaIdx("$local_ref.fai");
+    open OUT,'>',$fix or die "Failed to write to $fix: $!\n";
+    open IN,'<', $capture or die "Failed to read $capture: $!\n";
+    while (<IN>) {
+	print OUT and next if /^browser|^#|^track/;
+	my @f = split;
+#only retain records that appear in the reference
+	if (exists $chr{$f[0]}) {
+	    print OUT;
+	} else {
+	    next;
+	}
+    }
+    close IN;
+    close OUT;
+}
