@@ -66,6 +66,9 @@ sub db_down
 {
     my ($install_dir,$down,$downdir)=@_;
     my $db_dir=$downdir || File::Spec->catdir($install_dir,"database");
+    if (!-d $db_dir) {
+	mkdir $db_dir or die "ERROR: mkdir($db_dir) failed, $!\n";
+    }
     $db_dir=abs_path($db_dir);
     $down=lc $down;
 
