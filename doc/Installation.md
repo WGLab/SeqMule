@@ -10,6 +10,7 @@ If you successfully run SeqMule on other platforms or distributions, please emai
 + CentOS release 6.5 (Final)
 + Amazon Linux AMI release 2015.03
 + Ubuntu 12.04LTS
++ RHEL5.4
 
 ### Prerequisites
 
@@ -47,6 +48,8 @@ If you fail to install R on Centos, please run the following command.
 
 	rpm -Uvh http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
 	sudo yum install R     `
+
+Please check out Amjad's procedure for [installation](https://github.com/WGLab/SeqMule/issues/144).
 
 ####Install prerequisites, on Ubuntu
 
