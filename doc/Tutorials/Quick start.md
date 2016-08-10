@@ -2,7 +2,7 @@ After you have downloaded and installed SeqMule (assume in `seqmule` folder), th
 
 ## Example output
 
-Click [here](http://www.openbioinformatics.org/seqmule/example/trio_report/summary.html) to see what output report looks like.
+Click [here](http://www.openbioinformatics.org/seqmule/example/trio_report/summary.html) to see what output report looks like (if you want to reproduce the result, please use `misc/hg1X_exome.legacy.bed`).
 
 You can find an application example in my [poster](http://www.openbioinformatics.org/seqmule/SeqMule-ASHG-2012.pdf) at 2012 ASHG meeting.
 
