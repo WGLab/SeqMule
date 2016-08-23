@@ -216,4 +216,8 @@ patientX.0_bwamem.sort.rmdup.readfiltered.0_varscan.somatic-call.vcf
 ```
 `patientX` is your sample name. `0` is a number used internally. `bwamem` is the aligner. `sort` and `rmdup` mean the alignments have been sorted and duplicate reads have been removed after alignment. `varscan` is the variant caller. The `somatic-call` means the variants are generated under somatic variant calling mode. `extract` means the VCF file has been extracted based on the region definition by `-capture` option. `*.idx` file is VCF index, you can ignore it. `*_var_stat.txt` denotes variant statistics file. If you have multiple variant callers and enabled consensus variant calling, then `consensus` will appear in the file name. Usually, `consensus` or `extract` will be the file you want to use.
 
+### Which file is used as default argument for `--advanced`?
+
+`misc/advanced_config` is the default advanced configuration file, it enables BWA-MEM, GATKLite, SAMtools, and FreeBayes. Please refer to the file for detailed parameters and steps.
+
 Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
