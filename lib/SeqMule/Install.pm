@@ -923,7 +923,7 @@ sub status
     "	./Build picard		#installs Picard tools\n".
     "	./Build soapsnp		#installs SOAPsnp tools\n".
     "	./Build tabix		#installs tabix\n".
-    "	./Build snver		#installs snver\n".
+    #"	./Build snver		#installs snver\n".
     "	./Build snap		#installs SNAP\n".
     "	./Build freebayes	#installs freebayes\n".
     "	./Build vcftools	#installs vcftools\n".
