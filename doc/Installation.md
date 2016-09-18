@@ -54,7 +54,7 @@ Please check out Amjad's procedure for [installation](https://github.com/WGLab/S
 ####Install prerequisites, on Ubuntu
 
 	sudo apt-get update
-	sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar
+	sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar default-jre
 
 ####SOAPsnp installation failure
 

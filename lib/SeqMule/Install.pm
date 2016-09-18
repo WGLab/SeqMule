@@ -22,7 +22,7 @@ sudo yum install -y make cmake gcc gcc-c++ ncurses-devel ncurses R unzip automak
 
 To install prerequisites, on Ubuntu, run:
 sudo apt-get update
-sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar
+sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar default-jre
 #for java, please follow instructions on http://java.com
 ";
 
