@@ -1,4 +1,4 @@
-![SeqMule](/img/seqmule.png)
+![SeqMule](doc/img/seqmule.png)
 # SeqMule: Automated human exome/genome variants detection
 
 SeqMule takes single-end or paird-end FASTQ or BAM files, generates a script consisting of more than 10 popular alignment, analysis tools and runs the script line by line. Users can change the pipeline or fine-tune the parameters by modifying its configuration file. SeqMule also has some built-in functions, such as pooling consensus calls from various callers, plotting a Venn diagram showing intersection among different callers, and downloading databases. SeqMule can be used for both Mendelian disease study and cancer genome study.
@@ -55,7 +55,7 @@ For release history, please visit [here](https://github.com/WGLab/SeqMule/releas
 
 ## Contact
 
-For questions/bugs/issues, please post on [GitHub](https://github.com/WGLab/SeqMule/issues). In general, please do NOT send questions to `yunfeigu@usc.edu`. Your question may be very likely to help other users.
+For questions/bugs/issues, please post on [GitHub](https://github.com/WGLab/SeqMule/issues). In general, please do NOT send questions to our email. Your question may be very likely to help other users.
 
 Please join [SeqMule-dev](https://groups.google.com/forum/#!forum/seqmule-dev) for updates.
 
@@ -67,8 +67,8 @@ Guo Y, Ding X, Shen Y, Lyon GJ, Wang K. [SeqMule: automated human exome/genome v
 
 * [SeqMule Homepage](http://seqmule.openbioinformatics.org)
 
-* [Wang Genomics Lab Homepage](http://genomics.usc.edu)
+* [Wang Genomics Lab Homepage](http://wglab.org)
 
 
 
-Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
+Copyright 2014-2016 [USC Wang Lab](http://wglab.org)
