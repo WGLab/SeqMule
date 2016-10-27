@@ -421,7 +421,7 @@ sub procFQ {
 		    'file'	=> $file,
 		    'filetype'	=> 'FASTQ',
 		    'sample'	=> $prefix_list[$i],
-		    'rgid'	=> $readgroup[$i],
+		    'rg'	=> $readgroup[$i],
 		    'lb'	=> $library[$i],
 		    'pl'    	=> $platform[$i],
 		    'rank'	=> $k,
