@@ -2,7 +2,6 @@
 set -e
 #checkout latest source code, package it, upload it to website
 
-cd /home/yunfeiguo/projects/SeqMule/misc/
 wget https://github.com/WGLab/SeqMule/archive/master.zip -O master.zip
 unzip master.zip
 rm master.zip
