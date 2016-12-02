@@ -442,7 +442,7 @@ sub run_gatk_combine_var
 	for my $local_vcf(@per_sample_vcf)
 	{
 	    my $local_out = File::Spec->catfile($tmpdir,$sample.$$.rand($$).".".(basename $local_vcf));
-	    !system("$jexe -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l ERROR ") or die "ERROR: Failed to split VCF by sample\n";
+	    !system("$jexe -Xmx$jmem -jar $gatk -T SelectVariants -R $ref -sn $sample -V $local_vcf -o $local_out -U LENIENT_VCF_PROCESSING -l INFO ") or die "ERROR: Failed to split VCF by sample\n";
 	    my $local_out_nomissing = File::Spec->catfile($tmpdir,$sample.$$.rand($$).".".(basename $local_vcf));
 	    #records with missing genotype cannot be handled correctly
 	    !system("grep -v '\\.\\/\\.' $local_out > $local_out_nomissing") or die "ERROR: failed to generate single-sample VCF that doesn't missing genotypes ($!).\n";
