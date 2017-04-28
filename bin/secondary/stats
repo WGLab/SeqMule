@@ -1067,6 +1067,7 @@ sub genPlot {
 	}
     }\n";
 
+    $rscript.="if(capabilities()[which(attr(capabilities(),'names')=='tiff')]){\n";
     #high resolution tiff output
     if ($count==5) {
 	$rscript.="
@@ -1081,6 +1082,7 @@ sub genPlot {
 	venn.diagram(y,fill=rainbow(length(y)),filename='$tiff',na=\"remove\",cex=1,main=title,main.cex=0.7,main.pos=c(0.5,1.2),main.just=c(0,1),ext.dist=0,ext.length=0.9)
 	";
     }
+    $rscript.="\n}";
 #jpeg output for html report
     if ($count==5) {
 	$rscript.="
@@ -1109,7 +1111,7 @@ sub genPlot {
     chmod 0755,$rfile;
     die "ERROR: Execution failed, please run $rfile manually\n" if system("$exe --vanilla $rfile 1>&2");
     push @gunlink,$rfile;
-    warn "NOTICE: Venn Digram plotted to $tiff and $jpg\n";
+    warn "NOTICE: Venn Digram plotted to $tiff (if supported) and $jpg\n";
 }
 
 #convert files to annovar input format for easy handling
