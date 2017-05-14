@@ -4,13 +4,16 @@ x86-64 Linux
 
 #### Tested Linux distributions
 
-If you successfully run SeqMule on other platforms or distributions, please email [me](mailto:yunfeigu@usc.edu).
+If you successfully run SeqMule on other platforms or distributions, please email [me](mailto:guoyunfei1989@gmail.com).
 
++ CentOS release 7.2.1511 (Core) via Docker 1.12.6 (build 3a094bd/1.12.6)
 + CentOS release 6.6 (Final)
 + CentOS release 6.5 (Final)
 + Amazon Linux AMI release 2015.03
 + Ubuntu 12.04LTS
 + RHEL5.4
+
+Many thanks to Amet Umerov.
 
 ### Prerequisites
 
