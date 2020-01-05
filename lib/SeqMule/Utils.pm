@@ -3,6 +3,7 @@ package SeqMule::Utils;
 use strict;
 use warnings;
 use POSIX;
+use English qw" -no_match_vars ";
 use File::Copy;
 use File::Path;
 use File::Find qw/find/;
@@ -228,8 +229,13 @@ sub extract_archive {
 	elsif ($file=~/\.tar$/) {
 	    $command = "tar -xm -f $file";
 	}
-	$command .= " --owner $u --group $g";
-	$command .= " --overwrite";
+	if ($OSNAME eq "darwin") {
+	    $command .= " --no-same-owner ";
+	    $command .= " --no-same-permissions ";
+	} else {
+	    $command .= " --owner $u --group $g";
+	    $command .= " --overwrite";
+    }
 	
 	my $result=!system($command);
 	chdir($cwd);
