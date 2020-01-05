@@ -318,8 +318,12 @@ sub reportParam {
     warn "NOTICE: Sequencing platform: $pl\n";
     warn "NOTICE: Library : $lb\n";
     warn "NOTICE: Phred scoring scheme : $phred\n" if $normal_fq1;
-    warn "NOTICE: Reference genome build is $buildver\n";
-    warn "NOTICE: dbsnp$dbsnpver will be used for variant calling and recalibration.\n";
+	if ($ref) {
+    	warn "NOTICE: Reference genome is $ref\n";
+	} else {
+    	warn "NOTICE: Reference genome build is $buildver\n";
+    }
+    warn "NOTICE: if enabled, dbsnp$dbsnpver will be used for variant calling and recalibration.\n";
     warn "NOTICE: Java memory usage is limited to $java_mem\n";
     warn "NOTICE: java executable path: $jexe\n" if $jexe;
     warn "NOTICE: Max number of processes: $threads\n";
