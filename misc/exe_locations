@@ -18,4 +18,4 @@ snver	http://www.openbioinformatics.org/seqmule/exe/SNVer-0.5.3.tar.gz
 freebayes	http://www.openbioinformatics.org/seqmule/exe/freebayes_0.9.14.tar.gz
 snap	http://www.openbioinformatics.org/seqmule/exe/snap_1.0beta.16.zip
 vt	http://www.openbioinformatics.org/seqmule/exe/vt-ed6bc9e.zip
-jdk8	http://www.openbioinformatics.org/seqmule/exe/vt-ed6bc9e.zip
+jdk8	http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.tar.gz
