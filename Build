@@ -48,7 +48,7 @@ my %exe_require=( #core executables for each program
 		'freebayes'	=> ['freebayes'],
 		'snap'		=> ['snap'],
 		'vt'		=> ['vt'],
-		#'snver'	=> ['SNVerIndividual.jar'],
+		'jdk8'		=> ['java'],
 );
 my %opt_action=(
 		'status'	=> \&SeqMule::Install::status,
@@ -74,7 +74,7 @@ my %opt_action=(
 		'freebayes'	=> \&SeqMule::Install::freebayes,
 		'snap'		=> \&SeqMule::Install::snap,
 		'vt'		=> \&SeqMule::Install::vt,
-		#'snver'	=> \&SeqMule::Install::snver,
+		'jdk8'		=> \&SeqMule::Install::jdk8,
 );
 
 #user input

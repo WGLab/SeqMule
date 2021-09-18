@@ -470,6 +470,35 @@ sub snver
     warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
+sub jdk8
+{
+    my $install_dir=shift;
+    my $exe_loc = shift;
+    my $exe_base="$install_dir/exe";
+    mkdir $exe_base unless -d $exe_base;
+    my $exe='jdk8';
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
+    my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
+    my $url = $exe_locations{$exe};
+    my $executable="$exe_base/$exe/bin/java";
+    my $cwd=cwd();
+
+    &rm_file($file);
+    &sys_rmdir("$exe_base/$exe");
+    print "Downloading $exe...\n";
+    !system("wget -O- --no-check-certificate --no-cookies --header 'Cookie: oraclelicense=accept-securebackup-cookie' $url > $file") or return &downfail($exe,$url);
+    print "Unpacking $exe archive...\n";
+    &SeqMule::Utils::extract_archive($file,$exe_base) or return &unpackfail($file); #feed extract_archive full path to zipped file
+    push(@unlink, $file);
+
+    chdir($exe_base);
+    my $dir = "jdk1.8.0_131"; #dir got after unpacking
+    &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    chmod 0755,$executable or return &chmodfail($executable);
+    die "Failed to find executables for $exe\n" unless (-f $executable);
+    warn "\nNOTICE: Finished installing $exe\n";
+    chdir($cwd);
+}
 
 sub picard
 {
@@ -923,7 +952,7 @@ sub status
     "	./Build picard		#installs Picard tools\n".
     "	./Build soapsnp		#installs SOAPsnp tools\n".
     "	./Build tabix		#installs tabix\n".
-    #"	./Build snver		#installs snver\n".
+    "	./Build jdk8		#installs JDK8\n".
     "	./Build snap		#installs SNAP\n".
     "	./Build freebayes	#installs freebayes\n".
     "	./Build vcftools	#installs vcftools\n".
