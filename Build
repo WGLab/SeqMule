@@ -29,6 +29,7 @@ my %sys_require=( #system-wide executables required
 		'git'		=> ['git'],
 		'gzip'		=> ['gzip','gunzip'],
 		'tar'		=> ['tar'],
+		'java1.7'      => ['java'],
 );
 my %exe_require=( #core executables for each program
 		'fastqc' 	=> ['fastqc'],
@@ -47,7 +48,7 @@ my %exe_require=( #core executables for each program
 		'freebayes'	=> ['freebayes'],
 		'snap'		=> ['snap'],
 		'vt'		=> ['vt'],
-		'jdk8'		=> ['java'],
+		'jdk8'		=> ['java8'],
 );
 my %opt_action=(
 		'status'	=> \&SeqMule::Install::status,

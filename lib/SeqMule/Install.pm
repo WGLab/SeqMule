@@ -500,6 +500,8 @@ sub jdk8
     my $dir = "jdk1.8.0_131"; #dir got after unpacking
     &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
     chmod 0755,$executable or return &chmodfail($executable);
+	rename($executable, "${executable}8") or die "Failed to rename java to java8";
+	$executable = "${executable}8";
     die "Failed to find executables for $exe\n" unless (-f $executable);
     warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
