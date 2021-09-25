@@ -67,7 +67,6 @@ my %opt_action=(
 		'soap'		=> \&SeqMule::Install::soap,
 		'varscan' 	=> \&SeqMule::Install::varscan,
 		'tabix'		=> \&SeqMule::Install::tabix,
-		'java' 		=> \&SeqMule::Install::java,
 		'soapsnp' 	=> \&SeqMule::Install::soapsnp,
 		'vcftools'	=> \&SeqMule::Install::vcftools,
 		'freebayes'	=> \&SeqMule::Install::freebayes,
