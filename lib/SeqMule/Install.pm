@@ -649,7 +649,7 @@ sub msort
     my $dir = "msort"; #dir got after unpacking
     chdir("$exe_base/$dir");
     warn "Configuring $exe...\n";
-    !system("make") and -f $executable or return &makefail ($exe);
+    !system("make CPPFLAGS=\"\$\{CPPFLAGS\} -fpermissive\"") and -f $executable or return &makefail ($exe);
     warn "NOTICE: \nNOTICE: Finished installing accessoary program: $exe\n";
     chdir($cwd);
 }
