@@ -390,22 +390,34 @@ sub samtools
     warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
-sub gatk
+sub gatk4
 {
     my $install_dir=shift;
     my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
-    my $exe='gatk';
-    my $executable="GenomeAnalysisTK.jar";
+    my $exe='gatk4';
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
+    my $file = "$install_dir/exe/gatk-4.2.2.0.zip"; #file to save to
+    my $url = $exe_locations{$exe};
+    my $executable="gatk-package-4.2.2.0-local.jar";
+    my $cwd=cwd();
+
+    &rm_file($file);
+    &sys_rmdir("$exe_base/$exe");
     mkdir "$exe_base/$exe";
-    warn "\n\n\n";
-    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
-    warn "CAUTION: SeqMule cannot automatically install GATK due to license limitations.\n",
-         "Please download, unpack it and copy $executable to $exe_base/$exe\n";
-    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
-    warn "\n\n\n";
-    sleep 5;
+    print "Downloading $exe...\n";
+    &SeqMule::Utils::getstore($url, $file) or return &downfail($exe,$url);
+    print "Unpacking $exe archive...\n";
+    &SeqMule::Utils::extract_archive($file,$exe_base) or return &unpackfail($file); #feed extract_archive full path to zipped file
+    push(@unlink, $file);
+
+    chdir($exe_base);
+    my ($dir) = grep {-d $_} <gatk-4.*>; #dir got after unpacking
+    &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    die "Failed to find executables for $exe\n" unless (-f "$exe_base/$exe/$executable");
+    warn "\nNOTICE: Finished installing $exe\n";
+    chdir($cwd);
 }
 
 sub gatklite
@@ -940,7 +952,7 @@ sub status
     "	./Build soap		#installs SOAPaligner\n".
     "	./Build samtools	#installs SAMtools\n". 
     "	./Build gatklite	#installs GATKLite \n".
-    "	./Build gatk		#instruction for GATK setup\n".
+    "	./Build gatk4		#instruction for GATK setup\n".
     "	./Build varscan		#installs VarScan  (variant calling)\n".
     "	./Build picard		#installs Picard tools\n".
     "	./Build soapsnp		#installs SOAPsnp tools\n".
