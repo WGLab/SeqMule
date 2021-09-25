@@ -75,6 +75,7 @@ push @cmd,$cmd;
 
 push @cmd,"rm -rf $interval_file";
 push @cmd,"$samtools index $out";
+warn("Executing:", join("\n", @cmd));
 my $script = &SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 #------------------------------------------------------------

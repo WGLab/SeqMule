@@ -57,11 +57,11 @@ my @cmd;
 
     if ($internal_caller eq 'haplotypecaller')
     {
-	$cmd.=" -T HaplotypeCaller";
+	$cmd.=" HaplotypeCaller";
         $cmd.=" $options{HCadditional} " if $options{HCadditional} ne '';
     } elsif ($internal_caller eq 'unifiedgenotyper')
     {
-	$cmd.=" -T UnifiedGenotyper --genotype_likelihoods_model BOTH";
+	$cmd.=" UnifiedGenotyper --genotype_likelihoods_model BOTH";
         $cmd.=" $options{UGadditional} " if $options{UGadditional} ne '';
     }
 
