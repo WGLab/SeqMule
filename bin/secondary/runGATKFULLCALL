@@ -49,7 +49,6 @@ if ($internal_caller ne 'haplotypecaller' && $internal_caller ne 'unifiedgenotyp
 
 my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
 my @cmd;
-
 {
     my $cmd;
 
@@ -79,11 +78,16 @@ my @cmd;
     }
     $cmd.=" --output $vcf";
     $cmd.=" -L $capture" if $capture;
+    if (defined $options{annotations})
+    {
+        map { $cmd.=" --annotation $_" } (split ',',$options{annotations});
+    }
     push @cmd,$cmd;
 }
 
 
 #generate shell script and run
+warn("Executing:", join("\n", @cmd));
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 
