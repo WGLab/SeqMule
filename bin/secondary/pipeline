@@ -51,7 +51,7 @@ my (
     $normal_fq1,$normal_fq2,$normal_bam,$tumor_fq1,$tumor_fq2,$tumor_bam,
     $merge,$mergingrule,$multi_sample_calling,$minN,
     $buildver, $pl, $rg, $lb, $phred, $wes, $wgs, $force_one_rg,$union_rg,
-    $threads, $sge, $nodeCapacity, $quick, $jexe, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
+    $threads, $sge, $nodeCapacity, $quick, $jexe, $j8exe, $java_mem, $tmpdir, $gatk_nt, $advanced,$norun,$nostat,$noremove,$force_rm_dup,
     $no_resolve_conflict,$no_check_chr, $no_check_aligner_index, $overwrite,
     $capture,$ref, $index_prefix, $bowtie_index_prefix, $bowtie2_index_prefix, 
     $soap_index_prefix, $hapmap, $dbsnp,  $dbsnpver,  $kg, $indel,
@@ -124,6 +124,7 @@ GetOptions(
     'quick|q'		=>	\$quick,
     'jmem=s'		=>	\$java_mem,
     'jexe=s'		=>	\$jexe,
+    'j8exe=s'		=>	\$jexe,
     'tmpdir=s'		=>	\$tmpdir,
     'gatknt=i'		=>	\$gatk_nt,
     'advanced:s'	=>	\$advanced,
@@ -224,6 +225,8 @@ sub procGlobalConf {
 	{ $java_mem=$java_mem || $value;
 	} elsif ($key=~/_jexe=/)
 	{ $jexe=$jexe || $value;
+	} elsif ($key=~/_j8exe=/)
+	{ $j8exe=$j8exe || $value;
 	}elsif ($key=~/_gatknt=/){
 	    $gatk_nt=$gatk_nt || $value;
 	}elsif ($key=~/_platform=/i) {
@@ -326,6 +329,7 @@ sub reportParam {
     warn "NOTICE: if enabled, dbsnp$dbsnpver will be used for variant calling and recalibration.\n";
     warn "NOTICE: Java memory usage is limited to $java_mem\n";
     warn "NOTICE: java executable path: $jexe\n" if $jexe;
+    warn "NOTICE: java8 executable path: $j8exe\n" if $j8exe;
     warn "NOTICE: Max number of processes: $threads\n";
     warn "NOTICE: Variants shared by at least $minN combinations of aligners and callers will be printed.\n" if $minN;
     warn "NOTICE: Variant calling will be run in parallel mode [EXPERIMENTAL].\n" if $quick;
@@ -364,6 +368,7 @@ sub writeLog {
     print LOG "dbsnp$dbsnpver is used for variant calling and recalibration (in GATK VQSR).\n";
     print LOG "Java memory usage is limited to $java_mem\n";
     print LOG "java executable path: $jexe\n" if $jexe;
+    print LOG "java executable path: $j8exe\n" if $j8exe;
     print LOG "Max number of processes: $total_threads\n";
     print LOG "Variant calling are run in parallel mode [EXPERIMENTAL].\n" if $quick;
     print LOG "NOTICE: $TMPDIR will be used for storing temporary files\n";
@@ -1496,9 +1501,11 @@ sub gen_gatk_realign_recal_cmd {
     my $local_dbsnp=&SeqMule::Utils::search_db({type=>"dbsnp",target=>$dbsnp,build=>$buildver,version=>$dbsnpver,install_dir=>$install_dir});
     my $run_gatk;
     my @newbam_obj_list;
+	my $java;
 
     if($version eq 'gatklite') {
 	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatklite"));
+	$java = $jexe;
 	if($operation eq 'realn') {
 	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKLITEREALN");
 	} elsif ($operation eq 'recal') {
@@ -1508,6 +1515,7 @@ sub gen_gatk_realign_recal_cmd {
 	}
     } elsif ($version eq 'gatkfull') {
 	$exe = &getExe(&SeqMule::Utils::getProgramExe("gatk"));
+	$java = $j8exe;
 	if($operation eq 'realn') {
 	    $run_gatk = File::Spec->catfile($install_dir,"bin","secondary","runGATKFULLREALN");
 
@@ -1520,7 +1528,7 @@ sub gen_gatk_realign_recal_cmd {
 	die "ERROR: unknown GATK version: $version\n";
     }
 
-    my $cmd_common ="$run_gatk -advanced $advanced -n $n -ref $local_ref -java $jexe -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+    my $cmd_common ="$run_gatk -advanced $advanced -n $n -ref $local_ref -java $java -jmem $java_mem -gatk $exe -threads $threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
     $cmd_common .= " -bed $capture" if $wes;
     $cmd_common .= " -goldindel $local_indel " if $local_indel;
     $cmd_common .= " -dbsnp $local_dbsnp " if $local_dbsnp;
@@ -1620,8 +1628,8 @@ sub gatk_full {
 	    }
 	}
 
-	my $cmd_common_call="$runGATKCMDCALL -internal-caller $subprogram -advanced $advanced -n $n -ref $local_ref -java $jexe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
-	my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $subprogram -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $jexe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
+	my $cmd_common_call="$runGATKCMDCALL -internal-caller $subprogram -advanced $advanced -n $n -ref $local_ref -java $j8exe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt -tmpdir $TMPDIR ";
+	my $cmd_common_filter="$runGATKCMDFILTER -internal-caller $subprogram -advanced $advanced -n $n -gatk-hfilter-size $GATK_HARD_FILTER_BAM_SIZE  -gatk-indelfilter-size $GATK_INDEL_HARD_FILTER_BAM_SIZE -ref $local_ref -hapmap $local_hapmap -kg $local_kg  -dbsnp $local_dbsnp -goldindel $local_indel -java $j8exe -jmem $java_mem -gatk $exe -threads $local_threads -gatk-nt $gatk_nt --tmpdir $TMPDIR ";
 
 	warn "CAUTION: GATK variant recalibration annotation options will not be examined for syntax\n" if $options{annotations} ne "";
 	warn "CAUTION: SOAPaligner output might not be able to be processed by GATK UnifiedGenotyper.\n" and sleep 1 if (grep { /soap/ } &get_aligner);
@@ -2434,6 +2442,7 @@ sub assignDefault {
     $threads=$threads || 1;
     $java_mem=$java_mem || '1750m';
     $jexe = $jexe || 'java';
+    $j8exe = $j8exe || 'java8';
     $gatk_nt=$gatk_nt || 2;
     $pl=$pl || 'ILLUMINA';
     $phred=$phred || 1;
@@ -2619,7 +2628,8 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
 				  Default: unlimited.
 	--quick,-q		  enable parallel processing at variant calling
 	--jmem <STRING>		  max memory used for java virtual machine. Default: 1750m.
-	--jexe <STRING>		  Java executable path. Default: java
+	--jexe <STRING>		  Java1.7 executable path. Default: java
+	--j8exe <STRING>	  Java1.8 executable path. Default: java8
 	--gatknt <INT>		  number of threads for GATK. Prevent GATK from opening 
 				  too many files. Default: 2.
 	--advanced [FILE]	  generate or use an advanced configuration file

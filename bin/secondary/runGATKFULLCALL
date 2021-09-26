@@ -49,7 +49,6 @@ if ($internal_caller ne 'haplotypecaller' && $internal_caller ne 'unifiedgenotyp
 
 my $nt=&SeqMule::Utils::get_gatk_nt($local_threads,$gatk_nt);
 my @cmd;
-
 {
     my $cmd;
 
@@ -57,11 +56,11 @@ my @cmd;
 
     if ($internal_caller eq 'haplotypecaller')
     {
-	$cmd.=" -T HaplotypeCaller";
+	$cmd.=" HaplotypeCaller";
         $cmd.=" $options{HCadditional} " if $options{HCadditional} ne '';
     } elsif ($internal_caller eq 'unifiedgenotyper')
     {
-	$cmd.=" -T UnifiedGenotyper --genotype_likelihoods_model BOTH";
+	$cmd.=" UnifiedGenotyper --genotype_likelihoods_model BOTH";
         $cmd.=" $options{UGadditional} " if $options{UGadditional} ne '';
     }
 
@@ -71,19 +70,24 @@ my @cmd;
     {
 	if ($internal_caller eq 'haplotypecaller')
 	{
-	    $cmd.=" -nct $nt";
+	    $cmd.=" --native-pair-hmm-threads $nt";
 	} else
 	{
 	    $cmd.=" -nt $nt";
 	}
     }
-    $cmd.=" -o $vcf";
+    $cmd.=" --output $vcf";
     $cmd.=" -L $capture" if $capture;
+    if (defined $options{annotations})
+    {
+        map { $cmd.=" --annotation $_" } (split ',',$options{annotations});
+    }
     push @cmd,$cmd;
 }
 
 
 #generate shell script and run
+warn("Executing:", join("\n", @cmd));
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 

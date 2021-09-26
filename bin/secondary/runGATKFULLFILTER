@@ -88,9 +88,9 @@ my @cmd;
 
 if (@vcf_part && @vcf_part>1) {
     #if multiple input VCF, combine them first
-    my $cmd="$java_opt -T CombineVariants -R $ref --genotypemergeoption UNSORTED ";
-    map {$cmd.=" --variant $_ " } @vcf_part;
-    $cmd.=" -o $vcf_unfiltered ".($capture? " -L $capture":"");
+    my $cmd="$java_opt MergeVcfs -R $ref ";
+    map {$cmd.=" --INPUT $_ " } @vcf_part;
+    $cmd.=" -O $vcf_unfiltered ";
     push @cmd,$cmd;
 } elsif(@vcf_part == 1) {
     push @cmd,"cp $vcf_part[0] $vcf_unfiltered";
@@ -99,9 +99,10 @@ if (@vcf_part && @vcf_part>1) {
 }
 if ($options{filter}==1) {
 #split SNP and INDEL
-    push @cmd, "$java_opt -T SelectVariants -R $ref --variant $vcf_unfiltered -o $indel -selectType INDEL".($capture? " -L $capture":"");
+    push @cmd, "$java_opt IndexFeatureFile --input ${vcf_unfiltered}";
+    push @cmd, "$java_opt SelectVariants -R $ref --variant ${vcf_unfiltered} --output $indel --select-type-to-include INDEL".($capture? " -L $capture":"");
 
-    push @cmd,"$java_opt -T SelectVariants -R $ref --variant $vcf_unfiltered -o $snp -selectType SNP".($capture? " -L $capture":"");
+    push @cmd,"$java_opt SelectVariants -R $ref --variant ${vcf_unfiltered} --output $snp --select-type-to-include SNP".($capture? " -L $capture":"");
 #VQSR and filtering
 
     #SNP
@@ -109,31 +110,30 @@ if ($options{filter}==1) {
     if (not $options{forceSNPHardFilter} and (&SeqMule::Utils::get_bam_size(@bam)>$gatk_hard_filter_bam_size or $options{forceSNPVQSR})) {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
-	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $snp";
-	$cmd.=" --maxGaussians $options{maxGaussians}" if $options{maxGaussians};
-	$cmd.=" --minNumBadVariants $options{numBadVariants}" if $options{numBadVariants};
+	$cmd.="$java_opt VariantRecalibrator -R $ref --variant $snp";
+	$cmd.=" --max-gaussians $options{maxGaussians}" if $options{maxGaussians};
+	$cmd.=" --minimum-bad-variants $options{numBadVariants}" if $options{numBadVariants};
 	if (defined $options{annotations})
 	{
 	    map { $cmd.=" -an $_" } (split ',',$options{annotations});
 	}
 #existence of various db has been checked
-	$cmd.=" -resource:hapmap,known=false,training=true,truth=true,prior=15.0 $hapmap -resource:omni,known=false,training=true,truth=false,prior=12.0 $kg -resource:dbsnp,known=true,training=false,truth=false,prior=6.0 $dbsnp -mode SNP -recalFile $recal_file -tranchesFile $tranches";
-	$cmd.=" -nt $nt" if $nt > 1;
+	$cmd.=" --resource:hapmap,known=false,training=true,truth=true,prior=15.0 $hapmap --resource:omni,known=false,training=true,truth=false,prior=12.0 $kg --resource:dbsnp,known=true,training=false,truth=false,prior=6.0 $dbsnp --mode SNP --output $recal_file --tranches-file $tranches";
 
-	$cmd.=" -rscriptFile $plots";
+	$cmd.=" --rscript-file $plots";
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
 
-	$cmd.="$java_opt -T ApplyRecalibration -R $ref -input $snp -tranchesFile $tranches -recalFile $recal_file";
-	$cmd.=" --ts_filter_level $options{snptsfilter}" if $options{snptsfilter};
-	$cmd.=" -o $snp_filter";
+	$cmd.="$java_opt ApplyVQSR -R $ref --variant $snp --tranches-file $tranches --recal-file $recal_file";
+	$cmd.=" --truth-sensitivity-filter-level $options{snptsfilter}" if $options{snptsfilter};
+	$cmd.=" --output $snp_filter";
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
     } else
     {
 	warn "NOTICE:BAM input for GATK VQSR is too small, use hard filtering for SNPs instead.\n";
 	my $cmd;
-	$cmd.="$java_opt -T VariantFiltration -R $ref --variant $snp";
+	$cmd.="$java_opt VariantFiltration -R $ref --variant $snp";
 	if ($options{snpfilters})
 	{
 	    for my $filter(split ';',$options{snpfilters})
@@ -141,12 +141,12 @@ if ($options{filter}==1) {
 		my ($filtername,$filterexp)=split ',',$filter;
 		if ($filtername && $filterexp)
 		{
-		    $cmd.=" --filterExpression '$filterexp' --filterName $filtername";#single quote is necessary
+		    $cmd.=" --filter-expression '$filterexp' --filter-name $filtername";#single quote is necessary
 		}
 	    }
 	}
 
-	$cmd.=" -o $snp_filter";
+	$cmd.=" --output $snp_filter";
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;
     }
@@ -158,51 +158,51 @@ if ($options{filter}==1) {
     {
 	#if size is big enough, do VQSR otherwise hard filtering
 	my $cmd;
-	$cmd.="$java_opt -T VariantRecalibrator -R $ref -input $indel";
-	$cmd.=" --maxGaussians $options{indelMaxGaussians}" if $options{indelMaxGaussians};
-	$cmd.=" --minNumBadVariants $options{indelNumBadVariants}" if $options{indelNumBadVariants};
+	$cmd.="$java_opt VariantRecalibrator -R $ref --variant $indel";
+	$cmd.=" --max-gaussians $options{indelMaxGaussians}" if $options{indelMaxGaussians};
+	$cmd.=" --minimum--bad-variants $options{indelNumBadVariants}" if $options{indelNumBadVariants};
 	if (defined $options{indelAnnotations})
 	{
 	    map { $cmd.=" -an $_" } (split ',',$options{indelAnnotations});
 	}
 #existence of various db has been checked
-	$cmd.=" -resource:mills,known=true,training=true,truth=true,prior=12.0 $goldindel -mode INDEL -recalFile $indel_recal_file -tranchesFile $indel_tranches";
-	$cmd.="  -tranche 100.0 -tranche 99.9 -tranche 99.0 -tranche 90.0 ";
-	$cmd.=" -nt $nt" if $nt > 1;
+	$cmd.=" --resource:mills,known=true,training=true,truth=true,prior=12.0 $goldindel --mode INDEL --output $indel_recal_file --tranches-file $indel_tranches";
+	$cmd.="  --truth-sensitivity-tranche 100.0 --truth-sensitivity-tranche 99.9 --truth-sensitivity-tranche 99.0 --truth-sensitivity-tranche 90.0 ";
 
-	$cmd.=" -rscriptFile $indel_plots";
+	$cmd.=" --rscript-file $indel_plots";
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
 
-	$cmd.="$java_opt -T ApplyRecalibration -R $ref -input $indel -tranchesFile $indel_tranches -recalFile $indel_recal_file";
-	$cmd.=" --ts_filter_level $options{indeltsfilter}" if $options{indeltsfilter};
-	$cmd.=" -o $indel_filter";
+	$cmd.="$java_opt ApplyVQSR -R $ref --variant $indel --tranches-file $indel_tranches --recal-file $indel_recal_file";
+	$cmd.=" --truth-sensitivity-filter-level $options{indeltsfilter}" if $options{indeltsfilter};
+	$cmd.=" --output $indel_filter";
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;$cmd="";
     } else
     {
 	warn "NOTICE:BAM input for GATK VQSR is too small, use hard filtering for Indels instead.\n";
 	my $cmd;
-	$cmd.="$java_opt -T VariantFiltration -R $ref --variant $indel";
-	$cmd.=" --clusterWindowSize $options{clusterWindowSize}" if $options{clusterWindowSize};
+	$cmd.="$java_opt VariantFiltration -R $ref --variant $indel";
+	$cmd.=" --cluster-window-size $options{clusterWindowSize}" if $options{clusterWindowSize};
 	if ($options{indelfilters}) {
 	    for my $filter(split ';',$options{indelfilters}) {
 		my ($filtername,$filterexp)=split ',',$filter;
 		if ($filtername && $filterexp) {
-		    $cmd.=" --filterName $filtername --filterExpression '$filterexp'"; #single quote is necessary
+		    $cmd.=" --filter-name $filtername --filter-expression '$filterexp'"; #single quote is necessary
 		}
 	    }
 	}
 
-	$cmd.=" -o $indel_filter";
+	$cmd.=" --output $indel_filter";
 	$cmd.=" -L $capture" if $capture;
 	push @cmd,$cmd;
     }
-    push @cmd,"$java_opt -T CombineVariants -R $ref --genotypemergeoption UNSORTED --variant $snp_filter --variant $indel_filter -o $vcf_filter".($capture? " -L $capture":"");
+    push @cmd,"$java_opt MergeVcfs -R $ref --INPUT $snp_filter --INPUT $indel_filter -O $vcf_filter";
 }
 push @cmd,"rm -rf @remove";
 
 #generate shell script and run
+warn("Executing:", join("\n", @cmd));
 my $script=&SeqMule::Parallel::genTempScript(@cmd);
 exec $script;
 

@@ -40,6 +40,8 @@ Scenario: I sequenced an exome (with four `FASTQ` files) by nimblegen v3 array, 
 
 Explanations: `-quick` enables faster variant calling at the expense of higher memory usage; `-t 4` tells SeqMule to use 4 CPUs; `-e` for exome or captured sequencing analysis; `-m` for merging two sets of reads.
 
+If you are using GATK4, then make sure to have java 1.8 (by default, `java8`, not `java`) on your path, e.g. `PATH=PATH_TO_SEQMULE/exe/jdk8/bin` assuming you have installed jdk8 by SeqMule `Build` (run `./Build` for help).
+
 ###Fast turnaround whole genome analysis
 
 Scenario: I sequenced a genome with 30X and I need the variant ASAP. The combination of SNAP+FreeBayes is usually pretty fast. The following command uses this combination to perform analysis:

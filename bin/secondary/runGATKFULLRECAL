@@ -65,18 +65,16 @@ my @cov=split ',',$options{covariates};
 my $cmd;
 
 $cmd .= $java_opt;
-$cmd .= " -T BaseRecalibrator -R $ref --disable_indel_quals "; #rf BadCigar to skip bad reads
-$cmd.=" -knownSites $dbsnp " if $dbsnp;
-$cmd.=" -knownSites $goldindel " if $goldindel;
-$cmd.=" -nct $threads " if $threads>=2;
-$cmd.=" -I $bam -o $grp_file ";
-$cmd.=" --default_platform $pl " if $pl; #in case RG tag doesn't have platform info
+$cmd .= " BaseRecalibrator -R $ref "; #rf BadCigar to skip bad reads
+$cmd.=" --known-sites $dbsnp " if $dbsnp;
+$cmd.=" --known-sites $goldindel " if $goldindel;
+$cmd.=" -I $bam -O $grp_file ";
 $cmd.=" -L $capture " if $capture;
 $cmd.=" $options{additional} " if $options{additional} ne '';
 push @cmd,$cmd;
 $cmd = "";
 
-$cmd .= "$java_opt -T PrintReads -R $ref -I $bam -BQSR $grp_file -o $out";
+$cmd .= "$java_opt ApplyBQSR -R $ref -I $bam --bqsr-recal-file $grp_file -O $out";
 $cmd .= " -L $capture" if $capture;
 push @cmd,$cmd;
 

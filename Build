@@ -18,7 +18,6 @@ my $intro=
 "Subsequently, these variants can be annotated and filtered by ANNOVAR with either a ".
 "default or custom procedure";
 my %sys_require=( #system-wide executables required
-		'java' 		=> ['java'],
 		'GNU_Cplusplus'	=> ['g++'],
 		'gcc'		=> ['gcc'],
 		'unzip'		=> ['unzip'],
@@ -30,6 +29,7 @@ my %sys_require=( #system-wide executables required
 		'git'		=> ['git'],
 		'gzip'		=> ['gzip','gunzip'],
 		'tar'		=> ['tar'],
+		'java1.7'      => ['java'],
 );
 my %exe_require=( #core executables for each program
 		'fastqc' 	=> ['fastqc'],
@@ -38,7 +38,7 @@ my %exe_require=( #core executables for each program
 		'bwa' 		=> ['bwa'],
 		'samtools' 	=> ['samtools','bcftools'],
 		'gatklite' 	=> ['GenomeAnalysisTKLite.jar'],
-		'gatk' 		=> ['GenomeAnalysisTK.jar'],
+		'gatk4' 	=> ['gatk-package-4.2.2.0-local.jar'],
 		'picard' 	=> ['SortSam.jar','MarkDuplicates.jar'],
 		'soap'		=> ['soap'],
 		'varscan' 	=> ['varscan.jar'],
@@ -48,7 +48,7 @@ my %exe_require=( #core executables for each program
 		'freebayes'	=> ['freebayes'],
 		'snap'		=> ['snap'],
 		'vt'		=> ['vt'],
-		#'snver'	=> ['SNVerIndividual.jar'],
+		'jdk8'		=> ['java8'],
 );
 my %opt_action=(
 		'status'	=> \&SeqMule::Install::status,
@@ -63,18 +63,17 @@ my %opt_action=(
 		'bwa'	 	=> \&SeqMule::Install::bwa,
 		'samtools' 	=> \&SeqMule::Install::samtools,
 		'gatklite' 	=> \&SeqMule::Install::gatklite,
-		'gatk'		=> \&SeqMule::Install::gatk,
+		'gatk4'		=> \&SeqMule::Install::gatk4,
 		'picard' 	=> \&SeqMule::Install::picard,
 		'soap'		=> \&SeqMule::Install::soap,
 		'varscan' 	=> \&SeqMule::Install::varscan,
 		'tabix'		=> \&SeqMule::Install::tabix,
-		'java' 		=> \&SeqMule::Install::java,
 		'soapsnp' 	=> \&SeqMule::Install::soapsnp,
 		'vcftools'	=> \&SeqMule::Install::vcftools,
 		'freebayes'	=> \&SeqMule::Install::freebayes,
 		'snap'		=> \&SeqMule::Install::snap,
 		'vt'		=> \&SeqMule::Install::vt,
-		#'snver'	=> \&SeqMule::Install::snver,
+		'jdk8'		=> \&SeqMule::Install::jdk8,
 );
 
 #user input

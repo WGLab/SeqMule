@@ -6,6 +6,7 @@ bwa	http://www.openbioinformatics.org/seqmule/exe/bwa-0.7.8.tar.bz2
 samtools	http://www.openbioinformatics.org/seqmule/exe/samtools-0.1.19.tar.bz2
 picard	http://www.openbioinformatics.org/seqmule/exe/picard-tools-1.115.zip
 gatklite	http://www.openbioinformatics.org/seqmule/exe/GenomeAnalysisTKLite-latest.tar.bz2
+gatk4	https://github.com/broadinstitute/gatk/releases/download/4.2.2.0/gatk-4.2.2.0.zip
 varscan	http://www.openbioinformatics.org/seqmule/exe/VarScan.v2.3.6.jar
 bowtie2	http://www.openbioinformatics.org/seqmule/exe/bowtie2-2.2.3-source.zip
 soapsnp	http://www.openbioinformatics.org/seqmule/exe/SOAPsnp-v1.03.tar.gz
@@ -18,3 +19,4 @@ snver	http://www.openbioinformatics.org/seqmule/exe/SNVer-0.5.3.tar.gz
 freebayes	http://www.openbioinformatics.org/seqmule/exe/freebayes_0.9.14.tar.gz
 snap	http://www.openbioinformatics.org/seqmule/exe/snap_1.0beta.16.zip
 vt	http://www.openbioinformatics.org/seqmule/exe/vt-ed6bc9e.zip
+jdk8	http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.tar.gz

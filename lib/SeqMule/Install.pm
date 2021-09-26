@@ -18,12 +18,10 @@ use SeqMule::Utils;
 my @unlink;
 my $INSTALLATION_GUIDELINE="To install prerequisites, on RedHat, CentOS, Fedora, run:
 sudo yum install -y make cmake gcc gcc-c++ ncurses-devel ncurses R unzip automake autoconf git-core gzip tar
-#for java, please follow instructions on http://java.com
 
 To install prerequisites, on Ubuntu, run:
 sudo apt-get update
 sudo apt-get install -y cmake build-essential gcc g++ ncurses-base ncurses-bin ncurses-term libncurses5 libncurses5-dev r-base unzip automake autoconf git gzip tar default-jre
-#for java, please follow instructions on http://java.com
 ";
 
 sub install_dev_tools
@@ -38,7 +36,6 @@ sub install_dev_tools
     &git;
     &tar;
     &gzip;
-    &java;
 }
 
 
@@ -121,11 +118,7 @@ sub parse_locations
     } else
     {
 	$locfile = "exe_locations";
-	carp "Fetching program URLs from server\n";
-	&SeqMule::Utils::getstore("www.openbioinformatics.org/seqmule/$locfile",$locfile);
-	carp "Downloading $locfile from www.openbioinformatics.org/seqmule failed\nTry local $locfile...\n" unless (-s $locfile);
-	$nonempty_locfile=-s $locfile ? $locfile: "$install_dir/misc/$locfile";
-	push @unlink,$locfile;
+	$nonempty_locfile="$install_dir/misc/$locfile";
     }
     my %exe_locations;
     open IN,"<",$nonempty_locfile or croak "Cannot open $nonempty_locfile\n";
@@ -397,22 +390,34 @@ sub samtools
     warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
-sub gatk
+sub gatk4
 {
     my $install_dir=shift;
     my $exe_loc = shift;
     my $exe_base="$install_dir/exe";
     mkdir $exe_base unless -d $exe_base;
-    my $exe='gatk';
-    my $executable="GenomeAnalysisTK.jar";
+    my $exe='gatk4';
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
+    my $file = "$install_dir/exe/gatk-4.2.2.0.zip"; #file to save to
+    my $url = $exe_locations{$exe};
+    my $executable="gatk-package-4.2.2.0-local.jar";
+    my $cwd=cwd();
+
+    &rm_file($file);
+    &sys_rmdir("$exe_base/$exe");
     mkdir "$exe_base/$exe";
-    warn "\n\n\n";
-    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
-    warn "CAUTION: SeqMule cannot automatically install GATK due to license limitations.\n",
-         "Please download, unpack it and copy $executable to $exe_base/$exe\n";
-    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"x3;
-    warn "\n\n\n";
-    sleep 5;
+    print "Downloading $exe...\n";
+    &SeqMule::Utils::getstore($url, $file) or return &downfail($exe,$url);
+    print "Unpacking $exe archive...\n";
+    &SeqMule::Utils::extract_archive($file,$exe_base) or return &unpackfail($file); #feed extract_archive full path to zipped file
+    push(@unlink, $file);
+
+    chdir($exe_base);
+    my ($dir) = grep {-d $_} <gatk-4.*>; #dir got after unpacking
+    &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    die "Failed to find executables for $exe\n" unless (-f "$exe_base/$exe/$executable");
+    warn "\nNOTICE: Finished installing $exe\n";
+    chdir($cwd);
 }
 
 sub gatklite
@@ -467,6 +472,37 @@ sub snver
 
     chdir($exe_base);
     die "Failed to find executables for $exe\n" unless -f $executable;
+    warn "\nNOTICE: Finished installing $exe\n";
+    chdir($cwd);
+}
+sub jdk8
+{
+    my $install_dir=shift;
+    my $exe_loc = shift;
+    my $exe_base="$install_dir/exe";
+    mkdir $exe_base unless -d $exe_base;
+    my $exe='jdk8';
+    my %exe_locations=&parse_locations($install_dir,$exe_loc) or die "Cannot get URLs\n";
+    my $file = "$install_dir/exe/$exe.tar.gz"; #file to save to
+    my $url = $exe_locations{$exe};
+    my $executable="$exe_base/$exe/bin/java";
+    my $cwd=cwd();
+
+    &rm_file($file);
+    &sys_rmdir("$exe_base/$exe");
+    print "Downloading $exe...\n";
+    !system("wget -O- --no-check-certificate --no-cookies --header 'Cookie: oraclelicense=accept-securebackup-cookie' $url > $file") or return &downfail($exe,$url);
+    print "Unpacking $exe archive...\n";
+    &SeqMule::Utils::extract_archive($file,$exe_base) or return &unpackfail($file); #feed extract_archive full path to zipped file
+    push(@unlink, $file);
+
+    chdir($exe_base);
+    my $dir = "jdk1.8.0_131"; #dir got after unpacking
+    &File::Copy::move($dir,$exe) or return &movefail($dir,$exe);
+    chmod 0755,$executable or return &chmodfail($executable);
+	rename($executable, "${executable}8") or die "Failed to rename java to java8";
+	$executable = "${executable}8";
+    die "Failed to find executables for $exe\n" unless (-f $executable);
     warn "\nNOTICE: Finished installing $exe\n";
     chdir($cwd);
 }
@@ -615,7 +651,7 @@ sub msort
     my $dir = "msort"; #dir got after unpacking
     chdir("$exe_base/$dir");
     warn "Configuring $exe...\n";
-    !system("make") and -f $executable or return &makefail ($exe);
+    !system("make CPPFLAGS=\"\$\{CPPFLAGS\} -fpermissive\"") and -f $executable or return &makefail ($exe);
     warn "NOTICE: \nNOTICE: Finished installing accessoary program: $exe\n";
     chdir($cwd);
 }
@@ -918,12 +954,12 @@ sub status
     "	./Build soap		#installs SOAPaligner\n".
     "	./Build samtools	#installs SAMtools\n". 
     "	./Build gatklite	#installs GATKLite \n".
-    "	./Build gatk		#instruction for GATK setup\n".
+    "	./Build gatk4		#instruction for GATK setup\n".
     "	./Build varscan		#installs VarScan  (variant calling)\n".
     "	./Build picard		#installs Picard tools\n".
     "	./Build soapsnp		#installs SOAPsnp tools\n".
     "	./Build tabix		#installs tabix\n".
-    #"	./Build snver		#installs snver\n".
+    "	./Build jdk8		#installs JDK8\n".
     "	./Build snap		#installs SNAP\n".
     "	./Build freebayes	#installs freebayes\n".
     "	./Build vcftools	#installs vcftools\n".

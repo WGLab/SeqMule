@@ -69,7 +69,8 @@ This command takes FASTQ/BAM files, various options and an optional advanced con
                                   Default: unlimited.
         --quick,-q                enable parallel processing at variant calling
         --jmem <STRING>           max memory used for java virtual machine. Default: 1750m.
-        --jexe <STRING>           Java executable path. Default: java
+        --jexe <STRING>           Java1.7 executable path. Default: java
+        --j8exe <STRING>          Java1.8 executable path. Default: java8
         --gatknt <INT>            number of threads for GATK. Prevent GATK from opening 
                                   too many files. Default: 2.
         --advanced [FILE]         generate or use an advanced configuration file
