@@ -97,13 +97,6 @@ my $original="../advanced_config";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatk_UnifiedGenotyper_norecal.config";
-    my $regex=
-    "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
-    &procOriginal($out,$regex);
-}
-{
     my $out="bowtie2_gatk_HaplotypeCaller.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
@@ -116,13 +109,6 @@ my $original="../advanced_config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
     "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
-    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
-    &procOriginal($out,$regex);
-}
-{
-    my $out="bowtie2_gatk_HaplotypeCaller_norecal.config";
-    my $regex=
-    "s/bowtie2=0/bowtie2=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }
@@ -261,13 +247,6 @@ my $original="../advanced_config";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatk_UnifiedGenotyper_norecal.config";
-    my $regex=
-    "s/bwamem=0/bwamem=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
-    &procOriginal($out,$regex);
-}
-{
     my $out="bwa_gatk_HaplotypeCaller.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
@@ -280,13 +259,6 @@ my $original="../advanced_config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
     "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
-    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
-    &procOriginal($out,$regex);
-}
-{
-    my $out="bwa_gatk_HaplotypeCaller_norecal.config";
-    my $regex=
-    "s/bwamem=0/bwamem=1/;".
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
     &procOriginal($out,$regex);
 }

@@ -118,9 +118,6 @@ if ($options{filter}==1) {
 	}
 #existence of various db has been checked
 	$cmd.=" --resource:hapmap,known=false,training=true,truth=true,prior=15.0 $hapmap --resource:omni,known=false,training=true,truth=false,prior=12.0 $kg --resource:dbsnp,known=true,training=false,truth=false,prior=6.0 $dbsnp -mode SNP -recalFile $recal_file -tranchesFile $tranches";
-	if ($nt > 1) {
-            warn("GATK4 VariantRecalibrator only uses 1 thread.");
-        }
 
 	$cmd.=" -rscriptFile $plots";
 	$cmd.=" -L $capture" if $capture;
