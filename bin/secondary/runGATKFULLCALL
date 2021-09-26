@@ -71,13 +71,13 @@ my @cmd;
     {
 	if ($internal_caller eq 'haplotypecaller')
 	{
-	    $cmd.=" -nct $nt";
+	    $cmd.=" --native-pair-hmm-threads $nt";
 	} else
 	{
 	    $cmd.=" -nt $nt";
 	}
     }
-    $cmd.=" -o $vcf";
+    $cmd.=" --output $vcf";
     $cmd.=" -L $capture" if $capture;
     push @cmd,$cmd;
 }
