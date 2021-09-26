@@ -81,22 +81,6 @@ my $original="../advanced_config";
 #    &procOriginal($out,$regex);
 #}
 {
-    my $out="bowtie2_gatk_UnifiedGenotyper.config";
-    my $regex=
-    "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
-    &procOriginal($out,$regex);
-}
-{
-    my $out="bowtie2_gatk_UnifiedGenotyper_norealn_norecal.config";
-    my $regex=
-    "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
-    &procOriginal($out,$regex);
-}
-{
     my $out="bowtie2_gatk_HaplotypeCaller.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
@@ -113,16 +97,6 @@ my $original="../advanced_config";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bowtie2_gatk_UnifiedGenotyper_samtools.config";
-    my $regex=
-    "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
-    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
-    "s/samtools_mpileup=0/samtools_mpileup=1/;";
-    &procOriginal($out,$regex);
-}
-{
     my $out="bowtie2_gatk_HaplotypeCaller_samtools.config";
     my $regex=
     "s/bowtie2=0/bowtie2=1/;".
@@ -130,19 +104,6 @@ my $original="../advanced_config";
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
-    &procOriginal($out,$regex);
-}
-
-{
-    my $out="bowtie2_gatk_UnifiedGenotyper_samtools_varscan.config";
-    my $regex=
-    "s/bowtie2=0/bowtie2=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
-    "s/samtools_mpileup=0/samtools_mpileup=1/;".
-    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
-    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
-    "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
 {
@@ -231,22 +192,6 @@ my $original="../advanced_config";
 #    &procOriginal($out,$regex);
 #}
 {
-    my $out="bwa_gatk_UnifiedGenotyper.config";
-    my $regex=
-    "s/bwamem=0/bwamem=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
-    &procOriginal($out,$regex);
-}
-{
-    my $out="bwa_gatk_UnifiedGenotyper_norealn_norecal.config";
-    my $regex=
-    "s/bwamem=0/bwamem=1/;".
-    "s/gatk_originalBAM=0/gatk_originalBAM=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
-    &procOriginal($out,$regex);
-}
-{
     my $out="bwa_gatk_HaplotypeCaller.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
@@ -263,16 +208,6 @@ my $original="../advanced_config";
     &procOriginal($out,$regex);
 }
 {
-    my $out="bwa_gatk_UnifiedGenotyper_samtools.config";
-    my $regex=
-    "s/bwamem=0/bwamem=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
-    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
-    "s/samtools_mpileup=0/samtools_mpileup=1/;";
-    &procOriginal($out,$regex);
-}
-{
     my $out="bwa_gatk_HaplotypeCaller_samtools.config";
     my $regex=
     "s/bwamem=0/bwamem=1/;".
@@ -280,18 +215,6 @@ my $original="../advanced_config";
     "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;".
     "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
     "s/samtools_mpileup=0/samtools_mpileup=1/;";
-    &procOriginal($out,$regex);
-}
-{
-    my $out="bwa_gatk_UnifiedGenotyper_samtools_varscan.config";
-    my $regex=
-    "s/bwamem=0/bwamem=1/;".
-    "s/gatk_recal=0/gatk_recal=1/;".
-    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;".
-    "s/samtools_mpileup=0/samtools_mpileup=1/;".
-    "s/samtools_originalBAM=0/samtools_originalBAM=1/;".
-    "s/varscan_originalBAM=0/varscan_originalBAM=1/;".
-    "s/varscan=0/varscan=1/;";
     &procOriginal($out,$regex);
 }
 {
@@ -377,14 +300,6 @@ my $original="../advanced_config";
 #    "s/bwamem=0/bwamem=1/;".
 #    "s/gatk_recal=0/gatk_recal=1/;".
 #    "s/gatk_HaplotypeCaller=0/gatk_HaplotypeCaller=1/;";
-#    &procOriginal($out,$regex);
-#}
-#{
-#    my $out="bwa_backtrack_gatk_UnifiedgenoTyper.config";
-#    my $regex=
-#    "s/bwamem=0/bwamem=1/;".
-#    "s/gatk_recal=0/gatk_recal=1/;".
-#    "s/gatk_UnifiedGenotyper=0/gatk_UnifiedGenotyper=1/;";
 #    &procOriginal($out,$regex);
 #}
 ##################BOWTIE1###################
