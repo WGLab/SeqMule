@@ -49,6 +49,9 @@ lls, generating coverage/alignment statistics in specific genomic regions, calcu
 **See `doc/User Manual/Manuals` for details**
 
 
+## Docker image
+https://hub.docker.com/repository/docker/whaleuuu/seqmule
+
 ## Revision History
 
 For release history, please visit [here](https://github.com/WGLab/SeqMule/releases). For details, please go [here](https://github.com/WangGenomicsLab/SeqMule/commits/master).
@@ -71,4 +74,4 @@ Guo Y, Ding X, Shen Y, Lyon GJ, Wang K. [SeqMule: automated human exome/genome v
 
 
 
-Copyright 2014-2016 [USC Wang Lab](http://wglab.org)
+Copyright 2014-2021 [USC Wang Lab](http://wglab.org)

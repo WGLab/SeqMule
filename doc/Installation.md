@@ -4,7 +4,7 @@ x86-64 Linux
 
 #### Tested Linux distributions
 
-If you successfully run SeqMule on other platforms or distributions, please email [me](mailto:guoyunfei1989@gmail.com).
+If you successfully run SeqMule on other platforms or distributions, please email [me](mailto:guoyunfei2008@outlook.com).
 
 + CentOS release 7.2.1511 (Core) via Docker 1.12.6 (build 3a094bd/1.12.6)
 + CentOS release 6.6 (Final)
@@ -18,7 +18,7 @@ Many thanks to Amet Umerov.
 ### Prerequisites
 
 perl, make, cmake, gcc, g++ (4.4.7 or 4.6.3), curses.h, R, unzip, automake, autoconf, git,
-gzip, tar, java
+gzip, tar, java 1.7 (for GATKLite, by default use `java` on `PATH`), java 1.8 (for GATK4, by default use `java8` on `PATH`)
 
 
 ### Download and Install
@@ -40,6 +40,10 @@ Alternatively, you can use the following command to just install MISSING program
 	./Build installexes
 
 Due to copyright limitations, you have to download and install GATK (GATKLite does not need to install manually) yourself. Use `./Build gatk` to get instructions. If everything goes smooth, you are ready to go. Enjoy!
+
+### Docker image
+The docker image comes with all dependencies installed and all database files required for [example](doc/Tutorials/Quick%20start.md#quick-start)
+https://hub.docker.com/repository/docker/whaleuuu/seqmule
 
 ### NOTES
 
@@ -93,4 +97,4 @@ If you don't know which shell (bash/tcsh/csh etc.) you are using, type the follo
 SOAPsnp can only be compiled by certain versions of g++. We have tested 4.4.7 and 4.6.3. Please use these versions if you encounter compilation issues for SOAPsnp. If you don't plan to use SOAPsnp, you can ignore this issue.
 
 
-Copyright 2014 [USC Wang Lab](http://genomics.usc.edu)
+Copyright 2014-2021 [Wang Genomics Lab](https://wglab.org/)
