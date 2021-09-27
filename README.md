@@ -50,7 +50,7 @@ lls, generating coverage/alignment statistics in specific genomic regions, calcu
 
 
 ## Docker image
-https://hub.docker.com/repository/docker/whaleuuu/seqmule
+https://hub.docker.com/repository/docker/genomicslab/seqmule
 
 ## Revision History
 

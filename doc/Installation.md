@@ -42,8 +42,8 @@ Alternatively, you can use the following command to just install MISSING program
 Due to copyright limitations, you have to download and install GATK (GATKLite does not need to install manually) yourself. Use `./Build gatk` to get instructions. If everything goes smooth, you are ready to go. Enjoy!
 
 ### Docker image
-The docker image comes with all dependencies installed and all database files required for [example](doc/Tutorials/Quick%20start.md#quick-start)
-https://hub.docker.com/repository/docker/whaleuuu/seqmule
+The docker image comes with all dependencies installed and all database files required for [example](Tutorials/Quick%20start.md#quick-start)
+https://hub.docker.com/repository/docker/genomicslab/seqmule
 
 ### NOTES
 
